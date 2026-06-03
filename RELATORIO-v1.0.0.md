@@ -121,12 +121,16 @@ páginas):
   (reimportar preserva telefone; reserva sumida vira `ativo:false`); **fallback** (sem IndexedDB
   o app funciona em memória e renderiza).
 
-**Total: 57/57 testes automatizados passando.** Versão `v1.0.0` confirmada visível no rodapé.
+- **End-to-end no navegador real (Playwright + Chromium, servido por HTTP):** **17/17 ✓** —
+  importação do PDF real; **amarelos renderizados na seção GRANDE** (bug corrigido, confirmado
+  visualmente); contadores e tooltip; aba Contato lista 95 reservas com **nº PMS + nº OTA**;
+  filtro Confirmados com subtítulos; colar telefone → **resolvido** → **`wa.me/5547998765432`**
+  com mensagem; **persistência real** (recarregar a página mantém reservas e telefone via
+  IndexedDB); **zero erros de console**. Screenshots: `Desktop/v1.0.0-mapa.png` e
+  `Desktop/v1.0.0-contato.png`.
 
-> Observação: a renderização visual final e o clique real no `wa.me` dependem do navegador
-> (ambiente sem display aqui). A lógica e o fluxo DOM/IndexedDB foram exercitados via jsdom.
-> Recomenda-se ao Douglas a conferência visual rápida (itens do roteiro [6] 1–11) abrindo o
-> standalone no Chrome com o PDF real.
+**Total: 74/74 testes automatizados passando** (38 engine + 19 jsdom + 17 navegador real).
+Versão `v1.0.0` confirmada visível no rodapé.
 
 ---
 
@@ -162,6 +166,7 @@ Ou restaurar a partir de `garagem-app/index.html.bak-pre-v1.0.0`.
   a contagem de vagas; o registro ainda aparece. Melhorar a regex de apto numa próxima versão.
 - **Telefone só de OTA não vem no PDF** (Booking/Expedia) — por isso o campo manual. O nº OTA é
   exibido para o Douglas localizar o hóspede na plataforma e copiar o telefone.
-- **Conferência visual no navegador** pendente (recomendada) — ver observação no item 4.
+- **Conferência visual no navegador:** FEITA (Playwright/Chromium, 17/17 ✓ + screenshots no
+  Desktop). Recomenda-se ainda ao Douglas um olhar rápido no fluxo real do dia a dia.
 - **Edição manual (arrastar)** não entra na v1.0.0 — planejada para **v1.1.0**.
 - **Envio em massa** continua fora (premium, exige backend — ver `PLANEJAMENTO.md`).
