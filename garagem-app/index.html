@@ -249,6 +249,24 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .envio-acoes{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
 .envio-nota{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5}
 @media(max-width:600px){.gestao-wrap{max-width:100%}.envio-acoes{flex-direction:column;align-items:stretch}.envio-acoes .wa-btn{justify-content:center}}
+/* ════════ v1.3.0 — EDIÇÃO MANUAL (arraste / mover de vaga) ════════ */
+.cell-span.arrastavel{cursor:grab}
+body.arrastando{cursor:grabbing;-webkit-user-select:none;user-select:none}
+body.arrastando .cell-span{cursor:grabbing}
+.cell-span.arrastando-orig{opacity:.35}
+.cell-span.tem-ajuste{box-shadow:0 0 0 1px var(--verde) inset}
+.ajuste-mao{margin-right:3px}
+/* destaque da LINHA (vaga) alvo sob o cursor — a coluna/data é ignorada */
+.row-cells.vaga-alvo{outline:2px dashed var(--azul);outline-offset:1px;background:var(--azul-bg);border-radius:6px}
+/* ghost que segue o cursor (só vertical) */
+.drag-ghost{position:fixed;z-index:10050;pointer-events:none;opacity:.6;border-radius:5px;
+  border:1.5px solid var(--azul);background:var(--surface);display:flex;align-items:center;padding:0 6px;overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.drag-ghost .cell-inner{overflow:hidden;width:100%;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.drag-ghost .cell-nome{font-size:10px;font-weight:700;line-height:1.3}
+.drag-ghost .cell-info{font-size:8px;color:var(--muted)}
+.mover-conflito{background:var(--vermelho-bg);border:1px solid var(--vermelho);color:var(--vermelho);
+  padding:8px 11px;border-radius:8px;font-size:12px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -328,6 +346,7 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
   <div class="leg"><div class="legbox" style="background:var(--vermelho-bg);border:1px solid var(--vermelho)"></div>Overbooking</div>
   <div class="leg"><div class="legbox" style="background:var(--moto-bg);border:1px solid var(--moto)"></div>Moto</div>
   <div class="leg"><div class="legbox" style="border:2px dashed var(--laranja)"></div>Grande em vaga pequena</div>
+  <div class="leg"><span style="font-size:13px">✋</span>posição ajustada manualmente</div>
   <div class="leg"><div class="legbox" style="background:var(--cell-livre);border:1px solid var(--border)"></div>Livre</div>
 </div>
 
@@ -392,6 +411,36 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
     </div>
   </div>
 </div>
+
+<!-- v1.3.0 — modal de confirmação de MOVER de vaga (data nunca muda) -->
+<div id="mover-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)cancelarMover()">
+  <div class="modal-card">
+    <div class="modal-head"><b>Mover de vaga</b><button class="modal-x" onclick="cancelarMover()" aria-label="Fechar">✕</button></div>
+    <div class="modal-body">
+      <p id="mover-texto"></p>
+      <p id="mover-conflito" class="mover-conflito" style="display:none"></p>
+      <div class="envio-acoes">
+        <button class="btn btn-ghost" onclick="cancelarMover()">Cancelar</button>
+        <button class="btn btn-primary" id="mover-confirmar" onclick="confirmarMover()">Confirmar</button>
+      </div>
+      <div class="envio-nota">As datas vêm do PMS (PDF) e não podem ser alteradas pelo aplicativo — o arraste muda apenas a vaga.</div>
+    </div>
+  </div>
+</div>
+
+<!-- v1.3.0 — modal de DETALHE da reserva (clique abaixo do limiar) -->
+<div id="detalhe-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)fecharDetalhe()">
+  <div class="modal-card">
+    <div class="modal-head"><b>Detalhe da reserva</b><button class="modal-x" onclick="fecharDetalhe()" aria-label="Fechar">✕</button></div>
+    <div class="modal-body">
+      <div id="detalhe-corpo"></div>
+      <div class="envio-acoes" id="detalhe-acoes"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ghost do arraste -->
+<div id="drag-ghost" class="drag-ghost" style="display:none"></div>
 <div class="footer">Reserva de Garagem · Hotel Gumz — Projeto Apollo · <b id="footer-version">v0.0.0</b></div>
 
 <script>
@@ -401,7 +450,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.2.0';
+const APP_VERSION='v1.3.0';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -655,7 +704,9 @@ function empilhar(reservas){
 }
 
 // alocarVagas: coração do mapa. Confirmados protegidos; amarelos preenchem buracos; excedente vai p/ overbooking.
-function alocarVagas(rP){
+// v1.3.0: parâmetro OPCIONAL `seed` ({linhasP,linhasG}) permite começar com linhas já ocupadas
+// (pelas reservas fixadas manualmente). Sem `seed` o comportamento é EXATAMENTE o da v1.0.0.
+function alocarVagas(rP,seed){
   const NP=18,NG=14;
   rP.forEach(r=>{delete r._aloc;delete r._grandeEmPequena;delete r._over;});
 
@@ -665,8 +716,8 @@ function alocarVagas(rP){
   const confLarge=rP.filter(r=>r.garagem==='azul_grande'||r.garagem==='laranja_grande');
   const amarelos=rP.filter(r=>r.garagem==='amarelo');
 
-  const linhasP=Array.from({length:NP},()=>[]);
-  const linhasG=Array.from({length:NG},()=>[]);
+  const linhasP=(seed&&seed.linhasP)?seed.linhasP:Array.from({length:NP},()=>[]);
+  const linhasG=(seed&&seed.linhasG)?seed.linhasG:Array.from({length:NG},()=>[]);
   const overflow=[];
 
   const ordEnt=(a,b)=>a.entrada-b.entrada;
@@ -988,6 +1039,63 @@ function decidirGestaoImport(localGestao,importadoGestao,modo){
   // mesclar (padrão): só aplica se não houver config local relevante
   return temLocal?{aplicar:false,gestao:localGestao}:{aplicar:true,gestao:gestaoNormalizar(importadoGestao)};
 }
+
+/* ─────────────── v1.3.0 — EDIÇÃO MANUAL (mover de vaga; data proibida) ─────────────── */
+
+// Tipos de reserva que são CARRO (arrastáveis / fixáveis). Moto fica de fora.
+function ehReservaCarro(r){
+  return!!r&&['azul_pequeno','azul_grande','laranja_pequeno','laranja_grande','amarelo'].includes(r.garagem);
+}
+// Vaga manual válida: "P1".."P18" ou "G1".."G14".
+function vagaValida(v){
+  if(typeof v!=='string')return false;
+  const m=v.match(/^([PG])(\d{1,2})$/);if(!m)return false;
+  const n=parseInt(m[2]);
+  return m[1]==='P'?(n>=1&&n<=18):(n>=1&&n<=14);
+}
+
+// detectarConflito (pura): a reserva mantém SEMPRE as datas originais; verifica se algum
+// ocupante atual da vaga alvo (exceto a própria) tem período sobreposto. Não desloca nada.
+function detectarConflito(reservaOrig,vagaAlvo,ocupantesDaVaga){
+  if(!reservaOrig)return{conflito:false,comQuem:null};
+  const outros=(ocupantesDaVaga||[]).filter(r=>r&&r!==reservaOrig&&r.nro!==reservaOrig.nro);
+  const c=outros.find(r=>sobrepoe(r,reservaOrig));
+  return{conflito:!!c,comQuem:c?(c.nomeCompleto||c.nome||null):null};
+}
+
+// aplicarAjustes (pura): posiciona primeiro as reservas fixadas (carros com ajuste válido) na
+// sua vaga manual MANTENDO AS DATAS ORIGINAIS; depois roda a alocação automática (inalterada)
+// para as livres no espaço restante. Fallback total ao automático em caso de erro.
+function aplicarAjustes(reservas,ajustes){
+  try{
+    ajustes=ajustes||{};
+    const rP=reservas||[];
+    // limpa flags para não vazar estado entre renders
+    rP.forEach(r=>{delete r._aloc;delete r._over;delete r._grandeEmPequena;delete r.ajusteManual;delete r._vagaManual;});
+    // 1 ajuste por nro (1º bloco de carro daquele nro); evita duplicar vaga em reserva multi-carro
+    const fixadasPorNro={};
+    rP.forEach(r=>{
+      const aj=ajustes[r.nro];
+      if(aj&&ehReservaCarro(r)&&vagaValida(aj.vagaIdManual)&&!fixadasPorNro[r.nro])fixadasPorNro[r.nro]=r;
+    });
+    const fixadas=Object.values(fixadasPorNro);
+    const fixSet=new Set(fixadas);
+    const livres=rP.filter(r=>!fixSet.has(r));
+    if(!fixadas.length)return alocarVagas(rP); // nada fixado → 100% automático
+    const seedP=Array.from({length:18},()=>[]);
+    const seedG=Array.from({length:14},()=>[]);
+    fixadas.forEach(r=>{
+      const v=ajustes[r.nro].vagaIdManual;
+      const sec=v[0],idx=parseInt(v.slice(1))-1;
+      r.ajusteManual=true;r._vagaManual=v;r._aloc=sec;
+      (sec==='P'?seedP:seedG)[idx].push(r);
+    });
+    return alocarVagas(livres,{linhasP:seedP,linhasG:seedG});
+  }catch(e){
+    // app nunca quebra: cai para o automático puro
+    try{return alocarVagas(reservas||[]);}catch(_){return{linhasP:[],linhasG:[],vagaMoto:[],overflowLinhas:[],overflow:[]};}
+  }
+}
 // ===ENGINE END===
 /* ═══════════════════════════════════════════════════════════
    ENGINE END
@@ -1103,7 +1211,8 @@ function trocarAba(aba){
   const el=()=>document.getElementById('mapa-wrapper');
   document.addEventListener('mousedown',(e)=>{
     const w=el();if(!w||!w.contains(e.target))return;
-    if(e.target.closest('input,textarea,button,a'))return;
+    // v1.3.0: blocos de reserva tratam o próprio pointer (arraste/clique) — não disparam scroll.
+    if(e.target.closest('input,textarea,button,a,.cell-span'))return;
     isDown=true;startX=e.pageX-w.offsetLeft;scrollLeft=w.scrollLeft;
     w.classList.add('grabbing');
   });
@@ -1180,7 +1289,7 @@ function ativasNoPeriodo(){
 }
 
 /* ═══════════ INDEXEDDB (B1) — com fallback em memória ═══════════ */
-const DB_NAME='garagemGumz',DB_VER=2; // v1.2.0: +store 'gestao' (migração não-destrutiva)
+const DB_NAME='garagemGumz',DB_VER=3; // v1.3.0: +store 'ajustes' (migração não-destrutiva)
 let db=null,dbOk=false;
 
 function abrirDB(){
@@ -1194,6 +1303,8 @@ function abrirDB(){
       if(!d.objectStoreNames.contains('contatos'))d.createObjectStore('contatos',{keyPath:'nro'});
       // v1.2.0 — cria 'gestao' apenas se não existir; NÃO toca em reservas/contatos.
       if(!d.objectStoreNames.contains('gestao'))d.createObjectStore('gestao',{keyPath:'id'});
+      // v1.3.0 — cria 'ajustes' (edição manual, chave nro) só se não existir; NÃO toca nos demais.
+      if(!d.objectStoreNames.contains('ajustes'))d.createObjectStore('ajustes',{keyPath:'nro'});
     };
     req.onsuccess=(e)=>{db=e.target.result;dbOk=true;resolve(true);};
     req.onerror=()=>resolve(false);
@@ -1219,6 +1330,12 @@ function dbPutMany(store,arr){
 function dbPut(store,obj){
   return new Promise((res,rej)=>{
     try{const r=tx(store,'readwrite').put(obj);r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error);}
+    catch(e){rej(e);}
+  });
+}
+function dbDelete(store,key){
+  return new Promise((res,rej)=>{
+    try{const r=tx(store,'readwrite').delete(key);r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error);}
     catch(e){rej(e);}
   });
 }
@@ -1327,7 +1444,8 @@ function renderMapa(){
   if(!datas.length)return;
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const rP=ativasNoPeriodo();
-  const aloc=alocarVagas(rP);
+  const aloc=aplicarAjustes(rP,ajustesMap); // v1.3.0: aplica ajustes manuais sobre o automático
+  ultimaAlocacao=aloc;                       // referência p/ resolver ocupantes da vaga no drop
   calcContadores(aloc,dataInicio<=hoje&&hoje<=dataFim?hoje:dataInicio);
   renderSecaoLinhas(container,aloc.linhasP,datas,'P','▸ Carros Pequenos — 18 vagas',hoje,false);
   renderSecaoLinhas(container,aloc.linhasG,datas,'G','▸ Camionetes / Grandes — 14 vagas',hoje,false);
@@ -1386,9 +1504,11 @@ function mkDatesRow(datas,hoje){
 
 function mkRow(label,linha,datas,isOver,isMoto){
   const row=document.createElement('div');row.className='vaga-row';
+  const arrastavel=!isOver&&!isMoto; // v1.3.0: só vagas de carro (P/G) recebem arraste
   const lbl=document.createElement('div');lbl.className='row-label';lbl.textContent=label;
   row.appendChild(lbl);
   const wrap=document.createElement('div');wrap.className='row-cells';
+  if(arrastavel)wrap.dataset.vaga=label; // alvo do drop resolvido por identificador (independe da ordenação)
   datas.forEach(()=>{const c=document.createElement('div');c.className='cell';wrap.appendChild(c);});
   linha.forEach(res=>{
     const ehPar=res._ehParMoto===true;
@@ -1413,10 +1533,18 @@ function mkRow(label,linha,datas,isOver,isMoto){
       addTTPar(span,res.res1,res.res2);
     } else {
       const aviso=res._grandeEmPequena?'⚠ ':'';
+      const mao=res.ajusteManual?'<span class="ajuste-mao" title="Posição ajustada manualmente">✋</span>':'';
       // 5.2 — nº PMS clicável para copiar (com fallback file://); não dispara o arraste.
       const nroSpan=`<span class="copyable" title="Clique para copiar o nº PMS" onclick="event.stopPropagation();copiarTexto('${res.nro}')">#${res.nro}</span>`;
       const infoLabel=res._labelExtra?`${res._labelExtra} · Ap ${res.apto}`:`${nroSpan} · Ap ${res.apto}`;
-      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
+      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${mao}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
+      if(res.ajusteManual)span.classList.add('tem-ajuste');
+      // 5.4 — arraste só de vaga (Pointer Events) nas seções de carro; clique abre detalhe.
+      if(arrastavel){
+        span.classList.add('arrastavel');
+        span.style.touchAction='none';
+        span.addEventListener('pointerdown',(ev)=>iniciarArraste(ev,res,span));
+      }
       addTT(span,res,isOver||!!res._over,isMoto);
     }
     wrap.appendChild(span);
@@ -1528,7 +1656,7 @@ function setContatoFiltro(f){
 // Agrupa por nº PMS (nro): uma reserva pode ocupar vários aptos/vagas.
 function reservasContato(){
   const rP=ativasNoPeriodo();
-  alocarVagas(rP); // tagueia _aloc/_over/_grandeEmPequena
+  aplicarAjustes(rP,ajustesMap); // tagueia _aloc/_over/_grandeEmPequena considerando ajustes manuais
   const map={};
   rP.forEach(r=>{
     if(!map[r.nro]){
@@ -1937,11 +2065,171 @@ async function aplicarImport(obj,modo){
     if(dbOk)await dbPutMany('reservas',stores.reservas);
     msgs.push(`${stores.reservas.length} reservas substituídas`);
   }
+  // AJUSTES MANUAIS (v1.3.0) — mesclar: só nros ausentes; substituir: repõe. Não-destrutivo.
+  const impAjustes=Array.isArray(stores.ajustes)?stores.ajustes:[];
+  if(modo==='mesclar'){
+    const locaisAj=dbOk?await dbGetAll('ajustes'):Object.entries(ajustesMap).map(([nro,a])=>({nro,...a}));
+    const {novos}=mesclarContatos(locaisAj,impAjustes); // mesma lógica (chave nro)
+    if(dbOk&&novos.length)await dbPutMany('ajustes',novos);
+  }else if(impAjustes.length){
+    if(dbOk)await dbPutMany('ajustes',impAjustes);
+  }
+  if(dbOk)await carregarAjustes();
   if(dbOk)await carregarDoBanco();else anexarTelefones();
   if(abaAtual==='contato')renderContato();
   renderGestao();
   mostrarResultadoBackup('✔ '+msgs.join('; ')+'.');
 }
+
+/* ═══════════════════════ v1.3.0 — EDIÇÃO MANUAL (mover de vaga) ═══════════════════════ */
+let ajustesMap={};        // nro → {vagaIdManual, criadoEm, atualizadoEm}
+let ultimaAlocacao=null;  // última alocação renderizada (p/ resolver ocupantes da vaga no drop)
+let dragState=null;       // estado do arraste em curso
+let moverCtx=null;        // contexto do modal "mover de vaga"
+const DRAG_LIMIAR=5;      // px — abaixo disso é clique (abre detalhe), não arraste
+
+// ── Persistência dos ajustes (store 'ajustes', chave nro) — só a edição manual escreve ──
+async function carregarAjustes(){
+  ajustesMap={};
+  if(!dbOk)return;
+  try{(await dbGetAll('ajustes')).forEach(a=>{if(a&&a.nro!=null)ajustesMap[a.nro]={vagaIdManual:a.vagaIdManual,criadoEm:a.criadoEm,atualizadoEm:a.atualizadoEm};});}
+  catch(e){console.warn('carregar ajustes falhou',e);}
+}
+async function salvarAjuste(nro,vagaIdManual){
+  const agora=Date.now();
+  const ant=ajustesMap[nro];
+  const reg={nro:String(nro),vagaIdManual,criadoEm:ant&&ant.criadoEm?ant.criadoEm:agora,atualizadoEm:agora};
+  ajustesMap[nro]={vagaIdManual:reg.vagaIdManual,criadoEm:reg.criadoEm,atualizadoEm:reg.atualizadoEm};
+  if(dbOk){try{await dbPut('ajustes',reg);}catch(e){console.warn('salvar ajuste falhou',e);}}
+  rerenderMapaEContato();
+}
+async function removerAjuste(nro){
+  delete ajustesMap[nro];
+  if(dbOk){try{await dbDelete('ajustes',String(nro));}catch(e){console.warn('remover ajuste falhou',e);}}
+  rerenderMapaEContato();
+}
+function rerenderMapaEContato(){
+  if(todasReservas.length)renderMapa();
+  if(abaAtual==='contato')renderContato();
+}
+
+// ── Resolver ocupantes atuais de uma vaga (a partir da última alocação) ──
+function ocupantesDaVaga(vagaId){
+  if(!ultimaAlocacao||!vagaValida(vagaId))return[];
+  const sec=vagaId[0],idx=parseInt(vagaId.slice(1))-1;
+  const linhas=sec==='P'?ultimaAlocacao.linhasP:ultimaAlocacao.linhasG;
+  return(linhas&&linhas[idx])?linhas[idx].filter(r=>!r._ehParMoto):[];
+}
+
+// ── Arraste (Pointer Events): só troca de vaga; data nunca muda ──
+function iniciarArraste(ev,res,span){
+  if(ev.button!=null&&ev.button!==0)return; // só botão esquerdo
+  dragState={res,span,startX:ev.clientX,startY:ev.clientY,moving:false,pointerId:ev.pointerId,
+    vagaOrig:(span.closest('[data-vaga]')||{}).dataset?span.closest('[data-vaga]').dataset.vaga:null,
+    origRect:span.getBoundingClientRect()};
+  document.addEventListener('pointermove',arrasteMove);
+  document.addEventListener('pointerup',arrasteUp);
+  document.addEventListener('pointercancel',arrasteUp);
+}
+function arrasteMove(ev){
+  if(!dragState)return;
+  const dx=ev.clientX-dragState.startX,dy=ev.clientY-dragState.startY;
+  if(!dragState.moving){
+    if(Math.hypot(dx,dy)<DRAG_LIMIAR)return; // limiar anti-arraste-acidental
+    dragState.moving=true;
+    const tt=document.getElementById('tooltip');if(tt)tt.classList.remove('show');
+    criarGhost(dragState.span);
+    dragState.span.classList.add('arrastando-orig');
+    document.body.classList.add('arrastando');
+  }
+  posicionarGhost(ev);
+  destacarVagaAlvo(ev);
+}
+function criarGhost(span){
+  const g=document.getElementById('drag-ghost');
+  g.innerHTML=span.innerHTML;
+  g.className='drag-ghost '+span.className.replace('cell-span','').replace('arrastando-orig','');
+  g.style.width=dragState.origRect.width+'px';
+  g.style.height=dragState.origRect.height+'px';
+  g.style.display='block';
+}
+function posicionarGhost(ev){
+  const g=document.getElementById('drag-ghost');
+  // X travado na posição original (a coluna/data NÃO muda); só acompanha verticalmente o cursor.
+  g.style.left=dragState.origRect.left+'px';
+  g.style.top=(ev.clientY-dragState.origRect.height/2)+'px';
+}
+function destacarVagaAlvo(ev){
+  limparDestaqueVagas();
+  const el=document.elementFromPoint(ev.clientX,ev.clientY);
+  const wrap=el&&el.closest&&el.closest('[data-vaga]');
+  if(wrap)wrap.classList.add('vaga-alvo');
+}
+function limparDestaqueVagas(){document.querySelectorAll('.vaga-alvo').forEach(e=>e.classList.remove('vaga-alvo'));}
+function limparGhost(){const g=document.getElementById('drag-ghost');if(g){g.style.display='none';g.innerHTML='';}}
+function arrasteUp(ev){
+  document.removeEventListener('pointermove',arrasteMove);
+  document.removeEventListener('pointerup',arrasteUp);
+  document.removeEventListener('pointercancel',arrasteUp);
+  const st=dragState;dragState=null;
+  if(!st)return;
+  limparGhost();limparDestaqueVagas();
+  document.body.classList.remove('arrastando');
+  if(st.span)st.span.classList.remove('arrastando-orig');
+  if(!st.moving){abrirDetalheReserva(st.res);return;} // abaixo do limiar → clique = detalhe
+  const el=document.elementFromPoint(ev.clientX,ev.clientY);
+  const wrap=el&&el.closest&&el.closest('[data-vaga]');
+  const vagaAlvo=wrap?wrap.dataset.vaga:null;
+  if(!vagaAlvo||vagaAlvo===st.vagaOrig)return; // sem alvo válido ou mesma vaga → cancela silencioso
+  const conf=detectarConflito(st.res,vagaAlvo,ocupantesDaVaga(vagaAlvo));
+  abrirModalMover(st.res,st.vagaOrig,vagaAlvo,conf);
+}
+
+// ── Modal "mover de vaga" (confirmação obrigatória) ──
+function abrirModalMover(res,vagaOrig,vagaAlvo,conf){
+  moverCtx={nro:res.nro,vagaAlvo};
+  const dt=`${fmtData(res.entrada)}–${fmtData(res.saida)}`;
+  document.getElementById('mover-texto').innerHTML=
+    `Mover <b>${escapeHtml(res.nomeCompleto)}</b> da vaga <b>${escapeHtml(vagaOrig||'—')}</b> para a vaga <b>${escapeHtml(vagaAlvo)}</b>?<br>As datas (<b>${dt}</b>) não mudam.`;
+  const elc=document.getElementById('mover-conflito');
+  if(conf&&conf.conflito){
+    elc.style.display='block';
+    elc.innerHTML=`⚠ A vaga <b>${escapeHtml(vagaAlvo)}</b> já tem <b>${escapeHtml(conf.comQuem||'outra reserva')}</b> em datas sobrepostas. Mover mesmo assim?`;
+  }else elc.style.display='none';
+  document.getElementById('mover-modal').style.display='flex';
+}
+function cancelarMover(){moverCtx=null;document.getElementById('mover-modal').style.display='none';}
+async function confirmarMover(){
+  if(!moverCtx)return;
+  const {nro,vagaAlvo}=moverCtx;moverCtx=null;
+  document.getElementById('mover-modal').style.display='none';
+  await salvarAjuste(nro,vagaAlvo);
+}
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape'){if(document.getElementById('mover-modal').style.display==='flex')cancelarMover();if(document.getElementById('detalhe-modal').style.display==='flex')fecharDetalhe();}});
+
+// ── Modal de detalhe (clique abaixo do limiar) + "voltar ao automático" ──
+function abrirDetalheReserva(res){
+  const corpo=document.getElementById('detalhe-corpo');
+  const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val">${escapeHtml(res.nroOTA)}</span></div>`:'';
+  const mao=res.ajusteManual?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual)+')':''}</span></div>`:'';
+  corpo.innerHTML=`
+    <div class="tt-nome" style="margin-bottom:8px">${escapeHtml(res.nomeCompleto)}</div>
+    <div class="tt-row"><span class="tt-key">Reserva</span><span class="tt-val">#${escapeHtml(res.nro)}</span></div>
+    ${ota}
+    <div class="tt-row"><span class="tt-key">Apto</span><span class="tt-val">${escapeHtml(res.apto)}</span></div>
+    <div class="tt-row"><span class="tt-key">Check-in</span><span class="tt-val">${fmtData(res.entrada)}</span></div>
+    <div class="tt-row"><span class="tt-key">Check-out</span><span class="tt-val">${fmtData(res.saida)}</span></div>
+    <div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">${escapeHtml(res.origem||'Direta')}</span></div>
+    ${mao}`;
+  const acoes=document.getElementById('detalhe-acoes');
+  const temAjuste=!!ajustesMap[res.nro];
+  acoes.innerHTML=
+    (temAjuste?`<button class="btn btn-ghost" onclick="voltarAoAutomatico('${escapeAttr(res.nro)}')">↩ Voltar ao automático</button>`:'')+
+    `<button class="btn btn-primary" onclick="fecharDetalhe()">Fechar</button>`;
+  document.getElementById('detalhe-modal').style.display='flex';
+}
+function fecharDetalhe(){document.getElementById('detalhe-modal').style.display='none';}
+async function voltarAoAutomatico(nro){fecharDetalhe();await removerAjuste(nro);}
 
 // ── INIT ──
 async function init(){
@@ -1953,6 +2241,7 @@ async function init(){
   await abrirDB();
   setDbChip();
   await carregarGestao();    // v1.2.0
+  await carregarAjustes();   // v1.3.0 (antes do render p/ aplicar ajustes)
   await carregarDoBanco();
 }
 init();

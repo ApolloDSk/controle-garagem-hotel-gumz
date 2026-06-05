@@ -141,11 +141,27 @@ Garage Spot** (a chave é o `nro` do PMS).
 - Funcionário/Modelo **padrão = único**; padrão de funcionário inicial = 1º; remover o padrão cai
   para o 1º. As funções de decisão são puras (no bloco ENGINE), testadas.
 
+## Comportamentos da v1.3.0 a preservar
+
+- **Edição manual = só trocar de VAGA por arraste.** ⚠ **DATA É PROIBIDA NO APP** — datas são
+  verdade do PMS e chegam só pelo PDF; nenhuma interface as altera (X do ghost travado; store
+  `ajustes` sem campo de data).
+- **Store `ajustes`** (DB v3, `keyPath:"nro"`): `{nro, vagaIdManual, criadoEm, atualizadoEm}`.
+  **Só a edição manual escreve**; reimport do PDF **não toca** — o ajuste sobrevive (como `contatos`).
+- **`aplicarAjustes(reservas, ajustes)`** (pura): fixa carros ajustados na vaga manual com as
+  **datas originais** e roda a automática (inalterada) no espaço restante via `alocarVagas(rP, seed)`
+  (parâmetro `seed` opcional, retrocompatível). Fallback total ao automático em erro.
+- **`detectarConflito`** (pura): sinaliza sobreposição na vaga alvo; **não desloca ninguém**.
+- **Arraste:** Pointer Events + **limiar 5px** (abaixo = clique → detalhe). Vaga alvo resolvida por
+  **`data-vaga`** (funciona com ordenação cima↔baixo). Confirmação obrigatória; Cancelar/ESC/fora
+  reverte sem persistir. Marcador **✋** + "Voltar ao automático" (apaga o ajuste do `nro`).
+- **Escopo:** só **carros (P/G)**. **Motos e overbooking não são arrastáveis** (adiado).
+
 ## Versão atual
 
-**v1.2.0** — Gestão + Modelos de Mensagens (chaves/substituição, autocomplete+chips, legenda+"?",
-padrão por categoria, fluxo de envio com preview/troca/editar) + Backup/Restauração. Mapa e
-alocação **inalterados**. Testes 140/140 (102 engine + 27 jsdom + 11 Playwright). Ver
-`RELATORIO-v1.2.0.md`.
+**v1.3.0** — Edição manual por arraste (mover de vaga; **data proibida**) + ajustes persistentes
+(store `ajustes`, não-destrutivo). Alocação automática e tudo de v1.1/1.2 **inalterados**. Testes
+162/162 (113 engine + 33 jsdom + 16 Playwright). Ver `RELATORIO-v1.3.0.md`.
 
-**Próxima planejada:** v1.3.0 — Edição manual (mover de vaga, data proibida). Backup já entregue.
+**Roadmap local (sem backend) concluído.** Próximos passos exigem infraestrutura: envio em massa
+(backend + WhatsApp Business API) e integração Reserva → Garage Spot. Ver `PLANEJAMENTO.md`.

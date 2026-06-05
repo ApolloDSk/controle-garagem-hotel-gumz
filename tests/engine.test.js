@@ -27,7 +27,9 @@ const EXPORTS = [
   // v1.2.0
   'substituirChaves','gestaoDefault','gestaoNormalizar','funcionarioPadrao','adicionarFuncionario','removerFuncionario',
   'definirFuncionarioPadrao','categoriaReserva','modelosPreenchidos','modeloPadraoIdx','autocompleteChaves','aplicarSugestao',
-  'montarBackup','backupValido','mesclarContatos','decidirGestaoImport'
+  'montarBackup','backupValido','mesclarContatos','decidirGestaoImport',
+  // v1.3.0
+  'aplicarAjustes','detectarConflito','ehReservaCarro','vagaValida'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -400,7 +402,75 @@ t('5.7 decidirGestaoImport substituir sempre repõe', () => {
   eq(dec.aplicar, true); eq(dec.gestao.empresa.nome, 'Nova');
 });
 
-t('APP_VERSION é v1.2.0', () => { eq(E.APP_VERSION, 'v1.2.0'); });
+/* ════════════════════════════════════════════════════════════════
+   v1.3.0 — EDIÇÃO MANUAL (mover de vaga; data proibida)
+   ════════════════════════════════════════════════════════════════ */
+
+t('5.1 vagaValida aceita P1..P18 e G1..G14; recusa o resto', () => {
+  ok(E.vagaValida('P1') && E.vagaValida('P18') && E.vagaValida('G1') && E.vagaValida('G14'));
+  ok(!E.vagaValida('P0') && !E.vagaValida('P19') && !E.vagaValida('G15') && !E.vagaValida('M1') && !E.vagaValida('X3') && !E.vagaValida(''));
+});
+t('5.1 ehReservaCarro: carros sim, moto não', () => {
+  ok(E.ehReservaCarro({ garagem: 'azul_pequeno' }) && E.ehReservaCarro({ garagem: 'azul_grande' }) && E.ehReservaCarro({ garagem: 'amarelo' }) && E.ehReservaCarro({ garagem: 'laranja_grande' }));
+  ok(!E.ehReservaCarro({ garagem: 'azul_moto' }));
+});
+
+t('5.2 aplicarAjustes: fixada vai à vaga manual com as DATAS ORIGINAIS', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' };
+  const r2 = { nro: '2', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Beto', apto: '2' };
+  const aloc = E.aplicarAjustes([r1, r2], { '1': { vagaIdManual: 'P5' } });
+  ok(aloc.linhasP[4].some(x => x.nro === '1'), 'r1 deve estar na vaga P5 (índice 4)');
+  eq(+r1.entrada, +D('05/06/26')); eq(+r1.saida, +D('08/06/26'));
+  eq(r1.ajusteManual, true); eq(r1._vagaManual, 'P5');
+});
+t('5.2 aplicarAjustes: livres alocadas no espaço restante, sem duplicar a fixada', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' };
+  const r2 = { nro: '2', garagem: 'azul_pequeno', entrada: D('10/06/26'), saida: D('12/06/26'), nomeCompleto: 'Beto', apto: '2' };
+  const aloc = E.aplicarAjustes([r1, r2], { '1': { vagaIdManual: 'P3' } });
+  const todas = [].concat(...aloc.linhasP, ...aloc.linhasG);
+  eq(todas.filter(x => x.nro === '1').length, 1, 'fixada aparece uma única vez');
+  ok(todas.some(x => x.nro === '2'), 'livre foi alocada');
+});
+t('5.2 aplicarAjustes: ajuste com vaga inválida é ignorado (cai no automático)', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' };
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'Z9' } });
+  ok(!r1.ajusteManual, 'vaga inválida → não fixa');
+});
+t('5.2 aplicarAjustes: nro de ajuste inexistente é ignorado sem quebrar', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' };
+  const aloc = E.aplicarAjustes([r1], { '999': { vagaIdManual: 'P2' } });
+  ok([].concat(...aloc.linhasP, ...aloc.linhasG).some(x => x.nro === '1'), 'reserva ainda renderiza');
+});
+t('5.2 aplicarAjustes: moto NÃO é fixável (ajuste ignorado)', () => {
+  const m = { nro: '1', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'M', apto: '1' };
+  E.aplicarAjustes([m], { '1': { vagaIdManual: 'P2' } });
+  ok(!m.ajusteManual, 'moto não vira fixada');
+});
+t('5.2 aplicarAjustes: sem ajustes = idêntico ao automático', () => {
+  const mk = () => ([{ nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' }]);
+  const a = E.aplicarAjustes(mk(), {});
+  const b = E.alocarVagas(mk());
+  eq(JSON.stringify(a.linhasP.map(l => l.map(r => r.nro))), JSON.stringify(b.linhasP.map(l => l.map(r => r.nro))));
+});
+
+t('5.3 detectarConflito: sobreposição na vaga alvo → conflito', () => {
+  const orig = { nro: '1', entrada: D('05/06/26'), saida: D('10/06/26'), nomeCompleto: 'Ana' };
+  const outro = { nro: '2', entrada: D('08/06/26'), saida: D('12/06/26'), nomeCompleto: 'Beto' };
+  const r = E.detectarConflito(orig, 'P5', [outro]);
+  eq(r.conflito, true); eq(r.comQuem, 'Beto');
+});
+t('5.3 detectarConflito: sem sobreposição → sem conflito', () => {
+  const orig = { nro: '1', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana' };
+  const outro = { nro: '2', entrada: D('08/06/26'), saida: D('12/06/26'), nomeCompleto: 'Beto' };
+  eq(E.detectarConflito(orig, 'P5', [outro]).conflito, false);
+});
+t('5.3 detectarConflito: ignora a própria reserva (mesmo nro)', () => {
+  const orig = { nro: '1', entrada: D('05/06/26'), saida: D('10/06/26'), nomeCompleto: 'Ana' };
+  const mesma = { nro: '1', entrada: D('05/06/26'), saida: D('10/06/26'), nomeCompleto: 'Ana' };
+  eq(E.detectarConflito(orig, 'P5', [mesma]).conflito, false);
+});
+
+t('APP_VERSION é v1.3.0', () => { eq(E.APP_VERSION, 'v1.3.0'); });
 
 /* ── runner (suporta testes async) ── */
 (async () => {

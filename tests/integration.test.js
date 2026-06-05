@@ -73,9 +73,9 @@ async function novoApp() {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.2.0', async () => {
+  await T('rodapé mostra v1.3.0', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.2.0');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.3.0');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -406,6 +406,89 @@ async function novoApp() {
     await w.aplicarImport({ schema: 'errado', stores: {} }, 'mesclar').catch(() => { });
     // backupValido bloqueia antes; simula o caminho do gestaoImportarArquivo:
     ok(!w.backupValido({ schema: 'errado' }), 'schema inválido detectado');
+  });
+
+  /* ── 15. Edição manual (v1.3.0) ── */
+  await T('migração v2→v3 cria store ajustes sem perder reservas/contatos/gestao', async () => {
+    const { w } = await novoApp();
+    let okAll = true;
+    for (const s of ['reservas', 'contatos', 'gestao', 'ajustes']) { try { await w.dbGetAll(s); } catch (e) { okAll = false; } }
+    ok(okAll, 'todos os 4 stores acessíveis (ajustes criado, antigos intactos)');
+  });
+
+  await T('salvar ajuste fixa a reserva na vaga manual (✋) no mapa', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarAjuste('30001', 'P9'); // ANA PEQUENA → vaga P9
+    await sleep(20);
+    const linhaP9 = [...w.document.querySelectorAll('.row-cells[data-vaga="P9"] .cell-span')];
+    ok(linhaP9.some(s => /ANA/.test(s.textContent)), 'reserva aparece na vaga P9');
+    ok(linhaP9.some(s => s.classList.contains('tem-ajuste')), 'marcada com ajuste manual');
+  });
+
+  await T('ajuste persiste ao reabrir (mesmo IndexedDB)', async () => {
+    const idb = new fidb.IDBFactory();
+    const mk = async () => {
+      const dom = new JSDOM(fs.readFileSync(path.join(__dirname, '..', 'garagem-app', 'index.html'), 'utf8'), {
+        runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/',
+        beforeParse(window) {
+          window.indexedDB = idb; window.IDBKeyRange = fidb.IDBKeyRange;
+          window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) };
+          window.alert = () => { };
+        }
+      });
+      const w = dom.window;
+      for (let i = 0; i < 60; i++) { if (/salvo|mem/.test(w.document.getElementById('db-chip').textContent)) break; await sleep(15); }
+      await sleep(40); return w;
+    };
+    const w1 = await mk();
+    await w1.importarPDF(w1.parsear(montarPDF()));
+    await sleep(20);
+    await w1.salvarAjuste('30002', 'G7');
+    await sleep(20);
+    const w2 = await mk();
+    await sleep(40);
+    const aj = (await w2.dbGetAll('ajustes')).find(a => String(a.nro) === '30002');
+    ok(aj && aj.vagaIdManual === 'G7', 'ajuste persistido no banco');
+    const linhaG7 = [...w2.document.querySelectorAll('.row-cells[data-vaga="G7"] .cell-span')];
+    ok(linhaG7.some(s => /BRUNO/.test(s.textContent)), 'reserva reabre na vaga ajustada');
+  });
+
+  await T('reimport do PDF NÃO apaga ajustes (não-destrutivo)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarAjuste('30001', 'P9');
+    await sleep(20);
+    await w.importarPDF(w.parsear(montarPDF())); // reimporta
+    await sleep(20);
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30001');
+    ok(aj && aj.vagaIdManual === 'P9', 'ajuste sobrevive à reimportação');
+  });
+
+  await T('voltar ao automático remove o ajuste', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarAjuste('30001', 'P9');
+    await sleep(20);
+    await w.removerAjuste('30001');
+    await sleep(20);
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30001');
+    ok(!aj, 'ajuste removido do banco');
+    const linhaP9 = [...w.document.querySelectorAll('.row-cells[data-vaga="P9"] .cell-span')];
+    ok(!linhaP9.some(s => s.classList.contains('tem-ajuste')), 'sem marcador de ajuste em P9');
+  });
+
+  await T('linhas de carro têm data-vaga; moto/overbooking não', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    ok(w.document.querySelector('.row-cells[data-vaga="P1"]'), 'P1 tem data-vaga');
+    ok(w.document.querySelector('.row-cells[data-vaga="G1"]'), 'G1 tem data-vaga');
+    const motoRow = [...w.document.querySelectorAll('.row-label')].find(e => /^M/.test(e.textContent));
+    if (motoRow) { const wrap = motoRow.parentElement.querySelector('.row-cells'); ok(!wrap.dataset.vaga, 'moto não é arrastável'); }
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

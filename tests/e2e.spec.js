@@ -33,9 +33,9 @@ async function importar(page) {
   await page.waitForSelector('.cell-span');
 }
 
-test('smoke: carrega, rodapé v1.2.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
+test('smoke: carrega, rodapé v1.3.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.2.0');
+  await expect(page.locator('#footer-version')).toHaveText('v1.3.0');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -150,14 +150,92 @@ test('telefone Confirmar↔Editar bloqueia/desbloqueia o campo', async ({ page }
   await expect(page.locator(`#btn-fone-${nro}`)).toHaveText('Confirmar');
 });
 
-test('screenshots do mapa, contato e gestão (v1.2.0)', async ({ page }) => {
+// helper: arrasta o bloco que contém `texto` para a vaga `vagaAlvo` (ex.: "P5")
+async function arrastar(page, texto, vagaAlvo, { soltar = true, passos = 12 } = {}) {
+  const src = page.locator('.cell-span', { hasText: texto }).first();
+  await src.scrollIntoViewIfNeeded();
+  const sb = await src.boundingBox();
+  const tgt = page.locator(`.row-cells[data-vaga="${vagaAlvo}"]`);
+  const tb = await tgt.boundingBox();
+  const startX = sb.x + sb.width / 2, startY = sb.y + sb.height / 2;
+  const endX = tb.x + 60, endY = tb.y + tb.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, endY, { steps: passos });
+  if (soltar) await page.mouse.up();
+  return { startX, startY, endX, endY };
+}
+
+test('arraste: mover de vaga abre modal; Confirmar reposiciona (✋)', async ({ page }) => {
   await boot(page);
   await importar(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.2.0-mapa.png'), fullPage: true });
+  await arrastar(page, 'ANA', 'P5');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await expect(page.locator('#mover-texto')).toContainText('não mudam');
+  await page.click('#mover-confirmar');
+  const alvo = page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'ANA' });
+  await expect(alvo).toHaveCount(1);
+  await expect(alvo).toHaveClass(/tem-ajuste/);
+});
+
+test('arraste: Cancelar não muda nada', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await arrastar(page, 'ANA', 'P6');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-modal >> text=Cancelar');
+  await expect(page.locator('.row-cells[data-vaga="P6"] .cell-span', { hasText: 'ANA' })).toHaveCount(0);
+});
+
+test('abaixo do limiar = clique → abre o detalhe (não arrasta)', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  const src = page.locator('.cell-span', { hasText: 'ANA' }).first();
+  const sb = await src.boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sb.x + sb.width / 2 + 3, sb.y + sb.height / 2 + 2, { steps: 2 }); // < 5px
+  await page.mouse.up();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  await expect(page.locator('#mover-modal')).toBeHidden();
+});
+
+test('arraste funciona com ordenação invertida (vaga por identificador)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1600 }); // mapa inteiro visível (sem scroll)
+  await boot(page);
+  await importar(page);
+  await page.click('#btn-ordem'); // baixo→cima
+  await expect(page.locator('#ordem-label')).toContainText('baixo→cima');
+  await arrastar(page, 'ANA', 'P9'); // vaga vazia; alvo resolvido por data-vaga, não por índice
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P9"] .cell-span', { hasText: 'ANA' })).toHaveCount(1);
+});
+
+test('voltar ao automático remove o ajuste', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await arrastar(page, 'ANA', 'P5');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'ANA' })).toHaveCount(1);
+  // abre detalhe (clique abaixo do limiar) e volta ao automático
+  const src = page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'ANA' });
+  const sb = await src.boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down(); await page.mouse.move(sb.x + sb.width / 2 + 2, sb.y + sb.height / 2, { steps: 2 }); await page.mouse.up();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  await page.click('#detalhe-modal >> text=Voltar ao automático');
+  await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span.tem-ajuste')).toHaveCount(0);
+});
+
+test('screenshots do mapa, contato e gestão (v1.3.0)', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.3.0-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.2.0-contato.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.3.0-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.2.0-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.3.0-gestao.png'), fullPage: true });
 });

@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.2.0** (entregue) · Próxima planejada: **v1.3.0** (edição manual).
+> Versão atual: **v1.3.0** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura.
 
 ---
 
@@ -43,17 +43,33 @@
 - **Backup:** export (dump de stores) + import Mesclar (não-destrutivo) / Substituir (confirmação).
 - Testes 140/140. Ver `RELATORIO-v1.2.0.md`.
 
+### v1.3.0 (entregue 05/06/2026) — Edição manual (mover de vaga; data proibida)
+- Arraste **só de vaga** (Pointer Events + ghost + **limiar 5px**; clique abaixo do limiar abre o
+  detalhe); **data nunca muda** pelo app. Vaga alvo por `data-vaga` (funciona com ordenação invertida).
+- Confirmação obrigatória + aviso de **conflito não-destrutivo**; marcador **✋** + "Voltar ao
+  automático". Store `ajustes` (DB v3, chave `nro`), sobrevive à reimportação do PDF.
+- Escopo: **carros (P/G)**; motos/overbooking fora. Testes 162/162. Ver `RELATORIO-v1.3.0.md`.
+
 ---
 
-## 🔜 CONFIRMADO PARA O FUTURO (plano de patches)
+## ✅ ROADMAP LOCAL (sem backend) — CONCLUÍDO
 
-### v1.3.0 — Edição manual (arrastar reservas)
-- Mover reserva de vaga (com **confirmação**) e tratar **data proibida**; distinguir "mudar só de
-  vaga" de "mudar de data" (prévia "ghost", confirmação específica). Vale no mapa e no controle.
-- *(Backup já foi entregue na v1.2.0.)*
+Toda a evolução possível sem servidor foi entregue (v1.0.0 → v1.3.0). Os próximos passos exigem
+infraestrutura.
 
-### Adiados ("vamos ver depois")
-- Mapeamento do **nome do canal** para `[canal]` (ex.: expedia.com / hoteis.com / omnibees).
+## 🔜 PRÓXIMOS PASSOS (exigem infraestrutura)
+
+### Envio em massa via WhatsApp (premium pago)
+- Backend Node.js + **WhatsApp Business API oficial (Meta)** com templates aprovados; conta/custo
+  do cliente. A função de mensagem (`substituirChaves`/modelos da v1.2.0) já é reutilizável.
+
+### Integração Reserva → Garage Spot
+- Idealmente camada de dados compartilhada; possível **primeiro passo leve** via exportação/
+  importação de arquivo (o Backup da v1.2.0 já é uma base; chave de integração = `nro`).
+
+## 🕓 ADIADOS ("vamos ver depois")
+- **Motos/overbooking arrastáveis** (hoje só carros P/G).
+- Mapeamento do **nome do canal** para `[canal]` (expedia.com / hoteis.com / omnibees).
 - Suporte a **mais de uma empresa**.
 - **Modelo de mensagem para reservas confirmadas/azuis** (hoje azul usa link `wa.me` simples).
 
@@ -114,6 +130,9 @@
 ---
 
 ## Atualização ao final desta versão
-- **Versão atual:** v1.2.0 (Gestão + Modelos de Mensagens + Backup).
-- **Próxima planejada:** v1.3.0 (edição manual — mover de vaga, data proibida).
-- **Adiados:** mapeamento de `[canal]`; múltiplas empresas; modelo p/ reservas azuis/confirmadas.
+- **Versão atual:** v1.3.0 (edição manual — mover de vaga; data proibida).
+- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.3.0).
+- **Próximos passos (infra):** envio em massa (backend + WhatsApp Business API); integração
+  Reserva → Garage Spot (passo leve via export/import).
+- **Adiados:** motos/overbooking arrastáveis; mapeamento de `[canal]`; múltiplas empresas;
+  modelo p/ reservas azuis/confirmadas.
