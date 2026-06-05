@@ -1,0 +1,17 @@
+{
+  "name": "controle-garagem-tests",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Harness de testes (unitários + integração jsdom + e2e Playwright) — Reserva de Garagem Hotel Gumz",
+  "scripts": {
+    "test:engine": "node tests/engine.test.js",
+    "test:integration": "node tests/integration.test.js",
+    "test:e2e": "playwright test",
+    "test": "node tests/engine.test.js && node tests/integration.test.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^25.0.1"
+  }
+}

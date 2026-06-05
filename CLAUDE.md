@@ -51,11 +51,16 @@ relatório. Mantenha essa estratégia; ela desamarra o produto de qualquer forne
   ter vários aptos/carros, a chave primária do store `reservas` é `id = nro__apto__vagaIdx`.
 
 ### Como rodar os testes / regenerar o standalone
-- `node setup.js` → baixa o PDF.js para `pdfjs/` (gitignored).
-- `node build-standalone.js` → regenera `controle-garagem-standalone.html` a partir do
-  `index.html` (embute o PDF.js inline). **Rode sempre que mexer no `index.html`.**
-- Testes de lógica (Node): o harness extrai o bloco ENGINE do `index.html` e roda asserts.
-  Há também teste de integração com `jsdom` + `fake-indexeddb`. Ver `RELATORIO-*.md`.
+- `node setup.js` (em `garagem-app/`) → baixa o PDF.js para `pdfjs/` (gitignored).
+- `node build-standalone.js` (em `garagem-app/`) → regenera `controle-garagem-standalone.html`
+  a partir do `index.html` (embute o PDF.js inline). **Rode sempre que mexer no `index.html`.**
+- **Harness de testes versionado em `tests/`** (raiz). Setup: `npm install` (instala
+  `jsdom`, `fake-indexeddb`, `@playwright/test`; `npx playwright install chromium` p/ o e2e).
+  - `npm run test:engine` → unitários em Node puro (extrai o bloco ENGINE do `index.html`).
+  - `npm run test:integration` → integração `jsdom` + `fake-indexeddb`.
+  - `npx playwright test` → e2e em Chromium real (servidor `tests/serve.js`).
+  - **Regra:** todos verdes antes de commitar; **sem `test.skip` mascarando** falhas; corrigir a
+    causa raiz. As funções puras testáveis vivem **dentro** dos marcadores ENGINE.
 
 ---
 
@@ -103,12 +108,27 @@ Garage Spot** (a chave é o `nro` do PMS).
 
 ---
 
+## Comportamentos da v1.1.0 a preservar
+
+- **Cópia (PMS/OTA):** clique copia o valor; `copiarTextoCore` tenta `navigator.clipboard` e
+  **cai no fallback** `execCommand('copy')` (necessário em `file://`). Nunca lança.
+- **⚠ Limitação de caminho do navegador (registrar sempre):** o navegador **não expõe o caminho
+  real** do arquivo (devolve `C:\fakepath\...`). A info de upload mostra **nome + data/hora**
+  (confiáveis); o caminho **só** aparece se o ambiente fornecer um valor real (ex.: Electron),
+  senão a nota *"caminho indisponível pelo navegador"*. **Nunca inventar caminho.**
+- **Check-in no passado:** quem entrou antes da janela e ainda está hospedado **aparece** no mapa
+  com a **borda esquerda cortada** (continuação, `_ ]`); `recorteEsquerdo(reserva, janelaInicio)`
+  decide. **Pré-requisito de dado:** só exibe se a reserva constar no PDF — se necessário, exportar
+  o relatório do Desbravador começando alguns dias antes de hoje.
+- **Ordenação das vagas:** `aplicarOrdemLinhas` só inverte a **exibição** (persistida em
+  `localStorage`), **nunca** a alocação.
+- **Telefone Confirmar↔Editar:** estado de interface; o valor salvo em `contatos` não muda.
+
 ## Versão atual
 
-**v1.0.0** — fundação: lógica de vagas correta (amarelo usa pequeno+grande, encaixe
-inteligente, prioridade, overbooking protege confirmados, sinaliza grande em vaga pequena);
-persistência IndexedDB com mesclagem não-destrutiva; ferramenta de contato base (filtros,
-telefone com status, wa.me individual). Ver `RELATORIO-v1.0.0.md` e `PLANEJAMENTO.md`.
+**v1.1.0** — UX (rótulos/ícones das abas, copiar nº PMS/OTA com fallback, telefone
+Confirmar↔Editar, ordenação das vagas persistida, info de data/hora do upload) + correção de
+núcleo no mapa (check-in no passado incluído com borda cortada). Lógica de alocação da v1.0.0
+**inalterada**. Testes 98/98 (74 engine + 16 jsdom + 8 Playwright). Ver `RELATORIO-v1.1.0.md`.
 
-**Próxima planejada:** v1.1.0 — edição manual (arrastar reservas com confirmação e prévia
-"ghost"). A edição manual **NÃO** entrou na v1.0.0.
+**Próxima planejada:** v1.2.0 — Gestão + Modelos de Mensagens (ver `PLANEJAMENTO.md`).

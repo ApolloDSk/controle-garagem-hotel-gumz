@@ -1,0 +1,12 @@
+# dependências de teste (raiz)
+node_modules/
+package-lock.json
+
+# artefatos do Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# backups locais
+*.bak-*
