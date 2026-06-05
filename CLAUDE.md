@@ -124,11 +124,28 @@ Garage Spot** (a chave é o `nro` do PMS).
   `localStorage`), **nunca** a alocação.
 - **Telefone Confirmar↔Editar:** estado de interface; o valor salvo em `contatos` não muda.
 
+## Comportamentos da v1.2.0 a preservar
+
+- **Aba Gestão** (Empresa, Funcionários, Modelos de Mensagens, Backup/Restauração). Store
+  **`gestao`** (singleton `id:"config"`) criado por `onupgradeneeded` (DB v2) **sem tocar** em
+  `reservas`/`contatos`; semeadura idempotente em `carregarGestao` (só grava se ausente).
+- **Chaves dos modelos:** `[nome] [data] [canal] [empresa] [funcionario]`. `substituirChaves`
+  **nunca deixa chave literal** (valor real ou vazio). `[data]` = entrada+saída (`fmtData`).
+- **Mapeamento status→categoria:** **amarelo→verificando**, **vermelho→overbooking**;
+  **azul/confirmada fica fora** do sistema de modelos (link `wa.me` simples).
+- **Envio (Contato):** preview substituído → troca de modelo 1/2/3 → **Editar vale só p/ aquele
+  envio** (NÃO altera o modelo salvo; modelos só mudam em Gestão) → `wa.me` (`linkWhatsAppTexto`).
+- **Backup:** export = dump genérico de todos os stores (`schema:"reserva-garagem-backup/1"`);
+  import **Mesclar** (padrão, não-destrutivo: só contatos ausentes; gestao só se não houver local;
+  não toca reservas) e **Substituir** (com confirmação). Arquivo inválido não quebra.
+- Funcionário/Modelo **padrão = único**; padrão de funcionário inicial = 1º; remover o padrão cai
+  para o 1º. As funções de decisão são puras (no bloco ENGINE), testadas.
+
 ## Versão atual
 
-**v1.1.0** — UX (rótulos/ícones das abas, copiar nº PMS/OTA com fallback, telefone
-Confirmar↔Editar, ordenação das vagas persistida, info de data/hora do upload) + correção de
-núcleo no mapa (check-in no passado incluído com borda cortada). Lógica de alocação da v1.0.0
-**inalterada**. Testes 98/98 (74 engine + 16 jsdom + 8 Playwright). Ver `RELATORIO-v1.1.0.md`.
+**v1.2.0** — Gestão + Modelos de Mensagens (chaves/substituição, autocomplete+chips, legenda+"?",
+padrão por categoria, fluxo de envio com preview/troca/editar) + Backup/Restauração. Mapa e
+alocação **inalterados**. Testes 140/140 (102 engine + 27 jsdom + 11 Playwright). Ver
+`RELATORIO-v1.2.0.md`.
 
-**Próxima planejada:** v1.2.0 — Gestão + Modelos de Mensagens (ver `PLANEJAMENTO.md`).
+**Próxima planejada:** v1.3.0 — Edição manual (mover de vaga, data proibida). Backup já entregue.

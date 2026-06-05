@@ -188,6 +188,67 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-span.cortado-esq{border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;
   -webkit-mask-image:linear-gradient(to right,transparent 0,#000 13px);
   mask-image:linear-gradient(to right,transparent 0,#000 13px)}
+/* ════════ v1.2.0 — GESTÃO / MODELOS / BACKUP / MODAIS ════════ */
+.ct-tpl-nota{margin-top:22px;padding:12px 14px;border:1px dashed var(--border);border-radius:9px;color:var(--muted);font-size:12px}
+.ct-tpl-nota b{color:var(--text)}
+#view-gestao{padding:16px 20px 48px}
+.gestao-wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.gestao-h{font-size:18px;font-weight:700;margin:2px 0}
+.gcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.gcard h3{font-size:14px;font-weight:700;margin-bottom:10px}
+.gcard h4{font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--text)}
+.glabel{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.gkey{font-family:'DM Mono',monospace;font-size:10px;color:var(--azul);background:var(--azul-bg);padding:1px 6px;border-radius:5px}
+.ghint{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+.ginput{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 11px;font-family:'Sora',sans-serif;font-size:13px;outline:none}
+.ginput:focus{border-color:var(--azul)}
+.func-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.func-row .ginput{flex:1}
+.func-pad{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer}
+.func-x{padding:6px 10px;color:var(--vermelho)}
+.gbtn-add{margin-top:4px}
+.chaves-legenda{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;margin-bottom:6px}
+.cl-item{font-size:11px;color:var(--muted)}
+.cl-item code{font-family:'DM Mono',monospace;color:var(--azul);font-size:11px}
+.ajuda-btn{margin-left:auto;width:24px;height:24px;border-radius:50%;border:1px solid var(--azul);background:var(--azul-bg);color:var(--azul);font-weight:700;cursor:pointer;font-size:13px;line-height:1;flex-shrink:0}
+.ajuda-btn:hover{background:var(--azul);color:#fff}
+.modelo-cat{margin-top:6px}
+.modelo-slot{border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:10px;background:var(--surface2)}
+.modelo-slot-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.modelo-num{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.modelo-pad{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer}
+.modelo-ta{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:9px;font-family:'Sora',sans-serif;font-size:12.5px;line-height:1.5;resize:vertical;outline:none;min-height:64px}
+.modelo-ta:focus{border-color:var(--azul)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.chip{font-family:'DM Mono',monospace;font-size:10px;padding:3px 8px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--azul);cursor:pointer;transition:all .12s}
+.chip:hover{background:var(--azul);color:#fff;border-color:var(--azul)}
+.backup-import{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+.bi-modos{display:flex;flex-wrap:wrap;gap:14px;margin:6px 0 10px;font-size:12px;color:var(--text)}
+.bi-modos label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.backup-result{margin-top:10px;font-size:12px;color:var(--verde);min-height:16px;line-height:1.5}
+/* autocomplete */
+.ac-box{position:absolute;z-index:10001;background:var(--surface);border:1px solid var(--azul);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.3);overflow:hidden;max-width:260px}
+.ac-item{padding:7px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text);cursor:pointer}
+.ac-item:hover,.ac-item:first-child{background:var(--azul-bg);color:var(--azul)}
+/* modais */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden}
+.modal-card.modal-wide{max-width:560px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);font-size:14px}
+.modal-x{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1}
+.modal-x:hover{color:var(--text)}
+.modal-body{padding:16px}
+.modal-body p{font-size:12.5px;line-height:1.6;margin-bottom:8px;color:var(--text)}
+.modal-body code{font-family:'DM Mono',monospace;color:var(--azul);font-size:12px}
+.envio-modelos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.envio-mbtn{padding:6px 13px;border-radius:18px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-family:'Sora',sans-serif;font-size:12px;font-weight:600}
+.envio-mbtn.active{background:var(--azul);color:#fff;border-color:var(--azul)}
+.envio-preview{width:100%;min-height:160px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px;font-family:'Sora',sans-serif;font-size:13px;line-height:1.6;resize:vertical;outline:none}
+.envio-preview:focus{border-color:var(--azul)}
+.envio-preview[readonly]{opacity:.92}
+.envio-acoes{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+.envio-nota{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+@media(max-width:600px){.gestao-wrap{max-width:100%}.envio-acoes{flex-direction:column;align-items:stretch}.envio-acoes .wa-btn{justify-content:center}}
 </style>
 </head>
 <body>
@@ -216,6 +277,7 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 <div class="tabbar">
   <button class="tab active" id="tab-mapa" onclick="trocarAba('mapa')" title="Mapa de Reservas" aria-label="Mapa de Reservas"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Mapa de Reservas</button>
   <button class="tab" id="tab-contato" onclick="trocarAba('contato')" title="Contato (WhatsApp)" aria-label="Contato"><svg class="tab-ico wa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.67c2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 0 1 2.42 5.82c0 4.54-3.7 8.24-8.25 8.24-1.52 0-3.01-.41-4.3-1.19l-.31-.18-3.12.82.83-3.04-.2-.32a8.2 8.2 0 0 1-1.26-4.36c0-4.54 3.7-8.24 8.25-8.24zm4.71 9.61c-.26-.13-1.52-.75-1.76-.84-.24-.09-.41-.13-.58.13-.17.26-.67.84-.82 1.01-.15.17-.3.19-.56.06-.26-.13-1.09-.4-2.07-1.28-.77-.68-1.28-1.53-1.43-1.79-.15-.26-.02-.4.11-.53.12-.12.26-.3.39-.46.13-.15.17-.26.26-.43.09-.17.04-.32-.02-.45-.06-.13-.58-1.4-.8-1.92-.21-.5-.42-.43-.58-.44l-.49-.01c-.17 0-.45.06-.68.32-.24.26-.9.88-.9 2.15 0 1.27.92 2.5 1.05 2.67.13.17 1.81 2.76 4.38 3.87.61.26 1.09.42 1.46.54.61.2 1.17.17 1.61.1.49-.07 1.52-.62 1.73-1.22.21-.6.21-1.11.15-1.22-.06-.11-.24-.17-.5-.3z"/></svg>Contato</button>
+  <button class="tab" id="tab-gestao" onclick="trocarAba('gestao')" title="Gestão" aria-label="Gestão"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Gestão</button>
   <span class="db-chip mem" id="db-chip">memória</span>
 </div>
 
@@ -289,24 +351,47 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
     <button class="ct-fbtn" data-f="overbooking" onclick="setContatoFiltro('overbooking')">Overbooking</button>
   </div>
   <div id="ct-lista"></div>
-  <details class="tpl-box" id="tpl-box">
-    <summary>✏️ Modelos de mensagem (editáveis)</summary>
-    <div class="tpl-grid">
-      <div>
-        <label>Modelo 1 — Verificar interesse (vaga disponível)</label>
-        <textarea id="tpl1" oninput="salvarTemplates()"></textarea>
-      </div>
-      <div>
-        <label>Modelo 2 — Sem disponibilidade (overbooking)</label>
-        <textarea id="tpl2" oninput="salvarTemplates()"></textarea>
-      </div>
-    </div>
-    <div class="tpl-hint">Variáveis: {nome} · {entrada} · {saida} · {apto} — substituídas automaticamente no envio.</div>
-  </details>
+  <div class="ct-tpl-nota">✏️ Os modelos de mensagem agora ficam em <b>Gestão › Modelos de Mensagens</b>.</div>
 </div>
+
+<!-- ══════════ ABA GESTÃO (v1.2.0) ══════════ -->
+<div id="view-gestao" style="display:none"></div>
 
 <div class="tooltip" id="tooltip"></div>
 <div class="copy-toast" id="copy-toast"></div>
+
+<!-- caixa de autocomplete de chaves (compartilhada) -->
+<div id="ac-box" class="ac-box" style="display:none"></div>
+
+<!-- modal de ajuda das chaves -->
+<div id="ajuda-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)fecharAjuda()">
+  <div class="modal-card">
+    <div class="modal-head"><b>Chaves dos modelos</b><button class="modal-x" onclick="fecharAjuda()" aria-label="Fechar">✕</button></div>
+    <div class="modal-body">
+      <p><code>[nome]</code> — Nome do hóspede da reserva.</p>
+      <p><code>[data]</code> — Datas da hospedagem (entrada e saída).</p>
+      <p><code>[canal]</code> — Canal/origem em que a reserva foi feita (ex.: WhatsApp, Booking, Expedia, telefone, site).</p>
+      <p><code>[empresa]</code> — Nome da empresa, configurado em Gestão › Empresa.</p>
+      <p><code>[funcionario]</code> — Nome do funcionário marcado como padrão em Gestão › Funcionários.</p>
+    </div>
+  </div>
+</div>
+
+<!-- modal de envio (preview + troca de modelo + editar só o envio) -->
+<div id="envio-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)fecharEnvio()">
+  <div class="modal-card modal-wide">
+    <div class="modal-head"><b id="envio-titulo">Enviar mensagem</b><button class="modal-x" onclick="fecharEnvio()" aria-label="Fechar">✕</button></div>
+    <div class="modal-body">
+      <div id="envio-modelos" class="envio-modelos"></div>
+      <textarea id="envio-preview" class="envio-preview" readonly></textarea>
+      <div class="envio-acoes">
+        <button class="btn btn-ghost" id="envio-editar" onclick="envioToggleEditar()">✏️ Editar só este envio</button>
+        <a class="wa-btn" id="envio-enviar" target="_blank" rel="noopener">💬 Enviar no WhatsApp</a>
+      </div>
+      <div class="envio-nota">A edição vale só para este envio e não altera o modelo salvo (mude-o em Gestão › Modelos).</div>
+    </div>
+  </div>
+</div>
 <div class="footer">Reserva de Garagem · Hotel Gumz — Projeto Apollo · <b id="footer-version">v0.0.0</b></div>
 
 <script>
@@ -316,7 +401,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.1.0';
+const APP_VERSION='v1.2.0';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -660,6 +745,10 @@ function linkWhatsApp(dados,template){
   const tel=normalizePhone(dados.telefone);
   return`https://wa.me/${tel}?text=${encodeURIComponent(gerarMensagem(dados,template))}`;
 }
+// v1.2.0 — envia o texto FINAL já pronto (substituído/editado), sem nova substituição.
+function linkWhatsAppTexto(telefone,texto){
+  return`https://wa.me/${normalizePhone(telefone)}?text=${encodeURIComponent(texto||'')}`;
+}
 
 // ── MESCLAGEM não-destrutiva (B2) — parte pura, testável ──
 // existentesMap: id → registro já salvo (pode ter ativo:false). novas: array do PDF.
@@ -737,6 +826,167 @@ function fmtDataHora(ms){
 function recorteEsquerdo(reserva,janelaInicio){
   if(!reserva||!reserva.entrada||!janelaInicio)return false;
   return +reserva.entrada < +janelaInicio;
+}
+
+/* ─────────────── v1.2.0 — GESTÃO + MODELOS + BACKUP (funções puras) ─────────────── */
+
+// Chaves suportadas nos modelos (substituídas de verdade no envio).
+const CHAVES_MODELO=['nome','data','canal','empresa','funcionario'];
+
+// Textos-exemplo semeados no slot 1 de cada categoria (editáveis pela empresa).
+const SEED_VERIFICANDO='Olá [nome], aqui é da [empresa]. Sobre sua reserva ([data]) feita via [canal]: você vai precisar de vaga de garagem durante a estadia? Ficamos no aguardo para confirmar. Atenciosamente, [funcionario].';
+const SEED_OVERBOOKING='Olá [nome], aqui é da [empresa] sobre sua reserva ([data]). No momento nossa garagem está com a lotação completa para o período e não conseguimos garantir vaga. Ficamos à disposição para orientar alternativas próximas. Atenciosamente, [funcionario].';
+
+// Config padrão da Gestão (singleton id:"config"). Semeada só na criação.
+function gestaoDefault(){
+  return{
+    id:'config',
+    empresa:{nome:''},
+    funcionarios:[],
+    funcionarioPadraoId:null,
+    modelos:{verificando:[SEED_VERIFICANDO,'',''],overbooking:[SEED_OVERBOOKING,'','']},
+    modeloPadrao:{verificando:0,overbooking:0}
+  };
+}
+// Normaliza/cura uma config carregada (preenche buracos sem destruir dados).
+function gestaoNormalizar(g){
+  const d=gestaoDefault();
+  if(!g||typeof g!=='object')return d;
+  const out={
+    id:'config',
+    empresa:{nome:(g.empresa&&typeof g.empresa.nome==='string')?g.empresa.nome:''},
+    funcionarios:Array.isArray(g.funcionarios)?g.funcionarios.filter(f=>f&&f.id).map(f=>({id:String(f.id),nome:String(f.nome||'')})):[],
+    funcionarioPadraoId:g.funcionarioPadraoId!=null?String(g.funcionarioPadraoId):null,
+    modelos:{
+      verificando:normalizarSlots(g.modelos&&g.modelos.verificando),
+      overbooking:normalizarSlots(g.modelos&&g.modelos.overbooking)
+    },
+    modeloPadrao:{
+      verificando:clampIdx(g.modeloPadrao&&g.modeloPadrao.verificando),
+      overbooking:clampIdx(g.modeloPadrao&&g.modeloPadrao.overbooking)
+    }
+  };
+  // padrão de funcionário precisa existir; senão cai para o 1º (ou null se vazio).
+  if(!out.funcionarios.some(f=>f.id===out.funcionarioPadraoId))
+    out.funcionarioPadraoId=out.funcionarios.length?out.funcionarios[0].id:null;
+  return out;
+}
+function normalizarSlots(arr){const a=Array.isArray(arr)?arr.slice(0,3):[];while(a.length<3)a.push('');return a.map(x=>typeof x==='string'?x:'');}
+function clampIdx(n){n=parseInt(n);return(n===0||n===1||n===2)?n:0;}
+
+// Funcionário padrão (objeto) ou null.
+function funcionarioPadrao(gestao){
+  if(!gestao||!Array.isArray(gestao.funcionarios)||!gestao.funcionarios.length)return null;
+  return gestao.funcionarios.find(f=>f.id===gestao.funcionarioPadraoId)||gestao.funcionarios[0];
+}
+// Adiciona funcionário (puro). Se for o 1º, vira o padrão. id pode ser injetado (testes).
+function adicionarFuncionario(gestao,nome,id){
+  const g=gestaoNormalizar(gestao);
+  const novo={id:String(id||('f'+Date.now()+Math.random().toString(36).slice(2,7))),nome:String(nome||'')};
+  g.funcionarios=[...g.funcionarios,novo];
+  if(!g.funcionarioPadraoId)g.funcionarioPadraoId=novo.id;
+  return g;
+}
+// Remove funcionário (puro). Se remover o padrão, cai para o 1º restante (ou null).
+function removerFuncionario(gestao,id){
+  const g=gestaoNormalizar(gestao);
+  g.funcionarios=g.funcionarios.filter(f=>f.id!==String(id));
+  if(!g.funcionarios.some(f=>f.id===g.funcionarioPadraoId))
+    g.funcionarioPadraoId=g.funcionarios.length?g.funcionarios[0].id:null;
+  return g;
+}
+// Define o padrão (puro). Só um padrão; id inválido → cai para o 1º.
+function definirFuncionarioPadrao(gestao,id){
+  const g=gestaoNormalizar(gestao);
+  g.funcionarioPadraoId=g.funcionarios.some(f=>f.id===String(id))?String(id):(g.funcionarios.length?g.funcionarios[0].id:null);
+  return g;
+}
+
+// Mapeia status da reserva → categoria de modelo. amarelo→verificando, overbooking→overbooking,
+// confirmado(azul/grupo/moto)→null (fora do sistema de modelos nesta versão).
+function categoriaReserva(g){
+  if(!g)return null;
+  if(g.over)return'overbooking';
+  if(g.garagem==='amarelo')return'verificando';
+  return null;
+}
+
+// Índices dos modelos preenchidos (texto não-vazio) de uma categoria.
+function modelosPreenchidos(gestao,categoria){
+  const g=gestaoNormalizar(gestao);
+  const arr=g.modelos[categoria]||[];
+  const out=[];
+  arr.forEach((t,i)=>{if(t&&t.trim())out.push(i);});
+  return out;
+}
+// Índice do modelo padrão de uma categoria, garantido apontando p/ slot preenchido (se houver).
+function modeloPadraoIdx(gestao,categoria){
+  const g=gestaoNormalizar(gestao);
+  const preenchidos=modelosPreenchidos(g,categoria);
+  const pad=clampIdx(g.modeloPadrao[categoria]);
+  if(preenchidos.includes(pad))return pad;
+  return preenchidos.length?preenchidos[0]:pad;
+}
+
+// ── 5.5 SUBSTITUIÇÃO DAS CHAVES (pura) — nunca deixa chave literal ──
+function substituirChaves(texto,reserva,gestao){
+  reserva=reserva||{};
+  const g=gestaoNormalizar(gestao);
+  const nome=reserva.nome||reserva.nomeCompleto||'';
+  let data='';
+  const ent=reserva.entrada,sai=reserva.saida;
+  if(ent&&sai)data=`${fmtData(new Date(ent))} a ${fmtData(new Date(sai))}`;
+  else if(ent)data=fmtData(new Date(ent));
+  else if(sai)data=fmtData(new Date(sai));
+  const canal=reserva.canal||reserva.origem||'';
+  const empresa=(g.empresa&&g.empresa.nome)||'';
+  const fp=funcionarioPadrao(g);
+  const funcionario=fp?fp.nome:'';
+  const mapa={nome,data,canal,empresa,funcionario};
+  return String(texto||'').replace(/\[(nome|data|canal|empresa|funcionario)\]/gi,(_,k)=>mapa[k.toLowerCase()]??'');
+}
+
+// ── 5.4 AUTOCOMPLETE de chaves (puro) ──
+// Recebe o texto até o cursor; se terminar em "[parcial" (sem fechar), sugere as chaves compatíveis.
+function autocompleteChaves(textoAteCursor){
+  const m=String(textoAteCursor||'').match(/\[([a-zà-úç]*)$/i);
+  if(!m)return[];
+  const parcial=m[1].toLowerCase();
+  return CHAVES_MODELO.filter(k=>k.startsWith(parcial)).map(k=>'['+k+']');
+}
+// Aplica uma sugestão: troca o "[parcial" final pela chave completa. Retorna {texto,cursor}.
+function aplicarSugestao(textoAteCursor,resto,chave){
+  const novoAntes=String(textoAteCursor||'').replace(/\[[a-zà-úç]*$/i,chave);
+  return{texto:novoAntes+(resto||''),cursor:novoAntes.length};
+}
+
+// ── 5.7 BACKUP (puro) ──
+const BACKUP_SCHEMA='reserva-garagem-backup/1';
+function montarBackup(storesObj,appVersion,agoraMs){
+  return{schema:BACKUP_SCHEMA,appVersion:appVersion||'',exportadoEm:(typeof agoraMs==='number'?agoraMs:Date.now()),stores:storesObj||{}};
+}
+function backupValido(obj){
+  return!!(obj&&typeof obj==='object'&&obj.schema===BACKUP_SCHEMA&&obj.stores&&typeof obj.stores==='object');
+}
+// Mescla contatos (não-destrutivo): adiciona só os nros ausentes localmente; não sobrescreve.
+function mesclarContatos(locais,importados){
+  const existe=new Set((locais||[]).map(c=>String(c.nro)));
+  const novos=[];let jaExistiam=0;
+  (importados||[]).forEach(c=>{
+    if(c&&c.nro!=null){
+      if(existe.has(String(c.nro)))jaExistiam++;
+      else novos.push(c);
+    }
+  });
+  return{novos,adicionados:novos.length,jaExistiam};
+}
+// Decide a importação da gestão. mesclar → só se não houver config local; substituir → repõe.
+function decidirGestaoImport(localGestao,importadoGestao,modo){
+  const temLocal=!!(localGestao&&((localGestao.empresa&&localGestao.empresa.nome)||(localGestao.funcionarios&&localGestao.funcionarios.length)));
+  if(!importadoGestao)return{aplicar:false,gestao:localGestao||null};
+  if(modo==='substituir')return{aplicar:true,gestao:gestaoNormalizar(importadoGestao)};
+  // mesclar (padrão): só aplica se não houver config local relevante
+  return temLocal?{aplicar:false,gestao:localGestao}:{aplicar:true,gestao:gestaoNormalizar(importadoGestao)};
 }
 // ===ENGINE END===
 /* ═══════════════════════════════════════════════════════════
@@ -837,9 +1087,14 @@ function trocarAba(aba){
   abaAtual=aba;
   document.getElementById('view-mapa').style.display=aba==='mapa'?'block':'none';
   document.getElementById('view-contato').style.display=aba==='contato'?'block':'none';
+  document.getElementById('view-gestao').style.display=aba==='gestao'?'block':'none';
   document.getElementById('tab-mapa').classList.toggle('active',aba==='mapa');
   document.getElementById('tab-contato').classList.toggle('active',aba==='contato');
+  document.getElementById('tab-gestao').classList.toggle('active',aba==='gestao');
+  // o seletor de Período não faz sentido na Gestão
+  const filtros=document.querySelector('.filtros');if(filtros)filtros.style.display=aba==='gestao'?'none':'';
   if(aba==='contato')renderContato();
+  if(aba==='gestao')renderGestao();
 }
 
 // ── SCROLL HORIZONTAL COM MOUSE (preservado) ──
@@ -925,7 +1180,7 @@ function ativasNoPeriodo(){
 }
 
 /* ═══════════ INDEXEDDB (B1) — com fallback em memória ═══════════ */
-const DB_NAME='garagemGumz',DB_VER=1;
+const DB_NAME='garagemGumz',DB_VER=2; // v1.2.0: +store 'gestao' (migração não-destrutiva)
 let db=null,dbOk=false;
 
 function abrirDB(){
@@ -937,6 +1192,8 @@ function abrirDB(){
       const d=e.target.result;
       if(!d.objectStoreNames.contains('reservas'))d.createObjectStore('reservas',{keyPath:'id'});
       if(!d.objectStoreNames.contains('contatos'))d.createObjectStore('contatos',{keyPath:'nro'});
+      // v1.2.0 — cria 'gestao' apenas se não existir; NÃO toca em reservas/contatos.
+      if(!d.objectStoreNames.contains('gestao'))d.createObjectStore('gestao',{keyPath:'id'});
     };
     req.onsuccess=(e)=>{db=e.target.result;dbOk=true;resolve(true);};
     req.onerror=()=>resolve(false);
@@ -1304,6 +1561,7 @@ function renderContato(){
   cont.innerHTML='';
   if(!todasReservas.length){cont.innerHTML='<div class="ct-empty">Importe um relatório PDF para ver as reservas.</div>';return;}
   let grupos=reservasContato();
+  contatoGrupos={};grupos.forEach(g=>{contatoGrupos[g.nro]=g;}); // p/ o fluxo de envio (5.6)
 
   if(contatoFiltro==='verificando')grupos=grupos.filter(g=>grupoTipo(g)==='amarelo');
   else if(contatoFiltro==='overbooking')grupos=grupos.filter(g=>g.over);
@@ -1365,11 +1623,14 @@ function itemContato(g){
 }
 
 function botoesWhatsapp(g){
-  const tipo=grupoTipo(g);
-  // Modelo 2 (sem disponibilidade) para overbooking; Modelo 1 (interesse) caso contrário.
-  const m1=`<a class="wa-btn" href="${linkWhatsApp(g,getTpl(1))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬 Interesse</a>`;
-  const m2=`<a class="wa-btn alt" href="${linkWhatsApp(g,getTpl(2))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🚫 Sem vaga</a>`;
-  return tipo==='over'?(m2+m1):(m1+m2);
+  // v1.2.0 — categoria pelo status: amarelo→verificando, vermelho→overbooking; azul fora do sistema.
+  const cat=categoriaReserva(g);
+  if(!cat){
+    // Confirmado/azul: fora do sistema de modelos. Link simples (abre a conversa, sem template).
+    return`<a class="wa-btn" href="${linkWhatsAppTexto(g.telefone,'')}" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬 WhatsApp</a>`;
+  }
+  const rotulo=cat==='overbooking'?'🚫 Mensagem (sem vaga)':'💬 Mensagem (verificar)';
+  return`<button class="wa-btn${cat==='overbooking'?' alt':''}" onclick="event.stopPropagation();abrirEnvio('${g.nro}')">${rotulo}</button>`;
 }
 
 function ativarContato(nro){
@@ -1402,22 +1663,284 @@ async function confirmarTelefone(nro){
   renderContato();
 }
 
-// ── TEMPLATES (persistidos em localStorage com fallback) ──
-function getTpl(n){
-  const el=document.getElementById('tpl'+n);
-  return el&&el.value?el.value:(n===1?TPL_DEFAULT_1:TPL_DEFAULT_2);
+/* ═══════════════════════ GESTÃO (v1.2.0) ═══════════════════════ */
+let gestaoConfig=null;     // singleton (store 'gestao', id 'config')
+let contatoGrupos={};      // nro → grupo (atualizado no renderContato; usado no envio)
+let envioCtx=null;         // contexto do modal de envio
+let acTarget=null;         // textarea sob autocomplete
+function getGestaoConfig(){return gestaoConfig;} // exposto p/ testes
+
+function uid(){return'f'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function escapeHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escapeAttr(s){return escapeHtml(s).replace(/"/g,'&quot;');}
+
+// ── Persistência da Gestão (semeia 1x; nunca sobrescreve config existente) ──
+async function carregarGestao(){
+  if(dbOk){
+    try{
+      const arr=await dbGetAll('gestao');
+      const rec=(arr||[]).find(r=>r&&r.id==='config');
+      if(rec){gestaoConfig=gestaoNormalizar(rec);}
+      else{gestaoConfig=gestaoDefault();try{await dbPut('gestao',gestaoConfig);}catch(e){}}
+    }catch(e){gestaoConfig=gestaoDefault();}
+  }else{
+    gestaoConfig=gestaoDefault(); // memória
+  }
 }
-function salvarTemplates(){
+async function salvarGestao(){
+  if(!gestaoConfig)return;
+  gestaoConfig.id='config';
+  if(dbOk){try{await dbPut('gestao',gestaoConfig);}catch(e){console.warn('salvar gestao falhou',e);}}
+}
+
+// ── Handlers de Gestão ──
+function gestaoSetEmpresa(v){if(!gestaoConfig)gestaoConfig=gestaoDefault();gestaoConfig.empresa.nome=v;salvarGestao();}
+function gestaoAddFuncionario(){gestaoConfig=adicionarFuncionario(gestaoConfig,'',uid());salvarGestao();renderGestao();}
+function gestaoSetFuncNome(id,v){if(!gestaoConfig)return;const f=gestaoConfig.funcionarios.find(x=>x.id===id);if(f){f.nome=v;salvarGestao();}}
+function gestaoSetFuncPadrao(id){gestaoConfig=definirFuncionarioPadrao(gestaoConfig,id);salvarGestao();renderGestao();}
+function gestaoRemoverFuncionario(id){gestaoConfig=removerFuncionario(gestaoConfig,id);salvarGestao();renderGestao();}
+function gestaoSetModelo(cat,idx,v){if(!gestaoConfig)gestaoConfig=gestaoDefault();gestaoConfig.modelos[cat][idx]=v;salvarGestao();}
+function gestaoSetModeloPadrao(cat,idx){if(!gestaoConfig)gestaoConfig=gestaoDefault();gestaoConfig.modeloPadrao[cat]=idx;salvarGestao();renderGestao();}
+
+// ── Render da aba Gestão ──
+function renderGestao(){
+  const view=document.getElementById('view-gestao');
+  if(!view)return;
+  const g=gestaoConfig?gestaoNormalizar(gestaoConfig):gestaoDefault();
+  view.innerHTML=`
+    <div class="gestao-wrap">
+      <h2 class="gestao-h">⚙ Gestão</h2>
+
+      <section class="gcard">
+        <h3>🏢 Empresa</h3>
+        <label class="glabel">Nome da empresa <span class="gkey">[empresa]</span></label>
+        <input id="gestao-empresa" class="ginput" value="${escapeAttr(g.empresa.nome)}" oninput="gestaoSetEmpresa(this.value)" placeholder="Ex.: Hotel Gumz">
+      </section>
+
+      <section class="gcard">
+        <h3>👥 Funcionários</h3>
+        <div class="ghint">O funcionário <b>padrão</b> alimenta a chave <span class="gkey">[funcionario]</span>. Selecione um como padrão.</div>
+        <div id="gestao-funcs">${gestaoFuncsHTML(g)}</div>
+        <button class="btn btn-ghost gbtn-add" onclick="gestaoAddFuncionario()">＋ Adicionar funcionário</button>
+      </section>
+
+      <section class="gcard">
+        <h3>💬 Modelos de Mensagens</h3>
+        <div class="chaves-legenda">
+          <span class="cl-item"><code>[nome]</code> hóspede</span>
+          <span class="cl-item"><code>[data]</code> entrada e saída</span>
+          <span class="cl-item"><code>[canal]</code> origem da reserva</span>
+          <span class="cl-item"><code>[empresa]</code> nome da empresa</span>
+          <span class="cl-item"><code>[funcionario]</code> funcionário padrão</span>
+          <button class="ajuda-btn" onclick="abrirAjuda()" title="O que são as chaves?" aria-label="Ajuda das chaves">?</button>
+        </div>
+        ${renderModeloCategoria('verificando','🟡 Verificando (interesse / aguardando)',g)}
+        ${renderModeloCategoria('overbooking','🔴 Overbooking (sem vaga)',g)}
+      </section>
+
+      <section class="gcard">
+        <h3>💾 Backup / Restauração</h3>
+        <div class="ghint">Exporte um arquivo com seus dados. A importação é <b>não-destrutiva por padrão</b> (Mesclar).</div>
+        <button class="btn btn-primary" onclick="gestaoExportar()">⬇ Exportar backup</button>
+        <div class="backup-import">
+          <label class="glabel">Importar backup</label>
+          <div class="bi-modos">
+            <label><input type="radio" name="bk-modo" value="mesclar" checked> Mesclar (não-destrutivo)</label>
+            <label><input type="radio" name="bk-modo" value="substituir"> Substituir (sobrescreve)</label>
+          </div>
+          <input type="file" id="backup-file" accept=".json,application/json" onchange="gestaoImportarArquivo(this)">
+          <div id="backup-result" class="backup-result"></div>
+        </div>
+      </section>
+    </div>`;
+}
+function gestaoFuncsHTML(g){
+  if(!g.funcionarios.length)return'<div class="ghint">Nenhum funcionário cadastrado ainda. Adicione o primeiro abaixo.</div>';
+  return g.funcionarios.map(f=>`<div class="func-row">
+      <label class="func-pad" title="Definir como padrão"><input type="radio" name="func-padrao" ${f.id===g.funcionarioPadraoId?'checked':''} onchange="gestaoSetFuncPadrao('${f.id}')"> padrão</label>
+      <input type="text" class="ginput" value="${escapeAttr(f.nome)}" oninput="gestaoSetFuncNome('${f.id}',this.value)" placeholder="Nome do funcionário">
+      <button class="btn btn-ghost func-x" onclick="gestaoRemoverFuncionario('${f.id}')" title="Remover" aria-label="Remover funcionário">✕</button>
+    </div>`).join('');
+}
+function renderModeloCategoria(cat,rotulo,g){
+  const arr=g.modelos[cat],pad=g.modeloPadrao[cat];
+  let html=`<div class="modelo-cat"><h4>${rotulo}</h4>`;
+  for(let i=0;i<3;i++){
+    html+=`<div class="modelo-slot">
+      <div class="modelo-slot-head">
+        <span class="modelo-num">Modelo ${i+1}</span>
+        <label class="modelo-pad" title="Modelo padrão desta categoria"><input type="radio" name="pad-${cat}" ${i===pad?'checked':''} onchange="gestaoSetModeloPadrao('${cat}',${i})"> padrão</label>
+      </div>
+      <textarea id="modelo-${cat}-${i}" class="modelo-ta" data-cat="${cat}" data-idx="${i}" rows="3"
+        oninput="modeloTaInput(this)" onkeydown="modeloTaKeydown(event,this)" onblur="setTimeout(acHide,150)"
+        placeholder="(vazio — preencha como quiser)">${escapeHtml(arr[i]||'')}</textarea>
+      <div class="chips">${CHAVES_MODELO.map(k=>`<button type="button" class="chip" onmousedown="event.preventDefault()" onclick="inserirChave('${cat}',${i},'[${k}]')">[${k}]</button>`).join('')}</div>
+    </div>`;
+  }
+  return html+'</div>';
+}
+
+// ── Autocomplete de chaves ──
+function modeloTaInput(ta){gestaoSetModelo(ta.dataset.cat,+ta.dataset.idx,ta.value);acProcessar(ta);}
+function acProcessar(ta){
+  const pos=ta.selectionStart!=null?ta.selectionStart:ta.value.length;
+  const sugest=autocompleteChaves(ta.value.slice(0,pos));
+  const box=document.getElementById('ac-box');
+  if(!sugest.length){acHide();return;}
+  acTarget=ta;
+  box.innerHTML=sugest.map(s=>`<div class="ac-item" onmousedown="event.preventDefault();acAceitar('${s}')">${s}</div>`).join('');
+  const r=ta.getBoundingClientRect();
+  box.style.left=(r.left+window.scrollX)+'px';
+  box.style.top=(r.bottom+window.scrollY+2)+'px';
+  box.style.minWidth=r.width+'px';
+  box.style.display='block';
+}
+function acAceitar(chave){
+  const ta=acTarget;if(!ta)return;
+  const pos=ta.selectionStart!=null?ta.selectionStart:ta.value.length;
+  const antes=ta.value.slice(0,pos),resto=ta.value.slice(pos);
+  const r=aplicarSugestao(antes,resto,chave);
+  ta.value=r.texto;
+  try{ta.setSelectionRange(r.cursor,r.cursor);}catch(e){}
+  gestaoSetModelo(ta.dataset.cat,+ta.dataset.idx,ta.value);
+  acHide();ta.focus();
+}
+function modeloTaKeydown(e,ta){
+  const box=document.getElementById('ac-box');
+  if(box.style.display==='block'&&acTarget===ta&&(e.key==='Tab'||e.key==='Enter')){
+    const first=box.querySelector('.ac-item');
+    if(first){e.preventDefault();acAceitar(first.textContent);}
+  }else if(e.key==='Escape'){acHide();}
+}
+function acHide(){const b=document.getElementById('ac-box');if(b)b.style.display='none';acTarget=null;}
+// Chips (inserem a chave no cursor — essencial no mobile)
+function inserirChave(cat,idx,chave){
+  const ta=document.getElementById('modelo-'+cat+'-'+idx);if(!ta)return;
+  const pos=ta.selectionStart!=null?ta.selectionStart:ta.value.length;
+  ta.value=ta.value.slice(0,pos)+chave+ta.value.slice(pos);
+  try{ta.setSelectionRange(pos+chave.length,pos+chave.length);}catch(e){}
+  gestaoSetModelo(cat,idx,ta.value);ta.focus();
+}
+
+// ── Ajuda das chaves ──
+function abrirAjuda(){document.getElementById('ajuda-modal').style.display='flex';}
+function fecharAjuda(){document.getElementById('ajuda-modal').style.display='none';}
+
+/* ═══════════ FLUXO DE ENVIO (preview + troca + editar só este envio) ═══════════ */
+function abrirEnvio(nro){
+  const g=contatoGrupos[nro];if(!g)return;
+  const cat=categoriaReserva(g);if(!cat)return;
+  const gestao=gestaoConfig||gestaoDefault();
+  envioCtx={nro,cat,idx:modeloPadraoIdx(gestao,cat),editado:false,g};
+  document.getElementById('envio-titulo').textContent=cat==='overbooking'?'Mensagem — Overbooking (sem vaga)':'Mensagem — Verificando (interesse)';
+  const ta=document.getElementById('envio-preview');ta.readOnly=true;
+  document.getElementById('envio-editar').textContent='✏️ Editar só este envio';
+  renderEnvioModelos();
+  envioAtualizarPreview();
+  document.getElementById('envio-modal').style.display='flex';
+}
+function renderEnvioModelos(){
+  const box=document.getElementById('envio-modelos');
+  const gestao=gestaoConfig||gestaoDefault();
+  const preench=modelosPreenchidos(gestao,envioCtx.cat);
+  if(preench.length<=1){box.style.display='none';box.innerHTML='';return;}
+  box.style.display='flex';
+  box.innerHTML=preench.map(i=>`<button class="envio-mbtn${i===envioCtx.idx?' active':''}" onclick="envioTrocarModelo(${i})">Modelo ${i+1}</button>`).join('');
+}
+function envioTrocarModelo(i){
+  envioCtx.idx=i;envioCtx.editado=false;
+  const ta=document.getElementById('envio-preview');ta.readOnly=true;
+  document.getElementById('envio-editar').textContent='✏️ Editar só este envio';
+  renderEnvioModelos();envioAtualizarPreview();
+}
+function envioTextoModelo(){
+  const gestao=gestaoNormalizar(gestaoConfig||gestaoDefault());
+  return gestao.modelos[envioCtx.cat][envioCtx.idx]||'';
+}
+function envioReservaDados(){const g=envioCtx.g;return{nome:g.nome,entrada:g.entrada,saida:g.saida,origem:g.origem,telefone:g.telefone};}
+function envioAtualizarPreview(){
+  const txt=substituirChaves(envioTextoModelo(),envioReservaDados(),gestaoConfig||gestaoDefault());
+  document.getElementById('envio-preview').value=txt;
+  envioAtualizarLink(txt);
+}
+function envioAtualizarLink(texto){document.getElementById('envio-enviar').href=linkWhatsAppTexto(envioCtx.g.telefone,texto);}
+function envioToggleEditar(){
+  const ta=document.getElementById('envio-preview');
+  if(ta.readOnly){ta.readOnly=false;ta.focus();envioCtx.editado=true;document.getElementById('envio-editar').textContent='✓ Editando (só este envio)';}
+}
+function envioPreviewInput(){if(envioCtx&&envioCtx.editado)envioAtualizarLink(document.getElementById('envio-preview').value);}
+function fecharEnvio(){document.getElementById('envio-modal').style.display='none';envioCtx=null;}
+
+/* ═══════════ BACKUP / RESTAURAÇÃO ═══════════ */
+function nomeArquivoData(d){const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;}
+async function gestaoExportar(){
   try{
-    localStorage.setItem('garagem_tpl1',document.getElementById('tpl1').value);
-    localStorage.setItem('garagem_tpl2',document.getElementById('tpl2').value);
-  }catch(e){}
+    const stores={};
+    if(dbOk){
+      for(const n of Array.from(db.objectStoreNames)){try{stores[n]=await dbGetAll(n);}catch(e){stores[n]=[];}}
+    }else{
+      stores.reservas=todasReservas.map(r=>({...r}));
+      stores.contatos=Object.entries(contatosMap).map(([nro,c])=>({nro,telefone:c.telefone||'',telefoneStatus:c.telefoneStatus||'pendente'}));
+      stores.gestao=[gestaoConfig||gestaoDefault()];
+    }
+    const backup=montarBackup(stores,APP_VERSION,Date.now());
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='reserva-garagem-backup-'+nomeArquivoData(new Date())+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    mostrarToast('Backup exportado!');
+  }catch(e){mostrarToast('Falha ao exportar');console.warn(e);}
 }
-function initTemplates(){
-  let t1=TPL_DEFAULT_1,t2=TPL_DEFAULT_2;
-  try{t1=localStorage.getItem('garagem_tpl1')||TPL_DEFAULT_1;t2=localStorage.getItem('garagem_tpl2')||TPL_DEFAULT_2;}catch(e){}
-  document.getElementById('tpl1').value=t1;
-  document.getElementById('tpl2').value=t2;
+function mostrarResultadoBackup(msg){const el=document.getElementById('backup-result');if(el)el.textContent=msg;}
+function gestaoImportarArquivo(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const modo=(document.querySelector('input[name="bk-modo"]:checked')||{}).value||'mesclar';
+  const reader=new FileReader();
+  reader.onload=async()=>{
+    let obj=null;
+    try{obj=JSON.parse(reader.result);}catch(e){mostrarResultadoBackup('Arquivo inválido (não é JSON). Nada foi alterado.');input.value='';return;}
+    if(!backupValido(obj)){mostrarResultadoBackup('Backup incompatível ou inválido. Nada foi alterado.');input.value='';return;}
+    try{await aplicarImport(obj,modo);}catch(e){mostrarResultadoBackup('Falha ao importar: '+((e&&e.message)||e));}
+    input.value='';
+  };
+  reader.onerror=()=>{mostrarResultadoBackup('Não foi possível ler o arquivo.');input.value='';};
+  reader.readAsText(file);
+}
+async function aplicarImport(obj,modo){
+  const stores=obj.stores||{};const msgs=[];
+  if(modo==='substituir'){
+    const okc=(typeof window.confirm==='function')?window.confirm('Substituir vai SOBRESCREVER seus contatos e a configuração de Gestão locais (e reservas, se houver no backup). Continuar?'):true;
+    if(!okc){mostrarResultadoBackup('Importação cancelada.');return;}
+  }
+  // CONTATOS
+  const impContatos=Array.isArray(stores.contatos)?stores.contatos:[];
+  if(modo==='mesclar'){
+    const locais=dbOk?await dbGetAll('contatos'):Object.entries(contatosMap).map(([nro,c])=>({nro,...c}));
+    const {novos,adicionados,jaExistiam}=mesclarContatos(locais,impContatos);
+    if(dbOk&&novos.length)await dbPutMany('contatos',novos);
+    novos.forEach(c=>{contatosMap[c.nro]={telefone:c.telefone||'',telefoneStatus:c.telefoneStatus||'pendente'};});
+    msgs.push(`${adicionados} contatos importados; ${jaExistiam} já existiam e foram mantidos`);
+  }else{
+    if(dbOk&&impContatos.length)await dbPutMany('contatos',impContatos);
+    impContatos.forEach(c=>{contatosMap[c.nro]={telefone:c.telefone||'',telefoneStatus:c.telefoneStatus||'pendente'};});
+    msgs.push(`${impContatos.length} contatos substituídos`);
+  }
+  // GESTÃO
+  const impGestaoArr=Array.isArray(stores.gestao)?stores.gestao:[];
+  const impGestao=impGestaoArr.find(r=>r&&r.id==='config')||impGestaoArr[0]||null;
+  const dec=decidirGestaoImport(gestaoConfig,impGestao,modo);
+  if(dec.aplicar&&dec.gestao){gestaoConfig=gestaoNormalizar(dec.gestao);await salvarGestao();msgs.push('configuração de Gestão importada');}
+  else msgs.push('configuração de Gestão mantida');
+  // RESERVAS (apenas no Substituir; a fonte normal é o PDF)
+  if(modo==='substituir'&&Array.isArray(stores.reservas)&&stores.reservas.length){
+    if(dbOk)await dbPutMany('reservas',stores.reservas);
+    msgs.push(`${stores.reservas.length} reservas substituídas`);
+  }
+  if(dbOk)await carregarDoBanco();else anexarTelefones();
+  if(abaAtual==='contato')renderContato();
+  renderGestao();
+  mostrarResultadoBackup('✔ '+msgs.join('; ')+'.');
 }
 
 // ── INIT ──
@@ -1426,9 +1949,10 @@ async function init(){
   carregarOrdemVagas();atualizarBtnOrdem();      // 5.4
   carregarUploadInfo();renderUploadInfo();        // 5.5
   initDatas();
-  initTemplates();
+  const ep=document.getElementById('envio-preview');if(ep)ep.addEventListener('input',envioPreviewInput);
   await abrirDB();
   setDbChip();
+  await carregarGestao();    // v1.2.0
   await carregarDoBanco();
 }
 init();

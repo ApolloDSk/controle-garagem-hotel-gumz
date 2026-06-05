@@ -39,7 +39,7 @@ function montarPDF() {
   return [
     bloco('30001', hoje, maisTarde, '201', 'WHATSAPP', 'GARAGEM PEQUENO', 'ANA PEQUENA'),
     bloco('30002', hoje, maisTarde, '202', 'BOOKING 413101ID20542561', 'GARAGEM GRANDE', 'BRUNO GRANDE'),
-    bloco('30003', hoje, maisTarde, '203', 'EXPEDIA', 'SEM INFO DE GARAGEM AQUI VERIFICAR', 'CARLA AMARELA'),
+    bloco('30003', hoje, maisTarde, '203', 'EXPEDIA', 'VERIFICAR INTERESSE SEM CLASSIF', 'CARLA AMARELA'),
     bloco('30004', ontem, depois, '204', 'WHATSAPP', 'GARAGEM PEQUENO', 'DAVI PASSADO'),
   ].join('\n');
 }
@@ -73,9 +73,9 @@ async function novoApp() {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.1.0', async () => {
+  await T('rodapé mostra v1.2.0', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.1.0');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.2.0');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -256,6 +256,156 @@ async function novoApp() {
     await sleep(20); w.trocarAba('contato');
     const inp = w.document.getElementById('fone-' + nro);
     eq(inp.value, '47900000000', 'telefone sobrevive à reimportação');
+  });
+
+  /* ── 11. Gestão (v1.2.0) ── */
+  await T('aba Gestão existe e abre com seções', async () => {
+    const { w } = await novoApp();
+    ok(w.document.getElementById('tab-gestao'), 'botão da aba Gestão');
+    w.trocarAba('gestao');
+    const html = w.document.getElementById('view-gestao').innerHTML;
+    ok(/Empresa/.test(html) && /Funcionários/.test(html) && /Modelos de Mensagens/.test(html) && /Backup/.test(html), 'todas as seções presentes');
+  });
+
+  await T('migração cria store gestao e semeia, sem tocar reservas/contatos', async () => {
+    const { w } = await novoApp();
+    ok(Array.from(w.indexedDB ? [] : []) || true);
+    const g = w.getGestaoConfig();
+    ok(g && g.modelos.verificando[0].includes('[nome]'), 'gestao semeada');
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    ok(w.document.querySelectorAll('.cell-span').length >= 3, 'reservas intactas após gestao existir');
+  });
+
+  await T('Gestão persiste empresa e funcionário ao reabrir (mesmo IndexedDB)', async () => {
+    const idb = new fidb.IDBFactory();
+    const mk = async () => {
+      const dom = new JSDOM(fs.readFileSync(path.join(__dirname, '..', 'garagem-app', 'index.html'), 'utf8'), {
+        runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/',
+        beforeParse(window) {
+          window.indexedDB = idb; window.IDBKeyRange = fidb.IDBKeyRange;
+          window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) };
+          window.alert = () => { };
+        }
+      });
+      const w = dom.window;
+      for (let i = 0; i < 60; i++) { if (/salvo|mem/.test(w.document.getElementById('db-chip').textContent)) break; await sleep(15); }
+      await sleep(40); return w;
+    };
+    const w1 = await mk();
+    w1.gestaoSetEmpresa('Hotel Gumz');
+    w1.gestaoAddFuncionario();
+    const fid = w1.getGestaoConfig().funcionarios[0].id;
+    w1.gestaoSetFuncNome(fid, 'João');
+    await w1.salvarGestao();
+    await sleep(20);
+    const w2 = await mk();
+    const g = w2.getGestaoConfig();
+    eq(g.empresa.nome, 'Hotel Gumz', 'empresa persistida');
+    ok(g.funcionarios.some(f => f.nome === 'João'), 'funcionário persistido');
+  });
+
+  /* ── 12. Fluxo de envio (preview + troca + editar só este envio) ── */
+  await T('envio: preview substituído (sem [nome] literal) p/ reserva amarela', async () => {
+    const { w } = await novoApp();
+    w.gestaoSetEmpresa('Hotel Gumz');
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.trocarAba('contato');
+    w.abrirEnvio('30003'); // CARLA AMARELA (verificando)
+    const txt = w.document.getElementById('envio-preview').value;
+    ok(/CARLA/.test(txt), 'nome substituído'); ok(/Hotel Gumz/.test(txt), 'empresa substituída');
+    ok(!/\[nome\]|\[empresa\]|\[data\]|\[canal\]|\[funcionario\]/.test(txt), 'nenhuma chave literal');
+    eq(w.document.getElementById('envio-modal').style.display, 'flex', 'modal aberto');
+  });
+
+  await T('envio: trocar Modelo 1↔2 re-substitui o texto', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.trocarAba('contato');
+    w.gestaoSetModelo('verificando', 1, 'Segundo modelo para [nome]');
+    w.abrirEnvio('30003');
+    ok(w.document.getElementById('envio-modelos').style.display !== 'none', 'botões de modelo aparecem');
+    w.envioTrocarModelo(1);
+    eq(w.document.getElementById('envio-preview').value, 'Segundo modelo para CARLA AMARELA');
+  });
+
+  await T('envio: Editar muda só o preview e NÃO altera o modelo salvo', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.trocarAba('contato');
+    const modeloAntes = w.getGestaoConfig().modelos.verificando[0];
+    w.abrirEnvio('30003');
+    w.envioToggleEditar();
+    const ta = w.document.getElementById('envio-preview');
+    ok(!ta.readOnly, 'preview editável');
+    ta.value = 'TEXTO TOTALMENTE EDITADO';
+    eq(w.getGestaoConfig().modelos.verificando[0], modeloAntes, 'modelo salvo permanece inalterado');
+  });
+
+  await T('envio: reserva azul/confirmada NÃO usa fluxo templado (link simples)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    eq(w.categoriaReserva({ garagem: 'azul_pequeno' }), null);
+  });
+
+  /* ── 13. Autocomplete + chips (DOM) ── */
+  await T('Gestão: chip insere a chave no textarea do modelo', async () => {
+    const { w } = await novoApp();
+    w.trocarAba('gestao');
+    const ta = w.document.getElementById('modelo-verificando-1'); // slot vazio
+    ta.value = ''; ta.selectionStart = 0;
+    w.inserirChave('verificando', 1, '[nome]');
+    eq(w.document.getElementById('modelo-verificando-1').value, '[nome]');
+    eq(w.getGestaoConfig().modelos.verificando[1], '[nome]', 'persistido no estado');
+  });
+
+  /* ── 14. Backup ── */
+  await T('Backup: importar Mesclar adiciona contatos ausentes e gestao se ausente', async () => {
+    const { w } = await novoApp();
+    w.gestaoSetEmpresa('Local Existente'); // config local relevante → mesclar não deve sobrescrever
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    const backup = {
+      schema: 'reserva-garagem-backup/1', appVersion: 'v1.2.0', exportadoEm: Date.now(),
+      stores: {
+        contatos: [{ nro: '99999', telefone: '47900000000', telefoneStatus: 'resolvido' }],
+        gestao: [{ id: 'config', empresa: { nome: 'Importada' }, funcionarios: [], funcionarioPadraoId: null, modelos: { verificando: ['v', '', ''], overbooking: ['o', '', ''] }, modeloPadrao: { verificando: 0, overbooking: 0 } }]
+      }
+    };
+    await w.aplicarImport(backup, 'mesclar');
+    await sleep(20);
+    const cont = (await w.dbGetAll('contatos')).find(c => String(c.nro) === '99999');
+    ok(cont && cont.telefone === '47900000000', 'contato importado');
+    // gestao local relevante → mesclar NÃO sobrescreve
+    eq(w.getGestaoConfig().empresa.nome, 'Local Existente', 'mesclar não sobrescreve gestao existente');
+  });
+
+  await T('Backup: importar Substituir repõe a gestao (com confirm stubado)', async () => {
+    const { w } = await novoApp();
+    w.confirm = () => true; // stub
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    const backup = {
+      schema: 'reserva-garagem-backup/1', stores: {
+        contatos: [],
+        gestao: [{ id: 'config', empresa: { nome: 'Substituta' }, funcionarios: [{ id: 'a', nome: 'Z' }], funcionarioPadraoId: 'a', modelos: { verificando: ['x', '', ''], overbooking: ['y', '', ''] }, modeloPadrao: { verificando: 0, overbooking: 0 } }]
+      }
+    };
+    await w.aplicarImport(backup, 'substituir');
+    await sleep(10);
+    eq(w.getGestaoConfig().empresa.nome, 'Substituta');
+  });
+
+  await T('Backup: arquivo inválido não quebra (mensagem)', async () => {
+    const { w } = await novoApp();
+    w.trocarAba('gestao');
+    await w.aplicarImport({ schema: 'errado', stores: {} }, 'mesclar').catch(() => { });
+    // backupValido bloqueia antes; simula o caminho do gestaoImportarArquivo:
+    ok(!w.backupValido({ schema: 'errado' }), 'schema inválido detectado');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

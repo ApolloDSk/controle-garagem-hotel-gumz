@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.1.0** (entregue) · Próxima planejada: **v1.2.0** (Gestão + Modelos).
+> Versão atual: **v1.2.0** (entregue) · Próxima planejada: **v1.3.0** (edição manual).
 
 ---
 
@@ -32,26 +32,30 @@
 - **Check-in no passado:** hóspedes ainda hospedados aparecem com **borda esquerda cortada**.
 - Harness de testes versionado em `tests/` (98/98). Ver `RELATORIO-v1.1.0.md`.
 
+### v1.2.0 (entregue 05/06/2026) — Gestão + Modelos de Mensagens + Backup
+- **Aba Gestão:** Empresa (`[empresa]`), Funcionários (lista dinâmica + padrão único → `[funcionario]`),
+  Modelos de Mensagens, Backup/Restauração. Store `gestao` (DB v2, migração não-destrutiva).
+- **Modelos** por status (verificando/overbooking), até 3 cada, numeração 1/2/3 + padrão por
+  categoria; chaves `[nome] [data] [canal] [empresa] [funcionario]` com **substituição real**
+  (nunca literal), **autocomplete + chips**, **legenda + botão "?"**.
+- **Envio:** preview substituído → trocar modelo 1/2/3 → **Editar só o envio** (não altera o modelo)
+  → `wa.me`. Mapeamento amarelo→verificando, vermelho→overbooking; azul fora.
+- **Backup:** export (dump de stores) + import Mesclar (não-destrutivo) / Substituir (confirmação).
+- Testes 140/140. Ver `RELATORIO-v1.2.0.md`.
+
 ---
 
 ## 🔜 CONFIRMADO PARA O FUTURO (plano de patches)
 
-### v1.2.0 — Gestão + Modelos de Mensagens
-- Nova **aba Gestão**. Modelos por status (verificando/overbooking), **até 3 cada**, com
-  numeração 1/2/3 + padrão editável.
-- Chaves `[nome] [data] [canal] [empresa] [funcionario]` com **substituição real**, autocompletar
-  e **legenda + botão "?"**.
-- **Cadastro de empresa** (`[empresa]`) e **funcionários** com padrão.
-- Ao enviar: conferir/trocar modelo/editar **só o envio** (sem alterar o modelo salvo).
-
-### v1.3.0 — Edição manual + Backup/Restauração
-- **Edição manual:** mover reserva de vaga (com confirmação) e **data proibida**; distinguir
-  "mudar só de vaga" de "mudar de data" (prévia "ghost", confirmação específica).
-- **Backup/Restauração:** Export/Import dos dados.
+### v1.3.0 — Edição manual (arrastar reservas)
+- Mover reserva de vaga (com **confirmação**) e tratar **data proibida**; distinguir "mudar só de
+  vaga" de "mudar de data" (prévia "ghost", confirmação específica). Vale no mapa e no controle.
+- *(Backup já foi entregue na v1.2.0.)*
 
 ### Adiados ("vamos ver depois")
 - Mapeamento do **nome do canal** para `[canal]` (ex.: expedia.com / hoteis.com / omnibees).
 - Suporte a **mais de uma empresa**.
+- **Modelo de mensagem para reservas confirmadas/azuis** (hoje azul usa link `wa.me` simples).
 
 ### Envio em massa via WhatsApp (premium pago)
 - Exige **backend Node.js**. Usar **WhatsApp Business API oficial (Meta)** com **templates
@@ -110,7 +114,6 @@
 ---
 
 ## Atualização ao final desta versão
-- **Versão atual:** v1.1.0 (UX + check-in no passado).
-- **Próxima planejada:** v1.2.0 (Gestão + Modelos de Mensagens).
-- **Depois:** v1.3.0 (edição manual + backup/restauração). Adiados: mapeamento de `[canal]`;
-  múltiplas empresas.
+- **Versão atual:** v1.2.0 (Gestão + Modelos de Mensagens + Backup).
+- **Próxima planejada:** v1.3.0 (edição manual — mover de vaga, data proibida).
+- **Adiados:** mapeamento de `[canal]`; múltiplas empresas; modelo p/ reservas azuis/confirmadas.

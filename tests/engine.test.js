@@ -23,7 +23,11 @@ const EXPORTS = [
   'sobrepoe','linhaLivre','custoEncaixe','melhorLinha','empilhar','alocarVagas',
   'normalizePhone','gerarMensagem','linkWhatsApp','mesclarRegistros',
   // v1.1.0
-  'copiarTextoCore','estadoTelefoneInicial','aplicarOrdemLinhas','montarUploadInfo','fmtDataHora','recorteEsquerdo'
+  'copiarTextoCore','estadoTelefoneInicial','aplicarOrdemLinhas','montarUploadInfo','fmtDataHora','recorteEsquerdo',
+  // v1.2.0
+  'substituirChaves','gestaoDefault','gestaoNormalizar','funcionarioPadrao','adicionarFuncionario','removerFuncionario',
+  'definirFuncionarioPadrao','categoriaReserva','modelosPreenchidos','modeloPadraoIdx','autocompleteChaves','aplicarSugestao',
+  'montarBackup','backupValido','mesclarContatos','decidirGestaoImport'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -272,7 +276,131 @@ t('5.6 encerrada (saída < hoje) não é incluída', () => {
   ok(!(r.entrada <= janelaFim && r.saida > janelaInicio), 'encerrada não deve aparecer');
 });
 
-t('APP_VERSION é v1.1.0', () => { eq(E.APP_VERSION, 'v1.1.0'); });
+/* ════════════════════════════════════════════════════════════════
+   v1.2.0 — GESTÃO + MODELOS + BACKUP (funções puras)
+   ════════════════════════════════════════════════════════════════ */
+
+/* 5.5 — substituirChaves */
+t('5.5 substituirChaves troca as 5 chaves', () => {
+  const g = E.adicionarFuncionario({ ...E.gestaoDefault(), empresa: { nome: 'Hotel Gumz' } }, 'João', 'f1');
+  const r = { nome: 'Ana', entrada: D('05/06/26'), saida: D('08/06/26'), origem: 'Booking' };
+  const out = E.substituirChaves('Oi [nome], [data], via [canal], da [empresa], att [funcionario]', r, g);
+  eq(out, 'Oi Ana, 05/06/2026 a 08/06/2026, via Booking, da Hotel Gumz, att João');
+});
+t('5.5 [data] traz entrada e saída', () => {
+  const out = E.substituirChaves('[data]', { entrada: D('01/02/26'), saida: D('03/02/26') }, E.gestaoDefault());
+  eq(out, '01/02/2026 a 03/02/2026');
+});
+t('5.5 fonte vazia → string vazia (nunca literal)', () => {
+  const out = E.substituirChaves('[nome]/[empresa]/[funcionario]', {}, E.gestaoDefault());
+  eq(out, '//');
+  ok(!/\[nome\]|\[empresa\]|\[funcionario\]/.test(out), 'não pode sobrar chave literal');
+});
+t('5.5 texto fora das chaves intacto + múltiplas ocorrências', () => {
+  const out = E.substituirChaves('Olá [nome]! Tudo bem, [nome]? -- fim.', { nome: 'Rui' }, E.gestaoDefault());
+  eq(out, 'Olá Rui! Tudo bem, Rui? -- fim.');
+});
+t('5.5 usa nomeCompleto quando não há nome', () => {
+  eq(E.substituirChaves('[nome]', { nomeCompleto: 'Bia' }, E.gestaoDefault()), 'Bia');
+});
+
+/* 5.6 — categoria por status + padrão por categoria */
+t('5.6 categoriaReserva amarelo→verificando', () => { eq(E.categoriaReserva({ garagem: 'amarelo' }), 'verificando'); });
+t('5.6 categoriaReserva over→overbooking', () => { eq(E.categoriaReserva({ over: true, garagem: 'azul_pequeno' }), 'overbooking'); });
+t('5.6 categoriaReserva azul→null (fora do sistema)', () => { eq(E.categoriaReserva({ garagem: 'azul_grande' }), null); });
+t('5.6 modeloPadraoIdx respeita o padrão preenchido', () => {
+  const g = E.gestaoDefault(); g.modelos.verificando = ['A', 'B', 'C']; g.modeloPadrao.verificando = 1;
+  eq(E.modeloPadraoIdx(g, 'verificando'), 1);
+});
+t('5.6 modeloPadraoIdx cai p/ 1º preenchido se padrão vazio', () => {
+  const g = E.gestaoDefault(); g.modelos.overbooking = ['', 'B', '']; g.modeloPadrao.overbooking = 0;
+  eq(E.modeloPadraoIdx(g, 'overbooking'), 1);
+});
+t('5.6 modelosPreenchidos lista só não-vazios', () => {
+  const g = E.gestaoDefault(); g.modelos.verificando = ['x', '', 'z'];
+  eq(JSON.stringify(E.modelosPreenchidos(g, 'verificando')), '[0,2]');
+});
+
+/* 5.3 — funcionários */
+t('5.3 adicionar: 1º vira padrão', () => {
+  const g = E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1');
+  eq(g.funcionarios.length, 1); eq(g.funcionarioPadraoId, 'f1');
+});
+t('5.3 segundo funcionário NÃO rouba o padrão', () => {
+  let g = E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1');
+  g = E.adicionarFuncionario(g, 'Beto', 'f2');
+  eq(g.funcionarioPadraoId, 'f1'); eq(g.funcionarios.length, 2);
+});
+t('5.3 trocar padrão mantém apenas um', () => {
+  let g = E.adicionarFuncionario(E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1'), 'Beto', 'f2');
+  g = E.definirFuncionarioPadrao(g, 'f2');
+  eq(g.funcionarioPadraoId, 'f2');
+  eq(E.funcionarioPadrao(g).nome, 'Beto');
+});
+t('5.3 remover o padrão cai para o 1º restante', () => {
+  let g = E.adicionarFuncionario(E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1'), 'Beto', 'f2');
+  g = E.definirFuncionarioPadrao(g, 'f2');
+  g = E.removerFuncionario(g, 'f2');
+  eq(g.funcionarioPadraoId, 'f1');
+});
+t('5.3 remover último funcionário → padrão null', () => {
+  let g = E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1');
+  g = E.removerFuncionario(g, 'f1');
+  eq(g.funcionarioPadraoId, null); eq(g.funcionarios.length, 0);
+});
+
+/* 5.1/migração — gestaoDefault/normalizar */
+t('gestaoDefault semeia exemplos no slot 1', () => {
+  const g = E.gestaoDefault();
+  ok(g.modelos.verificando[0].includes('[nome]'), 'verificando semeado');
+  ok(g.modelos.overbooking[0].includes('lotação') || g.modelos.overbooking[0].includes('[empresa]'), 'overbooking semeado');
+  eq(g.modeloPadrao.verificando, 0); eq(g.modeloPadrao.overbooking, 0);
+});
+t('gestaoNormalizar cura config parcial sem quebrar', () => {
+  const g = E.gestaoNormalizar({ empresa: { nome: 'X' }, funcionarios: [{ id: 'a', nome: 'A' }], funcionarioPadraoId: 'inexistente' });
+  eq(g.funcionarioPadraoId, 'a', 'padrão inválido cai para o 1º');
+  eq(g.modelos.verificando.length, 3); eq(g.modelos.overbooking.length, 3);
+});
+
+/* 5.4 — autocomplete */
+t('5.4 autocompleteChaves [n → [nome]', () => { eq(JSON.stringify(E.autocompleteChaves('Olá [n')), '["[nome]"]'); });
+t('5.4 autocompleteChaves [ → todas as 5', () => { eq(E.autocompleteChaves('texto [').length, 5); });
+t('5.4 autocompleteChaves sem [ → nada', () => { eq(E.autocompleteChaves('texto normal').length, 0); });
+t('5.4 autocompleteChaves chave fechada → nada', () => { eq(E.autocompleteChaves('[nome] ').length, 0); });
+t('5.4 aplicarSugestao insere a chave no lugar do parcial', () => {
+  const r = E.aplicarSugestao('Olá [no', ' fim', '[nome]');
+  eq(r.texto, 'Olá [nome] fim'); eq(r.cursor, 'Olá [nome]'.length);
+});
+
+/* 5.7 — backup */
+t('5.7 montarBackup tem schema e stores', () => {
+  const b = E.montarBackup({ contatos: [{ nro: '1' }], gestao: [E.gestaoDefault()] }, 'v1.2.0', 123);
+  eq(b.schema, 'reserva-garagem-backup/1'); eq(b.exportadoEm, 123); ok(b.stores.contatos.length === 1);
+});
+t('5.7 backupValido valida schema', () => {
+  ok(E.backupValido({ schema: 'reserva-garagem-backup/1', stores: {} }));
+  ok(!E.backupValido({ schema: 'outro', stores: {} }));
+  ok(!E.backupValido(null)); ok(!E.backupValido({ schema: 'reserva-garagem-backup/1' }));
+});
+t('5.7 mesclarContatos adiciona só ausentes (não sobrescreve)', () => {
+  const locais = [{ nro: '1', telefone: 'aaa' }];
+  const imp = [{ nro: '1', telefone: 'NOVO' }, { nro: '2', telefone: 'bbb' }];
+  const r = E.mesclarContatos(locais, imp);
+  eq(r.adicionados, 1); eq(r.jaExistiam, 1); eq(r.novos[0].nro, '2');
+});
+t('5.7 decidirGestaoImport mesclar só aplica se não houver local', () => {
+  const local = E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1');
+  const imp = { empresa: { nome: 'Outra' } };
+  eq(E.decidirGestaoImport(local, imp, 'mesclar').aplicar, false, 'com config local → mantém');
+  eq(E.decidirGestaoImport(null, imp, 'mesclar').aplicar, true, 'sem config local → importa');
+});
+t('5.7 decidirGestaoImport substituir sempre repõe', () => {
+  const local = E.adicionarFuncionario(E.gestaoDefault(), 'Ana', 'f1');
+  const dec = E.decidirGestaoImport(local, { empresa: { nome: 'Nova' } }, 'substituir');
+  eq(dec.aplicar, true); eq(dec.gestao.empresa.nome, 'Nova');
+});
+
+t('APP_VERSION é v1.2.0', () => { eq(E.APP_VERSION, 'v1.2.0'); });
 
 /* ── runner (suporta testes async) ── */
 (async () => {
