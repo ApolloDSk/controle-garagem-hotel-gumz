@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.3.0** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura.
+> Versão atual: **v1.4.0** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura.
 
 ---
 
@@ -50,6 +50,21 @@
   automático". Store `ajustes` (DB v3, chave `nro`), sobrevive à reimportação do PDF.
 - Escopo: **carros (P/G)**; motos/overbooking fora. Testes 162/162. Ver `RELATORIO-v1.3.0.md`.
 
+### v1.4.0 (entregue 06/06/2026) — Contato + histórico de envios + pan vertical + `[nome]` formatado
+- **`[nome]` em formato de nome próprio** (`formatarNomeProprio`: Title Case; conectores
+  `de/da/do/dos/das/e` minúsculos; acentos; hífen) — só na **saída** da chave (não altera o dado).
+- **Contato:** clicar em **qualquer parte da reserva** seleciona; controles internos com `stopPropagation`.
+- **Status "enviado"** (renomeado de "resolvido"), **derivado do histórico** (`statusEnvioReserva`);
+  **digitar telefone não marca**; registro nasce no **disparo do `wa.me`** (`registrarEnvio`).
+  ⚠ "enviado" = **envio disparado**, não entrega confirmada (entrega real exige WhatsApp Business API).
+- **Store `envios`** (DB **v4**, `id` autoincrement + índice `nro`): histórico por hospedagem; só o
+  envio escreve; **reimport não apaga**. **Prancheta** (canto inferior direito) no **Contato** (reserva
+  selecionada) e no **detalhe** do Mapa, com data/hora/funcionário, estado vazio amigável.
+- **Detalhe:** copiar **nº PMS e OTA** ao clicar (fallback `file://`).
+- **Mapa:** **pan vertical e horizontal** no fundo; arraste de **bloco** = mover vaga (v1.3.0) inalterado.
+- Testes **188/188** (128 engine + 40 jsdom + 20 Playwright); flakiness pré-existente do harness
+  corrigida na raiz (`window.__appReady`). Ver `RELATORIO-v1.4.0.md`.
+
 ---
 
 ## ✅ ROADMAP LOCAL (sem backend) — CONCLUÍDO
@@ -68,6 +83,8 @@ infraestrutura.
   importação de arquivo (o Backup da v1.2.0 já é uma base; chave de integração = `nro`).
 
 ## 🕓 ADIADOS ("vamos ver depois")
+- **Confirmação real de entrega da mensagem** (entregue/lida) — exige **WhatsApp Business API/backend**.
+  O status "enviado" (v1.4.0) só garante que o `wa.me` foi **disparado** pelo app.
 - **Motos/overbooking arrastáveis** (hoje só carros P/G).
 - Mapeamento do **nome do canal** para `[canal]` (expedia.com / hoteis.com / omnibees).
 - Suporte a **mais de uma empresa**.
@@ -130,9 +147,9 @@ infraestrutura.
 ---
 
 ## Atualização ao final desta versão
-- **Versão atual:** v1.3.0 (edição manual — mover de vaga; data proibida).
-- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.3.0).
-- **Próximos passos (infra):** envio em massa (backend + WhatsApp Business API); integração
-  Reserva → Garage Spot (passo leve via export/import).
-- **Adiados:** motos/overbooking arrastáveis; mapeamento de `[canal]`; múltiplas empresas;
-  modelo p/ reservas azuis/confirmadas.
+- **Versão atual:** v1.4.0 (Contato + histórico de envios/prancheta + pan vertical + `[nome]` formatado).
+- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.4.0).
+- **Próximos passos (infra):** **confirmação real de entrega** + envio em massa (backend + WhatsApp
+  Business API); integração Reserva → Garage Spot (passo leve via export/import).
+- **Adiados:** confirmação real de entrega; motos/overbooking arrastáveis; mapeamento de `[canal]`;
+  múltiplas empresas; modelo p/ reservas azuis/confirmadas.

@@ -29,7 +29,9 @@ const EXPORTS = [
   'definirFuncionarioPadrao','categoriaReserva','modelosPreenchidos','modeloPadraoIdx','autocompleteChaves','aplicarSugestao',
   'montarBackup','backupValido','mesclarContatos','decidirGestaoImport',
   // v1.3.0
-  'aplicarAjustes','detectarConflito','ehReservaCarro','vagaValida'
+  'aplicarAjustes','detectarConflito','ehReservaCarro','vagaValida',
+  // v1.4.0
+  'formatarNomeProprio','statusEnvioReserva','montarRegistroEnvio','enviosOrdenados'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -470,7 +472,53 @@ t('5.3 detectarConflito: ignora a própria reserva (mesmo nro)', () => {
   eq(E.detectarConflito(orig, 'P5', [mesma]).conflito, false);
 });
 
-t('APP_VERSION é v1.3.0', () => { eq(E.APP_VERSION, 'v1.3.0'); });
+/* ════════════════════════════════════════════════════════════════
+   v1.4.0 — [nome] formatado + status enviado + registro de envio
+   ════════════════════════════════════════════════════════════════ */
+
+/* 5.1 — formatarNomeProprio */
+t('5.1 formatarNomeProprio: JOÃO DA SILVA → João da Silva', () => { eq(E.formatarNomeProprio('JOÃO DA SILVA'), 'João da Silva'); });
+t('5.1 formatarNomeProprio: MARIA DOS SANTOS → Maria dos Santos', () => { eq(E.formatarNomeProprio('MARIA DOS SANTOS'), 'Maria dos Santos'); });
+t('5.1 formatarNomeProprio: hífen + conectores', () => { eq(E.formatarNomeProprio('ANA-MARIA DE SOUZA E OLIVEIRA'), 'Ana-Maria de Souza e Oliveira'); });
+t('5.1 formatarNomeProprio: conector como 1ª palavra é capitalizado', () => { eq(E.formatarNomeProprio('DA SILVA'), 'Da Silva'); });
+t('5.1 formatarNomeProprio: acentos (já minúsculo) ÁGUA→Água', () => { eq(E.formatarNomeProprio('ÁGUA'), 'Água'); });
+t('5.1 formatarNomeProprio: já formatado permanece', () => { eq(E.formatarNomeProprio('Rui'), 'Rui'); eq(E.formatarNomeProprio('Ana'), 'Ana'); });
+t('5.1 formatarNomeProprio: vazio/nulo não quebra', () => { eq(E.formatarNomeProprio(''), ''); eq(E.formatarNomeProprio(null), ''); eq(E.formatarNomeProprio('  '), ''); });
+t('5.1 formatarNomeProprio: espaços extras normalizados', () => { eq(E.formatarNomeProprio('JOAO   DA    SILVA'), 'Joao da Silva'); });
+t('5.1 [nome] na mensagem sai formatado (via substituirChaves)', () => {
+  eq(E.substituirChaves('Olá [nome]!', { nome: 'CARLA AMARELA' }, E.gestaoDefault()), 'Olá Carla Amarela!');
+  eq(E.substituirChaves('[nome]', { nomeCompleto: 'HENRIDES DOS SANTOS' }, E.gestaoDefault()), 'Henrides dos Santos');
+});
+
+/* 5.3 — status derivado do histórico */
+t('5.3 statusEnvioReserva: sem registro → pendente (não enviado)', () => {
+  eq(E.statusEnvioReserva([]), 'pendente'); eq(E.statusEnvioReserva(undefined), 'pendente'); eq(E.statusEnvioReserva(null), 'pendente');
+});
+t('5.3 statusEnvioReserva: ≥1 registro → enviado', () => {
+  eq(E.statusEnvioReserva([{ nro: '1', dataHora: 'x', funcionario: 'Ana' }]), 'enviado');
+});
+
+/* 5.4 — montarRegistroEnvio + ordenação */
+t('5.4 montarRegistroEnvio: grava nro/dataHora(ISO)/funcionario(nome-texto)/categoria/modelo', () => {
+  const r = E.montarRegistroEnvio({ nro: 30001, funcionario: 'João', categoria: 'verificando', modelo: 1, agoraMs: new Date(2026, 5, 6, 9, 7).getTime() });
+  eq(r.nro, '30001'); eq(r.funcionario, 'João'); eq(r.categoria, 'verificando'); eq(r.modelo, 1);
+  ok(/^2026-06-06T/.test(r.dataHora), 'dataHora em ISO'); ok(!('id' in r), 'id é autoincrement no store');
+});
+t('5.4 montarRegistroEnvio: defaults seguros (sem dados não quebra)', () => {
+  const r = E.montarRegistroEnvio({});
+  eq(r.nro, ''); eq(r.funcionario, ''); eq(r.categoria, ''); eq(r.modelo, null); ok(!!r.dataHora);
+});
+t('5.4 enviosOrdenados: mais recente primeiro (por dataHora ISO)', () => {
+  const a = { nro: '1', dataHora: '2026-06-01T10:00:00.000Z' };
+  const b = { nro: '1', dataHora: '2026-06-03T10:00:00.000Z' };
+  const c = { nro: '1', dataHora: '2026-06-02T10:00:00.000Z' };
+  eq(E.enviosOrdenados([a, b, c]).map(x => x.dataHora).join(','), [b.dataHora, c.dataHora, a.dataHora].join(','));
+});
+t('5.4 enviosOrdenados: não muta o array original', () => {
+  const arr = [{ dataHora: 'a' }, { dataHora: 'b' }]; E.enviosOrdenados(arr); eq(arr[0].dataHora, 'a');
+});
+
+t('APP_VERSION é v1.4.0', () => { eq(E.APP_VERSION, 'v1.4.0'); });
 
 /* ── runner (suporta testes async) ── */
 (async () => {

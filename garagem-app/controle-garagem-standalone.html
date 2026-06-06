@@ -164,14 +164,15 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .ct-item.over{border-left-color:var(--vermelho)}
 .ct-item.moto{border-left-color:var(--moto)}
 .ct-item.active{box-shadow:0 0 0 2px var(--azul);border-color:var(--azul)}
-.ct-item.resolvido{background:var(--verde-bg)}
-.ct-top{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;cursor:pointer}
+.ct-item{cursor:pointer}
+.ct-item.enviado{background:var(--verde-bg)}
+.ct-top{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .ct-nome{font-weight:700;font-size:14px;flex:1;min-width:160px}
 .ct-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .ct-badge{font-family:'DM Mono',monospace;font-size:10px;padding:2px 7px;border-radius:5px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
 .ct-badge.ota{background:var(--amarelo-bg);color:var(--amarelo);border-color:transparent}
 .ct-badge.pms{background:var(--azul-bg);color:var(--azul);border-color:transparent}
-.ct-badge.status-res{background:var(--verde-bg);color:var(--verde);border-color:transparent}
+.ct-badge.status-env{background:var(--verde-bg);color:var(--verde);border-color:transparent}
 .ct-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:5px;font-family:'DM Mono',monospace}
 .ct-fone{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .ct-fone input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:12px;outline:none;width:170px}
@@ -291,6 +292,27 @@ body.arrastando .cell-span{cursor:grabbing}
 .drag-ghost .cell-info{font-size:8px;color:var(--muted)}
 .mover-conflito{background:var(--vermelho-bg);border:1px solid var(--vermelho);color:var(--vermelho);
   padding:8px 11px;border-radius:8px;font-size:12px;line-height:1.5}
+/* ════════ v1.4.0 — PRANCHETA DE ENVIOS (histórico por hospedagem) ════════ */
+.prancheta{background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  box-shadow:0 12px 36px rgba(0,0,0,.28);overflow:hidden}
+/* flutuante no Contato: canto inferior direito */
+#prancheta-contato.prancheta{position:fixed;right:18px;bottom:18px;z-index:9500;width:280px;max-width:calc(100vw - 36px)}
+.pr-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;
+  border-bottom:1px solid var(--border);background:var(--surface2)}
+.pr-titulo{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr-x{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;line-height:1;flex-shrink:0}
+.pr-x:hover{color:var(--text)}
+.pr-corpo{max-height:230px;overflow-y:auto;padding:6px}
+.pr-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 8px;
+  border-radius:7px;font-family:'DM Mono',monospace;font-size:10.5px}
+.pr-item:nth-child(odd){background:var(--surface2)}
+.pr-dh{color:var(--text);white-space:nowrap}
+.pr-func{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.pr-vazio{padding:14px 10px;text-align:center;color:var(--muted);font-size:11.5px}
+/* embutida no detalhe da reserva: canto inferior direito do modal */
+.prancheta-inline{margin-top:12px;margin-left:auto;max-width:100%}
+.prancheta-inline .pr-corpo{max-height:150px}
+@media(max-width:600px){#prancheta-contato.prancheta{width:calc(100vw - 24px);right:12px;bottom:12px}}
 </style>
 </head>
 <body>
@@ -403,6 +425,9 @@ body.arrastando .cell-span{cursor:grabbing}
 <div class="tooltip" id="tooltip"></div>
 <div class="copy-toast" id="copy-toast"></div>
 
+<!-- v1.4.0 — prancheta de envios da reserva selecionada (canto inferior direito), só na aba Contato -->
+<div id="prancheta-contato" class="prancheta" style="display:none"></div>
+
 <!-- caixa de autocomplete de chaves (compartilhada) -->
 <div id="ac-box" class="ac-box" style="display:none"></div>
 
@@ -474,7 +499,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.3.0';
+const APP_VERSION='v1.4.0';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -1003,11 +1028,54 @@ function modeloPadraoIdx(gestao,categoria){
   return preenchidos.length?preenchidos[0]:pad;
 }
 
+// ── v1.4.0 (5.1) NOME PRÓPRIO (pura) — Title Case com conectores minúsculos ──
+// Baixa tudo p/ minúsculas e capitaliza a 1ª letra de cada palavra, mantendo
+// minúsculos os conectores (de/da/do/dos/das/e) — exceto quando são a 1ª palavra.
+// Trata acentos (JOÃO→João) e nomes compostos com hífen (ANA-MARIA→Ana-Maria).
+const CONECTORES_NOME=new Set(['de','da','do','dos','das','e']);
+function formatarNomeProprio(nome){
+  const s=String(nome==null?'':nome).trim();
+  if(!s)return'';
+  const cap=(seg)=>seg?seg.charAt(0).toUpperCase()+seg.slice(1):seg;
+  const capHifen=(w)=>w.split('-').map(cap).join('-'); // capitaliza após cada hífen
+  return s.split(/\s+/).map((w,i)=>{
+    const low=w.toLowerCase();
+    if(i>0&&CONECTORES_NOME.has(low))return low; // conector no meio fica minúsculo
+    return capHifen(low);
+  }).join(' ');
+}
+
+// ── v1.4.0 (5.3/5.4) ENVIOS (puras) ──
+// Status derivado do histórico: "enviado" sse há ≥1 registro; senão "pendente".
+// (Digitar telefone NÃO marca enviado — só o disparo do envio cria registro.)
+function statusEnvioReserva(enviosDoNro){
+  return(Array.isArray(enviosDoNro)&&enviosDoNro.length>0)?'enviado':'pendente';
+}
+// Monta um registro de envio (sem id — o store usa autoIncrement). Grava o NOME-texto
+// do funcionário (estável mesmo que o padrão mude depois). dataHora em ISO.
+function montarRegistroEnvio(dados){
+  dados=dados||{};
+  const ms=(typeof dados.agoraMs==='number')?dados.agoraMs:Date.now();
+  return{
+    nro:String(dados.nro==null?'':dados.nro),
+    dataHora:new Date(ms).toISOString(),
+    funcionario:String(dados.funcionario||''),
+    categoria:dados.categoria||'',
+    modelo:(dados.modelo==null?null:dados.modelo)
+  };
+}
+// Ordena os envios de uma hospedagem do mais recente p/ o mais antigo (por dataHora ISO).
+function enviosOrdenados(enviosDoNro){
+  return(Array.isArray(enviosDoNro)?enviosDoNro.slice():[])
+    .sort((a,b)=>String(b&&b.dataHora||'').localeCompare(String(a&&a.dataHora||'')));
+}
+
 // ── 5.5 SUBSTITUIÇÃO DAS CHAVES (pura) — nunca deixa chave literal ──
 function substituirChaves(texto,reserva,gestao){
   reserva=reserva||{};
   const g=gestaoNormalizar(gestao);
-  const nome=reserva.nome||reserva.nomeCompleto||'';
+  // v1.4.0 (5.1): [nome] sai em formato de nome próprio (não altera o armazenamento).
+  const nome=formatarNomeProprio(reserva.nome||reserva.nomeCompleto||'');
   let data='';
   const ent=reserva.entrada,sai=reserva.saida;
   if(ent&&sai)data=`${fmtData(new Date(ent))} a ${fmtData(new Date(sai))}`;
@@ -1227,24 +1295,30 @@ function trocarAba(aba){
   const filtros=document.querySelector('.filtros');if(filtros)filtros.style.display=aba==='gestao'?'none':'';
   if(aba==='contato')renderContato();
   if(aba==='gestao')renderGestao();
+  renderPranchetaContato(); // v1.4.0 — só visível na aba Contato com reserva selecionada
 }
 
-// ── SCROLL HORIZONTAL COM MOUSE (preservado) ──
+// ── PAN DO MAPA COM MOUSE — horizontal (no wrapper) + vertical (na página) — v1.4.0 (5.6) ──
+// Regra anti-conflito com o arraste de mover vaga (v1.3.0): só o FUNDO do mapa (área sem
+// reserva) faz pan; pointerdown SOBRE um bloco (.cell-span) segue o fluxo de mover vaga,
+// inalterado (blocos/controles excluídos abaixo). Pan acompanha o cursor nas duas direções.
 (function(){
-  let isDown=false,startX,scrollLeft;
+  let isDown=false,startX,startY,scrollLeft0,scrollTop0;
   const el=()=>document.getElementById('mapa-wrapper');
+  const scroller=()=>document.scrollingElement||document.documentElement;
   document.addEventListener('mousedown',(e)=>{
     const w=el();if(!w||!w.contains(e.target))return;
-    // v1.3.0: blocos de reserva tratam o próprio pointer (arraste/clique) — não disparam scroll.
     if(e.target.closest('input,textarea,button,a,.cell-span'))return;
-    isDown=true;startX=e.pageX-w.offsetLeft;scrollLeft=w.scrollLeft;
+    isDown=true;startX=e.clientX;startY=e.clientY;
+    scrollLeft0=w.scrollLeft;scrollTop0=scroller().scrollTop;
     w.classList.add('grabbing');
   });
   document.addEventListener('mouseup',()=>{isDown=false;const w=el();if(w)w.classList.remove('grabbing');});
   document.addEventListener('mousemove',(e)=>{
     if(!isDown)return;e.preventDefault();
     const w=el();if(!w)return;
-    w.scrollLeft=scrollLeft-(e.pageX-w.offsetLeft-startX);
+    w.scrollLeft=scrollLeft0-(e.clientX-startX);        // horizontal (no wrapper)
+    scroller().scrollTop=scrollTop0-(e.clientY-startY); // vertical (na página)
   });
 })();
 
@@ -1313,7 +1387,7 @@ function ativasNoPeriodo(){
 }
 
 /* ═══════════ INDEXEDDB (B1) — com fallback em memória ═══════════ */
-const DB_NAME='garagemGumz',DB_VER=3; // v1.3.0: +store 'ajustes' (migração não-destrutiva)
+const DB_NAME='garagemGumz',DB_VER=4; // v1.4.0: +store 'envios' (migração não-destrutiva)
 let db=null,dbOk=false;
 
 function abrirDB(){
@@ -1329,6 +1403,12 @@ function abrirDB(){
       if(!d.objectStoreNames.contains('gestao'))d.createObjectStore('gestao',{keyPath:'id'});
       // v1.3.0 — cria 'ajustes' (edição manual, chave nro) só se não existir; NÃO toca nos demais.
       if(!d.objectStoreNames.contains('ajustes'))d.createObjectStore('ajustes',{keyPath:'nro'});
+      // v1.4.0 — cria 'envios' (histórico de envios, id autoincrement, índice por nro) só se não
+      // existir; NÃO toca nos demais. Só a ação de envio escreve; reimport do PDF nunca apaga.
+      if(!d.objectStoreNames.contains('envios')){
+        const es=d.createObjectStore('envios',{keyPath:'id',autoIncrement:true});
+        es.createIndex('nro','nro',{unique:false});
+      }
     };
     req.onsuccess=(e)=>{db=e.target.result;dbOk=true;resolve(true);};
     req.onerror=()=>resolve(false);
@@ -1733,6 +1813,7 @@ function renderContato(){
   }else{
     grupos.forEach(g=>cont.appendChild(itemContato(g)));
   }
+  renderPranchetaContato(); // v1.4.0 — mantém a prancheta sincronizada com a seleção
 }
 
 function subTitulo(txt){const d=document.createElement('div');d.className='ct-sub';d.textContent=txt;return d;}
@@ -1740,20 +1821,23 @@ function subTitulo(txt){const d=document.createElement('div');d.className='ct-su
 function itemContato(g){
   const tipo=grupoTipo(g);
   const corCl=tipo==='over'?'over':tipo==='amarelo'?'amarelo':tipo==='grande'||tipo==='pequeno'?'azul':tipo==='laranja'?'laranja':tipo==='moto'?'moto':'azul';
-  const resolvido=g.telefoneStatus==='resolvido'&&g.telefone;
+  // v1.4.0 (5.3) — "enviado" é DERIVADO do histórico de envios (não mais do telefone).
+  const enviado=statusEnvioReserva(enviosPorNro[g.nro])==='enviado';
   const item=document.createElement('div');
-  item.className=`ct-item ${corCl}${resolvido?' resolvido':''}${contatoAtivoNro===g.nro?' active':''}`;
+  item.className=`ct-item ${corCl}${enviado?' enviado':''}${contatoAtivoNro===g.nro?' active':''}`;
   item.dataset.nro=g.nro;
+  // 5.2 (v1.4.0) — clicar em QUALQUER parte da reserva seleciona; controles internos param a propagação.
+  item.onclick=()=>ativarContato(g.nro);
 
   const aptos=[...g.aptos].join(', ')||'-';
   // 5.2 — PMS e OTA clicáveis para copiar (stopPropagation p/ não acionar o realce do item).
   const otaBadge=g.nroOTA?`<span class="ct-badge ota copyable" title="Localizador OTA (Booking/Expedia) — clique para copiar" onclick="event.stopPropagation();copiarTexto('${g.nroOTA}')">OTA ${g.nroOTA}</span>`:'';
-  const statusBadge=resolvido?'<span class="ct-badge status-res">✓ resolvido</span>':'';
-  // 5.3 — estado Confirmar↔Editar (bloqueia o campo quando já há telefone resolvido).
+  const statusBadge=enviado?'<span class="ct-badge status-env">✓ enviado</span>':'';
+  // 5.3 — estado Confirmar↔Editar (bloqueia o campo quando já há telefone confirmado).
   const estTel=estadoTelefoneInicial({telefone:g.telefone,telefoneStatus:g.telefoneStatus});
 
   item.innerHTML=`
-    <div class="ct-top" onclick="ativarContato('${g.nro}')">
+    <div class="ct-top">
       <div class="ct-nome">${g.nome}</div>
       <div class="ct-badges">
         <span class="ct-badge pms copyable" title="Nº PMS — clique para copiar" onclick="event.stopPropagation();copiarTexto('${g.nro}')">PMS #${g.nro}</span>
@@ -1768,7 +1852,7 @@ function itemContato(g){
     <div class="ct-fone">
       <input type="text" placeholder="Colar telefone..." value="${g.telefone||''}"
         id="fone-${g.nro}" onfocus="ativarContato('${g.nro}')" ${estTel.bloqueado?'readonly':''}>
-      <button class="btn btn-primary" id="btn-fone-${g.nro}" onclick="acaoTelefone('${g.nro}')">${estTel.label}</button>
+      <button class="btn btn-primary" id="btn-fone-${g.nro}" onclick="event.stopPropagation();acaoTelefone('${g.nro}')">${estTel.label}</button>
       ${g.telefone?botoesWhatsapp(g):''}
     </div>`;
   return item;
@@ -1779,7 +1863,8 @@ function botoesWhatsapp(g){
   const cat=categoriaReserva(g);
   if(!cat){
     // Confirmado/azul: fora do sistema de modelos. Link simples (abre a conversa, sem template).
-    return`<a class="wa-btn" href="${linkWhatsAppTexto(g.telefone,'')}" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬 WhatsApp</a>`;
+    // v1.4.0 — também registra o envio (categoria "confirmado") p/ status "enviado" + prancheta.
+    return`<a class="wa-btn" href="${linkWhatsAppTexto(g.telefone,'')}" target="_blank" rel="noopener" onclick="event.stopPropagation();registrarEnvio('${g.nro}','confirmado',null)">💬 WhatsApp</a>`;
   }
   const rotulo=cat==='overbooking'?'🚫 Mensagem (sem vaga)':'💬 Mensagem (verificar)';
   return`<button class="wa-btn${cat==='overbooking'?' alt':''}" onclick="event.stopPropagation();abrirEnvio('${g.nro}')">${rotulo}</button>`;
@@ -1788,6 +1873,7 @@ function botoesWhatsapp(g){
 function ativarContato(nro){
   contatoAtivoNro=nro;
   document.querySelectorAll('.ct-item').forEach(el=>el.classList.toggle('active',el.dataset.nro===nro));
+  renderPranchetaContato(); // v1.4.0 — a prancheta reflete a reserva selecionada
 }
 
 // 5.3 — botão único Confirmar↔Editar: se o campo está editável → salva e bloqueia;
@@ -2021,6 +2107,12 @@ function envioToggleEditar(){
   if(ta.readOnly){ta.readOnly=false;ta.focus();envioCtx.editado=true;document.getElementById('envio-editar').textContent='✓ Editando (só este envio)';}
 }
 function envioPreviewInput(){if(envioCtx&&envioCtx.editado)envioAtualizarLink(document.getElementById('envio-preview').value);}
+// v1.4.0 — ao disparar o wa.me pelo modal, registra o envio (status "enviado" + prancheta) e fecha.
+// "enviado" = envio disparado pelo app; entrega real exige WhatsApp Business API (backend).
+function onEnvioEnviarClick(){
+  if(envioCtx){registrarEnvio(envioCtx.nro,envioCtx.cat,envioCtx.idx);}
+  fecharEnvio();
+}
 function fecharEnvio(){document.getElementById('envio-modal').style.display='none';envioCtx=null;}
 
 /* ═══════════ BACKUP / RESTAURAÇÃO ═══════════ */
@@ -2098,12 +2190,72 @@ async function aplicarImport(obj,modo){
   }else if(impAjustes.length){
     if(dbOk)await dbPutMany('ajustes',impAjustes);
   }
+  // HISTÓRICO DE ENVIOS (v1.4.0) — substituir: repõe; mesclar: acrescenta os ausentes
+  // (assinatura nro|dataHora|funcionario), preservando o histórico local. Append-only.
+  const impEnvios=Array.isArray(stores.envios)?stores.envios:[];
+  if(impEnvios.length){
+    if(modo==='substituir'){
+      if(dbOk)await dbPutMany('envios',impEnvios);
+    }else{
+      const locais=dbOk?await dbGetAll('envios'):[].concat(...Object.values(enviosPorNro));
+      const sig=e=>String(e.nro)+'|'+String(e.dataHora||'')+'|'+String(e.funcionario||'');
+      const have=new Set(locais.map(sig));
+      const novos=impEnvios.filter(e=>e&&!have.has(sig(e))).map(e=>{const c={...e};delete c.id;return c;});
+      if(dbOk&&novos.length)await dbPutMany('envios',novos);
+    }
+  }
   if(dbOk)await carregarAjustes();
+  if(dbOk)await carregarEnvios();
   if(dbOk)await carregarDoBanco();else anexarTelefones();
   if(abaAtual==='contato')renderContato();
   renderGestao();
   mostrarResultadoBackup('✔ '+msgs.join('; ')+'.');
 }
+
+/* ═══════════════════════ v1.4.0 — HISTÓRICO DE ENVIOS (prancheta) ═══════════════════════ */
+let enviosPorNro={};      // nro → [ {id,nro,dataHora,funcionario,categoria,modelo}, ... ]
+
+// Carrega o store 'envios' p/ a memória, agrupado por nro. Só leitura; nunca apaga.
+async function carregarEnvios(){
+  enviosPorNro={};
+  if(!dbOk)return;
+  try{(await dbGetAll('envios')).forEach(e=>{if(e&&e.nro!=null){(enviosPorNro[e.nro]=enviosPorNro[e.nro]||[]).push(e);}});}
+  catch(e){console.warn('carregar envios falhou',e);}
+}
+// Registra um envio (no disparo do wa.me). Grava nro/dataHora/funcionario(nome-texto)/categoria/modelo.
+// "enviado" = envio disparado pelo app (wa.me aberto) — NÃO confirma entrega (exige backend).
+async function registrarEnvio(nro,categoria,modelo){
+  const gestao=gestaoNormalizar(gestaoConfig||gestaoDefault());
+  const fp=funcionarioPadrao(gestao);
+  const reg=montarRegistroEnvio({nro,funcionario:fp?fp.nome:'',categoria,modelo,agoraMs:Date.now()});
+  // otimista em memória (e fallback sem DB)
+  (enviosPorNro[reg.nro]=enviosPorNro[reg.nro]||[]).push(reg);
+  if(dbOk){try{await dbPut('envios',reg);}catch(e){console.warn('salvar envio falhou',e);}await carregarEnvios();}
+  if(abaAtual==='contato')renderContato();
+  renderPranchetaContato();
+}
+
+// Corpo da prancheta: registros do nro, mais recente em cima; estado vazio amigável.
+function pranchetaCorpoHTML(nro){
+  const itens=enviosOrdenados(enviosPorNro[nro]);
+  if(!itens.length)return'<div class="pr-vazio">Nenhum envio registrado</div>';
+  return itens.map(e=>{
+    const ms=e&&e.dataHora?new Date(e.dataHora).getTime():null;
+    return`<div class="pr-item"><span class="pr-dh">🕑 ${fmtDataHora(ms)||'—'}</span><span class="pr-func">👤 ${escapeHtml((e&&e.funcionario)||'—')}</span></div>`;
+  }).join('');
+}
+// Prancheta flutuante no Contato — reflete a reserva selecionada (contatoAtivoNro).
+function renderPranchetaContato(){
+  const el=document.getElementById('prancheta-contato');
+  if(!el)return;
+  if(abaAtual!=='contato'||!contatoAtivoNro){el.style.display='none';el.innerHTML='';return;}
+  const g=contatoGrupos[contatoAtivoNro];
+  const nome=g?g.nome:('#'+contatoAtivoNro);
+  el.innerHTML=`<div class="pr-head"><span class="pr-titulo">📋 Envios — ${escapeHtml(nome)}</span><button class="pr-x" onclick="fecharPranchetaContato()" aria-label="Fechar">✕</button></div>
+    <div class="pr-corpo">${pranchetaCorpoHTML(contatoAtivoNro)}</div>`;
+  el.style.display='block';
+}
+function fecharPranchetaContato(){const el=document.getElementById('prancheta-contato');if(el)el.style.display='none';}
 
 /* ═══════════════════════ v1.3.0 — EDIÇÃO MANUAL (mover de vaga) ═══════════════════════ */
 let ajustesMap={};        // nro → {vagaIdManual, criadoEm, atualizadoEm}
@@ -2234,17 +2386,23 @@ document.addEventListener('keydown',(e)=>{if(e.key==='Escape'){if(document.getEl
 // ── Modal de detalhe (clique abaixo do limiar) + "voltar ao automático" ──
 function abrirDetalheReserva(res){
   const corpo=document.getElementById('detalhe-corpo');
-  const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val">${escapeHtml(res.nroOTA)}</span></div>`:'';
+  // 5.5 (v1.4.0) — nº PMS e localizador OTA clicáveis para copiar (mesmo feedback/fallback do Contato).
+  const nroCopy=`<span class="tt-val copyable" title="Clique para copiar o nº PMS" onclick="copiarTexto('${escapeAttr(res.nro)}')">#${escapeHtml(res.nro)}</span>`;
+  const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val copyable" title="Clique para copiar o localizador OTA" onclick="copiarTexto('${escapeAttr(res.nroOTA)}')">${escapeHtml(res.nroOTA)}</span></div>`:'';
   const mao=res.ajusteManual?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual)+')':''}</span></div>`:'';
   corpo.innerHTML=`
     <div class="tt-nome" style="margin-bottom:8px">${escapeHtml(res.nomeCompleto)}</div>
-    <div class="tt-row"><span class="tt-key">Reserva</span><span class="tt-val">#${escapeHtml(res.nro)}</span></div>
+    <div class="tt-row"><span class="tt-key">Reserva</span>${nroCopy}</div>
     ${ota}
     <div class="tt-row"><span class="tt-key">Apto</span><span class="tt-val">${escapeHtml(res.apto)}</span></div>
     <div class="tt-row"><span class="tt-key">Check-in</span><span class="tt-val">${fmtData(res.entrada)}</span></div>
     <div class="tt-row"><span class="tt-key">Check-out</span><span class="tt-val">${fmtData(res.saida)}</span></div>
     <div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">${escapeHtml(res.origem||'Direta')}</span></div>
-    ${mao}`;
+    ${mao}
+    <div class="prancheta prancheta-inline" id="detalhe-prancheta">
+      <div class="pr-head"><span class="pr-titulo">📋 Envios</span></div>
+      <div class="pr-corpo">${pranchetaCorpoHTML(res.nro)}</div>
+    </div>`;
   const acoes=document.getElementById('detalhe-acoes');
   const temAjuste=!!ajustesMap[res.nro];
   acoes.innerHTML=
@@ -2262,13 +2420,17 @@ async function init(){
   carregarUploadInfo();renderUploadInfo();        // 5.5
   initDatas();
   const ep=document.getElementById('envio-preview');if(ep)ep.addEventListener('input',envioPreviewInput);
+  const ee=document.getElementById('envio-enviar');if(ee)ee.addEventListener('click',onEnvioEnviarClick); // v1.4.0
   await abrirDB();
   setDbChip();
   await carregarGestao();    // v1.2.0
   await carregarAjustes();   // v1.3.0 (antes do render p/ aplicar ajustes)
+  await carregarEnvios();    // v1.4.0 (histórico p/ status "enviado" + prancheta)
   await carregarDoBanco();
 }
-init();
+// Expõe a promessa de init() p/ que os testes aguardem o boot COMPLETO (evita corrida com
+// o fim do init quando um teste dispara import/ajuste logo após o app abrir). Inócuo em produção.
+window.__appReady=init();
 </script>
 </body>
 </html>

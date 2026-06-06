@@ -60,10 +60,15 @@ async function novoApp() {
     }
   });
   const w = dom.window;
-  // espera o init() (abrirDB + setDbChip) assentar
-  for (let i = 0; i < 60; i++) { if (/salvo|mem/.test(w.document.getElementById('db-chip').textContent)) break; await sleep(15); }
-  await sleep(30);
+  await aguardarBoot(w);
   return { dom, w };
+}
+
+// v1.4.0 — boot determinístico: aguarda a promessa de init() (window.__appReady), eliminando a
+// corrida com o fim do init (carregarGestao/Ajustes/Envios/DoBanco) que tornava os testes flaky.
+async function aguardarBoot(w) {
+  for (let i = 0; i < 400; i++) { if (w.__appReady) break; await sleep(5); }
+  try { await w.__appReady; } catch (e) { }
 }
 
 (async () => {
@@ -73,9 +78,9 @@ async function novoApp() {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.3.0', async () => {
+  await T('rodapé mostra v1.4.0', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.3.0');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.4.0');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -222,8 +227,7 @@ async function novoApp() {
         }
       });
       const w = dom.window;
-      for (let i = 0; i < 60; i++) { if (/salvo|mem/.test(w.document.getElementById('db-chip').textContent)) break; await sleep(15); }
-      await sleep(30); return w;
+      await aguardarBoot(w); return w;
     };
     const w1 = await mk();
     await w1.importarPDF(w1.parsear(montarPDF()));
@@ -289,8 +293,7 @@ async function novoApp() {
         }
       });
       const w = dom.window;
-      for (let i = 0; i < 60; i++) { if (/salvo|mem/.test(w.document.getElementById('db-chip').textContent)) break; await sleep(15); }
-      await sleep(40); return w;
+      await aguardarBoot(w); return w;
     };
     const w1 = await mk();
     w1.gestaoSetEmpresa('Hotel Gumz');
@@ -314,7 +317,7 @@ async function novoApp() {
     w.trocarAba('contato');
     w.abrirEnvio('30003'); // CARLA AMARELA (verificando)
     const txt = w.document.getElementById('envio-preview').value;
-    ok(/CARLA/.test(txt), 'nome substituído'); ok(/Hotel Gumz/.test(txt), 'empresa substituída');
+    ok(/Carla Amarela/.test(txt), 'nome substituído (formato de nome próprio v1.4.0)'); ok(/Hotel Gumz/.test(txt), 'empresa substituída');
     ok(!/\[nome\]|\[empresa\]|\[data\]|\[canal\]|\[funcionario\]/.test(txt), 'nenhuma chave literal');
     eq(w.document.getElementById('envio-modal').style.display, 'flex', 'modal aberto');
   });
@@ -328,7 +331,7 @@ async function novoApp() {
     w.abrirEnvio('30003');
     ok(w.document.getElementById('envio-modelos').style.display !== 'none', 'botões de modelo aparecem');
     w.envioTrocarModelo(1);
-    eq(w.document.getElementById('envio-preview').value, 'Segundo modelo para CARLA AMARELA');
+    eq(w.document.getElementById('envio-preview').value, 'Segundo modelo para Carla Amarela');
   });
 
   await T('envio: Editar muda só o preview e NÃO altera o modelo salvo', async () => {
@@ -409,11 +412,11 @@ async function novoApp() {
   });
 
   /* ── 15. Edição manual (v1.3.0) ── */
-  await T('migração v2→v3 cria store ajustes sem perder reservas/contatos/gestao', async () => {
+  await T('migração v3→v4 cria store envios sem perder reservas/contatos/gestao/ajustes', async () => {
     const { w } = await novoApp();
     let okAll = true;
-    for (const s of ['reservas', 'contatos', 'gestao', 'ajustes']) { try { await w.dbGetAll(s); } catch (e) { okAll = false; } }
-    ok(okAll, 'todos os 4 stores acessíveis (ajustes criado, antigos intactos)');
+    for (const s of ['reservas', 'contatos', 'gestao', 'ajustes', 'envios']) { try { await w.dbGetAll(s); } catch (e) { okAll = false; } }
+    ok(okAll, 'todos os 5 stores acessíveis (envios criado, antigos intactos)');
   });
 
   await T('salvar ajuste fixa a reserva na vaga manual (✋) no mapa', async () => {
@@ -439,8 +442,7 @@ async function novoApp() {
         }
       });
       const w = dom.window;
-      for (let i = 0; i < 60; i++) { if (/salvo|mem/.test(w.document.getElementById('db-chip').textContent)) break; await sleep(15); }
-      await sleep(40); return w;
+      await aguardarBoot(w); return w;
     };
     const w1 = await mk();
     await w1.importarPDF(w1.parsear(montarPDF()));
@@ -489,6 +491,125 @@ async function novoApp() {
     ok(w.document.querySelector('.row-cells[data-vaga="G1"]'), 'G1 tem data-vaga');
     const motoRow = [...w.document.querySelectorAll('.row-label')].find(e => /^M/.test(e.textContent));
     if (motoRow) { const wrap = motoRow.parentElement.querySelector('.row-cells'); ok(!wrap.dataset.vaga, 'moto não é arrastável'); }
+  });
+
+  /* ── 16. v1.4.0 — status "enviado" derivado + histórico/prancheta + seleção ── */
+  await T('5.3 status "enviado" é derivado do histórico (não do telefone)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.trocarAba('contato');
+    // digitar/confirmar telefone NÃO marca "enviado"
+    w.document.getElementById('fone-30003').value = '47998765432';
+    await w.confirmarTelefone('30003');
+    await sleep(10);
+    const itemAntes = w.document.querySelector('.ct-item[data-nro="30003"]');
+    ok(!itemAntes.classList.contains('enviado'), 'só telefone NÃO marca enviado');
+    ok(!w.document.querySelector('.ct-item[data-nro="30003"] .ct-badge.status-env'), 'sem badge enviado antes do envio');
+    // após registrar um envio → status enviado
+    await w.registrarEnvio('30003', 'verificando', 0);
+    await sleep(10);
+    const itemDepois = w.document.querySelector('.ct-item[data-nro="30003"]');
+    ok(itemDepois.classList.contains('enviado'), 'com ≥1 registro → enviado');
+    ok(w.document.querySelector('.ct-item[data-nro="30003"] .ct-badge.status-env'), 'badge ✓ enviado aparece');
+  });
+
+  await T('5.4 registrarEnvio grava registro com nro/dataHora/funcionario/categoria/modelo', async () => {
+    const { w } = await novoApp();
+    w.gestaoSetEmpresa('Hotel Gumz');
+    w.gestaoAddFuncionario();
+    const fid = w.getGestaoConfig().funcionarios[0].id;
+    w.gestaoSetFuncNome(fid, 'João');
+    await w.salvarGestao();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.registrarEnvio('30003', 'verificando', 1);
+    await sleep(10);
+    const regs = (await w.dbGetAll('envios')).filter(e => String(e.nro) === '30003');
+    eq(regs.length, 1, 'um registro gravado');
+    eq(regs[0].funcionario, 'João', 'grava o NOME-texto do funcionário padrão');
+    eq(regs[0].categoria, 'verificando'); eq(regs[0].modelo, 1);
+    ok(/^\d{4}-\d{2}-\d{2}T/.test(regs[0].dataHora), 'dataHora em ISO');
+  });
+
+  await T('5.4 prancheta reflete a reserva selecionada (data/hora/funcionário) + estado vazio', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.trocarAba('contato');
+    // sem seleção → prancheta oculta
+    const pr = w.document.getElementById('prancheta-contato');
+    w.ativarContato('30001');
+    ok(pr.style.display !== 'none', 'prancheta visível ao selecionar');
+    ok(/Nenhum envio registrado/.test(pr.textContent), 'estado vazio amigável');
+    await w.registrarEnvio('30001', 'confirmado', null);
+    await sleep(10);
+    w.ativarContato('30001');
+    ok(!/Nenhum envio registrado/.test(pr.textContent), 'após envio, lista registro');
+    ok(w.document.querySelector('#prancheta-contato .pr-item'), 'item de envio na prancheta');
+  });
+
+  await T('5.4 prancheta aparece no detalhe da reserva (Mapa)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.registrarEnvio('30001', 'confirmado', null);
+    await sleep(10);
+    const res = w.ativasNoPeriodo().find(r => r.nro === '30001');
+    w.abrirDetalheReserva(res);
+    const modal = w.document.getElementById('detalhe-modal');
+    ok(/flex/.test(modal.style.display), 'detalhe aberto');
+    ok(w.document.querySelector('#detalhe-prancheta'), 'prancheta presente no detalhe');
+    ok(w.document.querySelector('#detalhe-prancheta .pr-item'), 'registro listado no detalhe');
+  });
+
+  await T('5.5 detalhe: nº PMS e OTA são copiáveis', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    const res = w.ativasNoPeriodo().find(r => r.nro === '30002'); // Booking → tem OTA
+    w.abrirDetalheReserva(res);
+    const corpo = w.document.getElementById('detalhe-corpo');
+    const copiaveis = [...corpo.querySelectorAll('.copyable')].map(e => e.getAttribute('onclick') || '');
+    ok(copiaveis.some(o => /copiarTexto\('30002'\)/.test(o)), 'nº PMS copiável');
+    ok(copiaveis.some(o => /copiarTexto\('413101ID20542561'\)/.test(o)), 'localizador OTA copiável');
+  });
+
+  await T('5.4 envios persistem ao reabrir; reimport do PDF NÃO apaga', async () => {
+    const idb = new fidb.IDBFactory();
+    const mk = async () => {
+      const dom = new JSDOM(fs.readFileSync(path.join(__dirname, '..', 'garagem-app', 'index.html'), 'utf8'), {
+        runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/',
+        beforeParse(window) {
+          window.indexedDB = idb; window.IDBKeyRange = fidb.IDBKeyRange;
+          window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) };
+          window.alert = () => { };
+        }
+      });
+      const w = dom.window; await aguardarBoot(w); return w;
+    };
+    const w1 = await mk();
+    await w1.importarPDF(w1.parsear(montarPDF()));
+    await sleep(20);
+    await w1.registrarEnvio('30001', 'confirmado', null);
+    await sleep(20);
+    await w1.importarPDF(w1.parsear(montarPDF())); // reimporta
+    await sleep(20);
+    ok((await w1.dbGetAll('envios')).some(e => String(e.nro) === '30001'), 'envio sobrevive à reimportação');
+    const w2 = await mk(); // reabre mesmo IndexedDB
+    await sleep(20);
+    ok((await w2.dbGetAll('envios')).some(e => String(e.nro) === '30001'), 'envio persiste ao reabrir');
+  });
+
+  await T('5.2 clicar em qualquer parte do item seleciona a reserva', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.trocarAba('contato');
+    const item = w.document.querySelector('.ct-item[data-nro="30002"]');
+    // clicar na área de meta (não o nome) dispara a seleção via item.onclick
+    item.querySelector('.ct-meta').dispatchEvent(new w.Event('click', { bubbles: true }));
+    ok(item.classList.contains('active'), 'item selecionado ao clicar fora do nome');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

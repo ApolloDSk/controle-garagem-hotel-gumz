@@ -43,10 +43,12 @@ relatório. Mantenha essa estratégia; ela desamarra o produto de qualquer forne
   (parser, classificação, alocação, prioridade, mesclagem, mensagens). É testada em Node
   extraindo esse bloco — **mantenha as funções puras dentro desses marcadores**.
 - Fora do bloco: DOM, IndexedDB, render do mapa e da aba Contato.
-- **IndexedDB** (`garagemGumz`, v1): store **`reservas`** (keyPath `id`, escrito **só** pela
-  importação de PDF) e store **`contatos`** (keyPath `nro`, escrito **só** pela ferramenta de
-  contato). Essa separação é o que torna a mesclagem **não-destrutiva** trivial: importar PDF
-  nunca toca em telefones.
+- **IndexedDB** (`garagemGumz`, **v4**): stores **`reservas`** (keyPath `id`, escrito **só** pela
+  importação de PDF), **`contatos`** (keyPath `nro`, só a ferramenta de contato), **`gestao`**
+  (singleton `id:"config"`, v1.2.0), **`ajustes`** (keyPath `nro`, edição manual, v1.3.0) e
+  **`envios`** (keyPath `id` autoincrement + índice `nro`, histórico de envios, v1.4.0 — só o
+  disparo do `wa.me` escreve). Essa separação é o que torna a mesclagem **não-destrutiva** trivial:
+  importar PDF nunca toca em telefones/ajustes/envios.
 - **Chave da reserva no PMS = `nro`** (estável mesmo se nome/apto mudarem). Como um `nro` pode
   ter vários aptos/carros, a chave primária do store `reservas` é `id = nro__apto__vagaIdx`.
 
@@ -157,11 +159,42 @@ Garage Spot** (a chave é o `nro` do PMS).
   reverte sem persistir. Marcador **✋** + "Voltar ao automático" (apaga o ajuste do `nro`).
 - **Escopo:** só **carros (P/G)**. **Motos e overbooking não são arrastáveis** (adiado).
 
+## Comportamentos da v1.4.0 a preservar
+
+- **`[nome]` em formato de nome próprio:** função pura `formatarNomeProprio` (Title Case;
+  conectores `de/da/do/dos/das/e` minúsculos exceto na 1ª palavra; acentos; hífen) aplicada **só na
+  saída** da chave `[nome]` em `substituirChaves`. **Não altera o armazenamento** (`nomeCompleto`
+  segue cru no mapa/tooltip/detalhe).
+- **Contato — seleção por toda a reserva:** clicar em qualquer parte do `.ct-item` seleciona; os
+  controles internos (copiar nº, telefone, botões) usam `stopPropagation`.
+- **Status "enviado" (renomeado de "resolvido"):** **derivado do histórico** (`statusEnvioReserva`:
+  ≥1 registro → "enviado"). **Digitar telefone NÃO marca enviado**; o registro nasce **no disparo do
+  `wa.me`** (`registrarEnvio`). ⚠ **"enviado" = envio disparado pelo app, NÃO entrega confirmada** —
+  entrega real exige WhatsApp Business API (backend). O `telefoneStatus:'resolvido'` virou só o
+  marcador interno de telefone confirmado (lógica Confirmar↔Editar inalterada).
+- **Store `envios`** (DB **v4**, `keyPath:'id'` autoincrement, índice `nro`): `{id,nro,dataHora(ISO),
+  funcionario(nome-texto),categoria,modelo}`. Só o envio escreve; **reimport do PDF não toca**. Nome do
+  funcionário gravado como **texto** (estável). Backup exporta/importa `envios` (append-only; mesclar
+  não duplica por assinatura `nro|dataHora|funcionario`).
+- **Prancheta de envios** (canto inferior direito, mais recente em cima, estado vazio amigável): no
+  **Contato** (`#prancheta-contato`, reflete a reserva selecionada) e no **detalhe** do Mapa
+  (`#detalhe-prancheta`).
+- **Detalhe da reserva:** nº PMS e localizador OTA **clicáveis para copiar** (mesma `copiarTexto` +
+  fallback `file://`).
+- **Pan do mapa:** o **fundo** (área sem reserva) faz pan **horizontal** (no `#mapa-wrapper`) **e
+  vertical** (na página, via `scrollingElement`). `pointerdown` **sobre um bloco** segue o **arraste de
+  mover vaga (v1.3.0)** — decisão pela origem do `pointerdown`; não conflitar.
+- **Boot determinístico nos testes:** `init()` expõe `window.__appReady`; o harness aguarda o boot
+  COMPLETO (corrige flakiness pré-existente de timing — sem mascarar).
+
 ## Versão atual
 
-**v1.3.0** — Edição manual por arraste (mover de vaga; **data proibida**) + ajustes persistentes
-(store `ajustes`, não-destrutivo). Alocação automática e tudo de v1.1/1.2 **inalterados**. Testes
-162/162 (113 engine + 33 jsdom + 16 Playwright). Ver `RELATORIO-v1.3.0.md`.
+**v1.4.0** — Contato (seleção por toda a reserva, status **enviado** derivado + histórico/prancheta) +
+detalhe (copiar nº PMS/OTA, prancheta) + **pan vertical** no mapa + **`[nome]` em formato de nome
+próprio**. Store `envios` (DB v4, não-destrutivo). Tudo de v1.1/1.2/1.3 **inalterado** (alocação
+automática, arraste de mover vaga, selo de gravação). Testes 188/188 (128 engine + 40 jsdom + 20
+Playwright). Ver `RELATORIO-v1.4.0.md`.
 
-**Roadmap local (sem backend) concluído.** Próximos passos exigem infraestrutura: envio em massa
-(backend + WhatsApp Business API) e integração Reserva → Garage Spot. Ver `PLANEJAMENTO.md`.
+**Roadmap local (sem backend) concluído.** Próximos passos exigem infraestrutura: **confirmação real de
+entrega** + envio em massa (backend + WhatsApp Business API) e integração Reserva → Garage Spot. Ver
+`PLANEJAMENTO.md`.

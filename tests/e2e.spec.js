@@ -33,9 +33,9 @@ async function importar(page) {
   await page.waitForSelector('.cell-span');
 }
 
-test('smoke: carrega, rodapé v1.3.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
+test('smoke: carrega, rodapé v1.4.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.3.0');
+  await expect(page.locator('#footer-version')).toHaveText('v1.4.0');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -80,12 +80,12 @@ test('Envio: preview substituído, troca de modelo e Editar não altera o modelo
   await page.locator('.ct-item[data-nro="30003"] .wa-btn', { hasText: 'Mensagem' }).click();
   await expect(page.locator('#envio-modal')).toBeVisible();
   const prev = page.locator('#envio-preview');
-  await expect(prev).toHaveValue(/CARLA/);
+  await expect(prev).toHaveValue(/Carla Amarela/); // v1.4.0 — [nome] em formato de nome próprio
   await expect(prev).toHaveValue(/Hotel Gumz/);
   await expect(prev).not.toHaveValue(/\[nome\]/);
   // troca para Modelo 2
   await page.locator('.envio-mbtn', { hasText: 'Modelo 2' }).click();
-  await expect(prev).toHaveValue('Segundo modelo: olá CARLA AMARELA');
+  await expect(prev).toHaveValue('Segundo modelo: olá Carla Amarela');
   // Editar só este envio
   await page.click('#envio-editar');
   await expect(prev).not.toHaveAttribute('readonly', '');
@@ -228,14 +228,95 @@ test('voltar ao automático remove o ajuste', async ({ page }) => {
   await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span.tem-ajuste')).toHaveCount(0);
 });
 
-test('screenshots do mapa, contato e gestão (v1.3.0)', async ({ page }) => {
+// ════════ v1.4.0 — novos testes ════════
+
+test('5.2 Contato: clicar fora do nome seleciona; copiar nº não quebra a seleção', async ({ page }) => {
   await boot(page);
   await importar(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.3.0-mapa.png'), fullPage: true });
+  await page.click('#tab-contato');
+  const item = page.locator('.ct-item[data-nro="30002"]');
+  await item.locator('.ct-meta').click(); // área que não é o nome
+  await expect(item).toHaveClass(/active/);
+  // copiar o nº PMS funciona (toast) e não derruba a seleção
+  await item.locator('.ct-badge.pms.copyable').click();
+  await expect(page.locator('#copy-toast')).toContainText('Copiado');
+  await expect(item).toHaveClass(/active/);
+});
+
+test('5.3/5.4 enviar marca "enviado" e a prancheta registra (data/hora/funcionário)', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => { window.gestaoSetEmpresa('Hotel Gumz'); window.gestaoAddFuncionario(); const f = window.getGestaoConfig().funcionarios[0].id; window.gestaoSetFuncNome(f, 'João'); });
+  await importar(page);
+  await page.click('#tab-contato');
+  await page.fill('#fone-30003', '47998765432');
+  await page.click('#btn-fone-30003');
+  // ainda NÃO enviado (só telefone)
+  await expect(page.locator('.ct-item[data-nro="30003"] .status-env')).toHaveCount(0);
+  await page.locator('.ct-item[data-nro="30003"] .wa-btn', { hasText: 'Mensagem' }).click();
+  await expect(page.locator('#envio-modal')).toBeVisible();
+  await page.click('#envio-enviar'); // dispara wa.me → registra envio
+  await expect(page.locator('.ct-item[data-nro="30003"] .status-env')).toHaveCount(1);
+  // prancheta reflete a reserva selecionada com o registro
+  await page.locator('.ct-item[data-nro="30003"]').click();
+  await expect(page.locator('#prancheta-contato')).toBeVisible();
+  await expect(page.locator('#prancheta-contato .pr-item')).toHaveCount(1);
+  await expect(page.locator('#prancheta-contato')).toContainText('João');
+});
+
+test('5.5/5.4 detalhe: copiar nº PMS/OTA + prancheta no canto inferior direito', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  // abre o detalhe da reserva Booking (tem OTA) por clique abaixo do limiar
+  const src = page.locator('.cell-span', { hasText: 'BRUNO' }).first();
+  await src.scrollIntoViewIfNeeded();
+  const sb = await src.boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sb.x + sb.width / 2 + 2, sb.y + sb.height / 2, { steps: 2 });
+  await page.mouse.up();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  await expect(page.locator('#detalhe-prancheta')).toBeVisible();
+  // copiar nº PMS
+  await page.locator('#detalhe-corpo .copyable', { hasText: '#30002' }).click();
+  await expect(page.locator('#copy-toast')).toContainText('Copiado');
+  // copiar OTA
+  await page.locator('#detalhe-corpo .copyable', { hasText: '413101ID20542561' }).click();
+  await expect(page.locator('#copy-toast')).toContainText('Copiado');
+});
+
+test('5.6 pan: arrastar o FUNDO move o mapa nas duas direções; bloco ainda move de vaga', async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 520 }); // força overflow horizontal e vertical
+  await boot(page);
+  await importar(page);
+  // estado inicial de scroll
+  const before = await page.evaluate(() => ({ x: document.getElementById('mapa-wrapper').scrollLeft, y: (document.scrollingElement || document.documentElement).scrollTop }));
+  // arrasta o FUNDO (uma célula vazia, longe de qualquer bloco) p/ cima e p/ a esquerda.
+  // Obs.: o wrapper tem overflow-y:visible, então seu bbox é a altura TOTAL do mapa — usar
+  // coordenadas DENTRO do viewport (não o canto do bbox, que fica fora da tela).
+  const wb = await page.locator('#mapa-wrapper').boundingBox();
+  const sx = Math.min(wb.x + wb.width - 50, 700), sy = wb.y + 130;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx - 160, sy - 90, { steps: 12 });
+  await page.mouse.up();
+  const after = await page.evaluate(() => ({ x: document.getElementById('mapa-wrapper').scrollLeft, y: (document.scrollingElement || document.documentElement).scrollTop }));
+  expect(after.x).toBeGreaterThan(before.x); // pan horizontal
+  expect(after.y).toBeGreaterThan(before.y); // pan vertical
+  // arrastar um BLOCO continua disparando o fluxo de mover vaga (v1.3.0)
+  await arrastar(page, 'ANA', 'P5');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'ANA' })).toHaveCount(1);
+});
+
+test('screenshots do mapa, contato e gestão (v1.4.0)', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.4.0-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.3.0-contato.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.4.0-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.3.0-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.4.0-gestao.png'), fullPage: true });
 });

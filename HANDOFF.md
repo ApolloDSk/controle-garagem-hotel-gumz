@@ -4,13 +4,27 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.3.0** (05/06/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
+- **Versão entregue: v1.4.0** (06/06/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
   (branch `master`). ⚠ **Nunca** tocar nos repos do **Garage Spot** (`garagespot-*`) — outro projeto.
 - App canônico: `garagem-app/index.html`; standalone (Chrome): `garagem-app/controle-garagem-standalone.html`
   (regenerar com `node build-standalone.js` em `garagem-app/` sempre que mexer no `index.html`).
-- Stack: HTML/JS/CSS puro + PDF.js + IndexedDB (DB `garagemGumz` **v3**: stores `reservas`,
-  `contatos`, `gestao`, `ajustes`). Sem backend, sem APK.
-- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.3.0). O que falta exige infraestrutura.
+- Stack: HTML/JS/CSS puro + PDF.js + IndexedDB (DB `garagemGumz` **v4**: stores `reservas`,
+  `contatos`, `gestao`, `ajustes`, **`envios`**). Sem backend, sem APK.
+- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.4.0). O que falta exige infraestrutura.
+
+## O que a v1.4.0 entregou
+1. **`[nome]` em formato de nome próprio** (`formatarNomeProprio`: conectores minúsculos, acentos,
+   hífen) — só na **saída** da chave `[nome]`; não altera o dado armazenado.
+2. **Contato:** clicar em **qualquer parte da reserva** seleciona (controles internos com `stopPropagation`).
+3. **Status "enviado"** (renomeado de "resolvido"), **derivado do histórico** (`statusEnvioReserva`);
+   **digitar telefone não marca**; registro nasce no **disparo do `wa.me`** (`registrarEnvio`).
+   ⚠ **"enviado" = envio disparado, NÃO entrega confirmada** (entrega real exige WhatsApp Business API).
+4. **Store `envios`** (DB **v4**, `id` autoincrement + índice `nro`): histórico por hospedagem; só o
+   envio escreve; **reimport do PDF não apaga**. **Prancheta** (canto inferior direito) no **Contato**
+   (reserva selecionada) e no **detalhe** do Mapa, com data/hora/funcionário (nome-texto) + estado vazio.
+5. **Detalhe:** copiar **nº PMS e OTA** ao clicar (fallback `file://`).
+6. **Mapa:** **pan vertical + horizontal** no fundo; arraste de **bloco** = mover vaga (v1.3.0) inalterado
+   (decisão pela origem do `pointerdown`).
 
 ## O que a v1.3.0 entregou
 1. **Edição manual por arraste — só trocar de VAGA** (carros P/G). Pointer Events + ghost +
@@ -30,14 +44,17 @@ vagas; info de upload; check-in no passado (borda cortada). Gestão (Empresa/Fun
 Backup); Modelos com chaves `[nome][data][canal][empresa][funcionario]` (substituição real);
 envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 
-## Testes (versionados em `tests/`) — 162/162
+## Testes (versionados em `tests/`) — 188/188
 - `npm install` (jsdom, fake-indexeddb, @playwright/test) + `npx playwright install chromium`.
-- `npm run test:engine` (113) · `npm run test:integration` (33) · `npx playwright test` (16).
+- `npm run test:engine` (128) · `npm run test:integration` (40) · `npx playwright test` (20).
 - **Regra:** tudo verde antes de commitar; **sem `test.skip`** mascarando; corrigir causa raiz.
 - Funções puras testáveis ficam **dentro** dos marcadores `// ===ENGINE START/END===`.
-- ⚠ Estado (`gestaoConfig`, `contatoGrupos`, `db`, `ajustesMap`, `ultimaAlocacao`) é **escopo de
-  módulo** (não em `window`). Para testar use handlers/accessors globais (`salvarAjuste`,
-  `removerAjuste`, `aplicarAjustes`, `getGestaoConfig()`, `dbGetAll(store)` etc.).
+- ⚠ Estado (`gestaoConfig`, `contatoGrupos`, `db`, `ajustesMap`, `ultimaAlocacao`, **`enviosPorNro`**,
+  `todasReservas`) é **escopo de módulo** (não em `window`). Para testar use handlers/accessors globais
+  (`salvarAjuste`, `removerAjuste`, `aplicarAjustes`, `registrarEnvio`, `getGestaoConfig()`,
+  `dbGetAll(store)`, `ativasNoPeriodo()` etc.).
+- **Boot determinístico:** `init()` expõe `window.__appReady`; o harness aguarda o boot COMPLETO
+  (`aguardarBoot`) — corrige a flakiness pré-existente de timing **na raiz** (sem mascarar).
 
 ## Avisos que NÃO podem se perder
 - **DATA PROIBIDA NO APP** (só troca de vaga). **`alocarVagas(rP, seed)`**: `seed` é opcional e
@@ -45,11 +62,16 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 - **Migração não-destrutiva:** novo store via `onupgradeneeded`; nunca apagar dados do usuário.
   Reimport do PDF **não toca** em `contatos`/`gestao`/`ajustes`.
 - **Conflito é não-destrutivo** (nunca desloca ninguém; só sinaliza).
+- ⚠ **Limitação `wa.me` (v1.4.0):** "enviado" = o app **disparou** o `wa.me`; **não** confirma
+  entrega/leitura (exige WhatsApp Business API/backend). Status é **derivado** do store `envios`
+  (`statusEnvioReserva`), nunca do telefone. Reimport do PDF **não toca** em `envios`.
+- **`[nome]` formatado** (`formatarNomeProprio`) é **só na saída** da chave; `nomeCompleto` segue cru.
 - Substituição de chaves nunca deixa literal (v1.2.0); limitação de caminho do navegador (v1.1.0);
   check-in no passado só aparece se constar no PDF.
 - Alocação automática (amarelos/azuis/score/best-fit/overbooking) é **intocável**.
 
 ## Próximos passos (exigem infraestrutura)
+- **Confirmação real de entrega da mensagem** (entregue/lida): exige WhatsApp Business API/backend.
 - **Envio em massa via WhatsApp:** backend Node.js + WhatsApp Business API (Meta), templates
   aprovados; a lógica de mensagem (`substituirChaves`/modelos) já é reutilizável.
 - **Integração Reserva → Garage Spot:** camada compartilhada; passo leve via export/import
@@ -58,4 +80,5 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
   modelo p/ confirmadas/azuis.
 
 ## Tags
-- `pre-v1.0.0`, `v1.0.0`, `pre-v1.1.0`, `v1.1.0`, `pre-v1.2.0`, `v1.2.0`, `pre-v1.3.0`, `v1.3.0`.
+- `pre-v1.0.0`, `v1.0.0`, `pre-v1.1.0`, `v1.1.0`, `pre-v1.2.0`, `v1.2.0`, `pre-v1.3.0`, `v1.3.0`,
+  `pre-v1.4.0`, `v1.4.0`.
