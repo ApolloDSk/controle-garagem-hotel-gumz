@@ -40,6 +40,7 @@ const __workerBlob=new Blob([atob("LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzI
   --laranja:#f97316;--laranja-bg:rgba(249,115,22,.18);
   --vermelho:#ef4444;--vermelho-bg:rgba(239,68,68,.18);
   --verde:#22c55e;--verde-bg:rgba(34,197,94,.16);--moto:#a855f7;--moto-bg:rgba(168,85,247,.18);
+  --semgar:#94a3b8;--semgar-bg:rgba(148,163,184,.18);
   --nome-azul:#93c5fd;--nome-amarelo:#fcd34d;--nome-laranja:#fb923c;
   --nome-vermelho:#fca5a5;--nome-moto:#d8b4fe;
   --cw:88px;--rh:44px;--lw:52px;
@@ -52,6 +53,7 @@ body.light {
   --laranja:#ea580c;--laranja-bg:rgba(234,88,12,.12);
   --vermelho:#dc2626;--vermelho-bg:rgba(220,38,38,.12);
   --verde:#16a34a;--verde-bg:rgba(22,163,74,.12);--moto:#9333ea;--moto-bg:rgba(147,51,234,.12);
+  --semgar:#64748b;--semgar-bg:rgba(100,116,139,.14);
   --nome-azul:#1d4ed8;--nome-amarelo:#92400e;--nome-laranja:#9a3412;
   --nome-vermelho:#991b1b;--nome-moto:#6b21a8;
 }
@@ -281,6 +283,24 @@ body.arrastando .cell-span{cursor:grabbing}
 .cell-span.arrastando-orig{opacity:.35}
 .cell-span.tem-ajuste{box-shadow:0 0 0 1px var(--verde) inset}
 .ajuste-mao{margin-right:3px}
+/* v1.5.0 — status manual, divergência PMS e área "Sem garagem (manual)" */
+.pms-diverg{color:var(--vermelho);margin-right:3px;font-size:10px;cursor:help}
+.pms-diverg-badge{margin:6px 0;padding:5px 9px;border-radius:6px;background:var(--vermelho-bg);color:var(--vermelho);font-size:11px;line-height:1.4}
+.pms-diverg-badge.sm{display:inline-block;margin:0;padding:2px 7px;font-size:10px}
+.status-sel{font-family:'DM Mono',monospace;font-size:11px;padding:2px 6px;border-radius:5px;background:var(--surface2);color:var(--text);border:1px solid var(--border);cursor:pointer}
+.ct-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.ct-status-lbl{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.ct-item.semgar{border-left-color:var(--semgar)}
+.mapa-controls{display:flex;align-items:center;gap:10px;padding:8px 2px;flex-wrap:wrap}
+.chk-semgar{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+.chk-semgar input{cursor:pointer}
+.secao-semgar{border:1px dashed var(--semgar);border-radius:8px;padding:8px 10px;background:var(--semgar-bg)}
+.semgar-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.semgar-item:last-child{border-bottom:none}
+.semgar-info{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.semgar-nome{font-weight:600;font-size:13px}
+.semgar-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
+.semgar-vazio{font-size:12px;color:var(--muted);padding:8px 4px}
 /* destaque da LINHA (vaga) alvo sob o cursor — a coluna/data é ignorada */
 .row-cells.vaga-alvo{outline:2px dashed var(--azul);outline-offset:1px;background:var(--azul-bg);border-radius:6px}
 /* ghost que segue o cursor (só vertical) */
@@ -403,6 +423,9 @@ body.arrastando .cell-span{cursor:grabbing}
   <div class="empty-sub">Clique em "Importar Relatório PDF" e selecione o arquivo exportado do Desbravador.</div>
 </div>
 <div class="mapa-wrapper" id="mapa-wrapper" style="display:none">
+  <div class="mapa-controls">
+    <label class="chk-semgar"><input type="checkbox" id="chk-semgar" onchange="toggleSemGaragem()"> Mostrar reservas marcadas como <b>Sem garagem</b> (manual)</label>
+  </div>
   <div class="mapa-container" id="mapa-container"></div>
 </div>
 </div>
@@ -499,7 +522,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.4.0';
+const APP_VERSION='v1.5.0';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -1146,6 +1169,34 @@ function vagaValida(v){
   return m[1]==='P'?(n>=1&&n<=18):(n>=1&&n<=14);
 }
 
+/* ─────────────── v1.5.0 — STATUS MANUAL (Parte A) + PLACEMENT NO OVERBOOKING (Parte D) ───────────────
+   Status manual editável (Confirmado/Aguardando/Sem garagem) e placement de overbooking convivem no
+   MESMO store `ajustes` (sem subir o DB): `statusManual` + `ultimaAlteracao` + sentinela "OVERBOOKING"
+   em `vagaIdManual`. Registros antigos (só `vagaIdManual`) seguem válidos (campos ausentes = null). */
+
+const STATUS_MANUAIS=['confirmado','aguardando','sem_garagem'];
+// Status derivado do PDF: amarelo → aguardando; qualquer confirmado (azul/laranja/moto) → confirmado.
+function statusDerivadoDoPDF(reserva){
+  if(!reserva)return'confirmado';
+  return reserva.garagem==='amarelo'?'aguardando':'confirmado';
+}
+// Status efetivo (puro): override manual prevalece; senão, o derivado do PDF. Fallback seguro.
+function statusEfetivo(reserva,ajuste){
+  const s=ajuste&&ajuste.statusManual;
+  if(STATUS_MANUAIS.includes(s))return s;
+  return statusDerivadoDoPDF(reserva);
+}
+// Divergência com o PMS (puro): há override manual E ele difere do status derivado do PDF.
+function pmsDivergente(reserva,ajuste){
+  const s=ajuste&&ajuste.statusManual;
+  if(!STATUS_MANUAIS.includes(s))return false;
+  return s!==statusDerivadoDoPDF(reserva);
+}
+// Sentinela de placement: reserva fixada na ÁREA de overbooking (não ocupa vaga normal).
+function placementOverbooking(v){return v==='OVERBOOKING';}
+// Placement manual válido = vaga P/G OU o sentinela "OVERBOOKING".
+function placementValido(v){return vagaValida(v)||placementOverbooking(v);}
+
 // detectarConflito (pura): a reserva mantém SEMPRE as datas originais; verifica se algum
 // ocupante atual da vaga alvo (exceto a própria) tem período sobreposto. Não desloca nada.
 function detectarConflito(reservaOrig,vagaAlvo,ocupantesDaVaga){
@@ -1155,37 +1206,79 @@ function detectarConflito(reservaOrig,vagaAlvo,ocupantesDaVaga){
   return{conflito:!!c,comQuem:c?(c.nomeCompleto||c.nome||null):null};
 }
 
-// aplicarAjustes (pura): posiciona primeiro as reservas fixadas (carros com ajuste válido) na
-// sua vaga manual MANTENDO AS DATAS ORIGINAIS; depois roda a alocação automática (inalterada)
-// para as livres no espaço restante. Fallback total ao automático em caso de erro.
+// aplicarAjustes (pura): v1.5.0.
+//  1) Aplica o STATUS EFETIVO (override manual do store `ajustes` sobre o status do PDF):
+//     - "sem_garagem" → reserva SAI do mapa/alocação (roteada para resultado.semGaragem).
+//     - "aguardando"/"confirmado" → ajusta a categoria usada pela alocação (garagem mutada
+//       temporariamente e RESTAURADA ao fim — nada persiste no objeto).
+//  2) Posiciona as reservas FIXADAS (carros com placement válido) MANTENDO AS DATAS ORIGINAIS:
+//     - vaga "P#"/"G#" → seed naquela linha (v1.3.0);
+//     - sentinela "OVERBOOKING" → fixada na área de overbooking (libera a vaga; NÃO ocupa vaga).
+//  3) Roda a alocação automática (inalterada) para as livres no espaço restante.
+// Move para overbooking é VISUAL (organização) — NÃO altera status nem PMS. Fallback total em erro.
 function aplicarAjustes(reservas,ajustes){
+  const origGaragem=new Map();
   try{
     ajustes=ajustes||{};
     const rP=reservas||[];
     // limpa flags para não vazar estado entre renders
-    rP.forEach(r=>{delete r._aloc;delete r._over;delete r._grandeEmPequena;delete r.ajusteManual;delete r._vagaManual;});
-    // 1 ajuste por nro (1º bloco de carro daquele nro); evita duplicar vaga em reserva multi-carro
-    const fixadasPorNro={};
+    rP.forEach(r=>{delete r._aloc;delete r._over;delete r._grandeEmPequena;delete r.ajusteManual;delete r._vagaManual;delete r._overManual;delete r._statusEfetivo;delete r._semGaragem;delete r._pmsDivergente;});
+    // status efetivo + divergência (por reserva) e separação de "sem garagem"
+    const semGaragem=[];const ativos=[];
     rP.forEach(r=>{
       const aj=ajustes[r.nro];
-      if(aj&&ehReservaCarro(r)&&vagaValida(aj.vagaIdManual)&&!fixadasPorNro[r.nro])fixadasPorNro[r.nro]=r;
+      const st=statusEfetivo(r,aj);
+      r._statusEfetivo=st;
+      r._pmsDivergente=pmsDivergente(r,aj);
+      if(st==='sem_garagem'){r._semGaragem=true;semGaragem.push(r);return;}
+      // override de status muda a CATEGORIA usada pela alocação (temporário; restaurado no fim)
+      if(aj&&STATUS_MANUAIS.includes(aj.statusManual)&&r.garagem!=='azul_moto'){
+        if(st==='aguardando'&&r.garagem!=='amarelo'){origGaragem.set(r,r.garagem);r.garagem='amarelo';}
+        else if(st==='confirmado'&&r.garagem==='amarelo'){origGaragem.set(r,r.garagem);r.garagem='azul_pequeno';}
+      }
+      ativos.push(r);
+    });
+    // 1 placement por nro (1º bloco de carro daquele nro); evita duplicar vaga em reserva multi-carro
+    const fixadasPorNro={};
+    ativos.forEach(r=>{
+      const aj=ajustes[r.nro];
+      if(aj&&ehReservaCarro(r)&&placementValido(aj.vagaIdManual)&&!fixadasPorNro[r.nro])fixadasPorNro[r.nro]=r;
     });
     const fixadas=Object.values(fixadasPorNro);
     const fixSet=new Set(fixadas);
-    const livres=rP.filter(r=>!fixSet.has(r));
-    if(!fixadas.length)return alocarVagas(rP); // nada fixado → 100% automático
-    const seedP=Array.from({length:18},()=>[]);
-    const seedG=Array.from({length:14},()=>[]);
-    fixadas.forEach(r=>{
-      const v=ajustes[r.nro].vagaIdManual;
-      const sec=v[0],idx=parseInt(v.slice(1))-1;
-      r.ajusteManual=true;r._vagaManual=v;r._aloc=sec;
-      (sec==='P'?seedP:seedG)[idx].push(r);
-    });
-    return alocarVagas(livres,{linhasP:seedP,linhasG:seedG});
+    const livres=ativos.filter(r=>!fixSet.has(r));
+    let resultado;
+    if(!fixadas.length){
+      resultado=alocarVagas(ativos); // nada fixado → automático sobre os ativos
+    }else{
+      const seedP=Array.from({length:18},()=>[]);
+      const seedG=Array.from({length:14},()=>[]);
+      const overManual=[];
+      fixadas.forEach(r=>{
+        const v=ajustes[r.nro].vagaIdManual;
+        if(placementOverbooking(v)){
+          // fixada em overbooking: libera a vaga (não ocupa seed) — visual, não muda status
+          r.ajusteManual=true;r._vagaManual='OVERBOOKING';r._over=true;r._overManual=true;r._aloc='over';
+          overManual.push(r);
+        }else{
+          const sec=v[0],idx=parseInt(v.slice(1))-1;
+          r.ajusteManual=true;r._vagaManual=v;r._aloc=sec;
+          (sec==='P'?seedP:seedG)[idx].push(r);
+        }
+      });
+      resultado=alocarVagas(livres,{linhasP:seedP,linhasG:seedG});
+      if(overManual.length){
+        resultado.overflow=(resultado.overflow||[]).concat(overManual);
+        resultado.overflowLinhas=empilhar(resultado.overflow);
+      }
+    }
+    origGaragem.forEach((g,r)=>{r.garagem=g;}); // restaura a categoria original (não persiste o override)
+    resultado.semGaragem=semGaragem;
+    return resultado;
   }catch(e){
+    origGaragem.forEach((g,r)=>{r.garagem=g;});
     // app nunca quebra: cai para o automático puro
-    try{return alocarVagas(reservas||[]);}catch(_){return{linhasP:[],linhasG:[],vagaMoto:[],overflowLinhas:[],overflow:[]};}
+    try{const r=alocarVagas(reservas||[]);r.semGaragem=[];return r;}catch(_){return{linhasP:[],linhasG:[],vagaMoto:[],overflowLinhas:[],overflow:[],semGaragem:[]};}
   }
 }
 // ===ENGINE END===
@@ -1555,6 +1648,47 @@ function renderMapa(){
   renderSecaoLinhas(container,aloc.linhasG,datas,'G','▸ Camionetes / Grandes — 14 vagas',hoje,false);
   renderSecaoMoto(container,aloc.vagaMoto,datas,hoje);
   if(aloc.overflowLinhas.length)renderSecaoOver(container,aloc.overflowLinhas,datas,hoje);
+  // v1.5.0 (5.5) — área "Sem garagem (manual)" logo abaixo do overbooking (só com o filtro ligado).
+  if(mostrarSemGaragem)renderSecaoSemGaragem(container,aloc.semGaragem||[],hoje);
+}
+
+// v1.5.0 (5.5) — checkbox: exibe/oculta a área "Sem garagem (manual)". Os overrides persistem.
+let mostrarSemGaragem=false;
+function toggleSemGaragem(){
+  const c=document.getElementById('chk-semgar');
+  mostrarSemGaragem=!!(c&&c.checked);
+  if(todasReservas.length)renderMapa();
+}
+// Área com cor distinta listando as reservas com statusManual==='sem_garagem'. Cada item tem editor
+// para VOLTAR o status (Confirmado/Aguardando) → a reserva retorna ao mapa. Divergência sinalizada.
+function renderSecaoSemGaragem(container,lista,hoje){
+  const bloco=document.createElement('div');bloco.className='secao-bloco secao-semgar';
+  const hdr=document.createElement('div');hdr.className='secao-header';
+  const t=document.createElement('span');t.className='secao-titulo';
+  t.style.color='var(--semgar)';t.textContent=`⛔ Sem garagem (manual) — ${lista.length}`;
+  hdr.appendChild(t);bloco.appendChild(hdr);
+  if(!lista.length){
+    const vazio=document.createElement('div');vazio.className='semgar-vazio';
+    vazio.textContent='Nenhuma reserva marcada manualmente como "Sem garagem" no período.';
+    bloco.appendChild(vazio);container.appendChild(bloco);return;
+  }
+  // agrupa por nro (uma reserva pode ter vários blocos/aptos)
+  const porNro={};
+  lista.forEach(r=>{if(!porNro[r.nro])porNro[r.nro]={nro:r.nro,nome:r.nomeCompleto,entrada:r.entrada,saida:r.saida,aptos:new Set(),res:r};porNro[r.nro].aptos.add(r.apto);});
+  Object.values(porNro).sort((a,b)=>a.entrada-b.entrada).forEach(g=>{
+    const aj=ajustesMap[g.nro];
+    const item=document.createElement('div');item.className='semgar-item';
+    const aptos=[...g.aptos].filter(x=>x&&x!=='-').join(', ')||'-';
+    item.innerHTML=`
+      <div class="semgar-info">
+        <span class="semgar-nome">${escapeHtml(g.nome)}</span>
+        <span class="semgar-meta">#${escapeHtml(g.nro)} · Ap ${escapeHtml(aptos)} · ${fmtData(g.entrada)}→${fmtData(g.saida)}</span>
+        ${pmsDivergente(g.res,aj)?'<span class="pms-diverg" title="Alterado manualmente — PMS ainda não atualizado">◆</span>':''}
+      </div>
+      <div class="semgar-acao">${statusEditorHTML(g.nro,'sem_garagem')}</div>`;
+    bloco.appendChild(item);
+  });
+  container.appendChild(bloco);
 }
 
 function renderSecaoLinhas(container,linhas,datas,pre,titulo,hoje,isOver){
@@ -1608,11 +1742,13 @@ function mkDatesRow(datas,hoje){
 
 function mkRow(label,linha,datas,isOver,isMoto){
   const row=document.createElement('div');row.className='vaga-row';
-  const arrastavel=!isOver&&!isMoto; // v1.3.0: só vagas de carro (P/G) recebem arraste
+  // v1.5.0 (Parte D): carros (P/G) E overbooking são arrastáveis; motos não.
+  const arrastavel=!isMoto;
   const lbl=document.createElement('div');lbl.className='row-label';lbl.textContent=label;
   row.appendChild(lbl);
   const wrap=document.createElement('div');wrap.className='row-cells';
-  if(arrastavel)wrap.dataset.vaga=label; // alvo do drop resolvido por identificador (independe da ordenação)
+  // alvo do drop resolvido por identificador: vaga "P#"/"G#" ou o sentinela "OVERBOOKING".
+  if(arrastavel)wrap.dataset.vaga=isOver?'OVERBOOKING':label;
   datas.forEach(()=>{const c=document.createElement('div');c.className='cell';wrap.appendChild(c);});
   linha.forEach(res=>{
     const ehPar=res._ehParMoto===true;
@@ -1638,10 +1774,12 @@ function mkRow(label,linha,datas,isOver,isMoto){
     } else {
       const aviso=res._grandeEmPequena?'⚠ ':'';
       const mao=res.ajusteManual?'<span class="ajuste-mao" title="Posição ajustada manualmente">✋</span>':'';
+      // v1.5.0 (5.6) — marcador discreto de divergência com o PMS (alterado manualmente, PMS não atualizado).
+      const diverg=res._pmsDivergente?'<span class="pms-diverg" title="Alterado manualmente — PMS ainda não atualizado">◆</span>':'';
       // 5.2 — nº PMS clicável para copiar (com fallback file://); não dispara o arraste.
       const nroSpan=`<span class="copyable" title="Clique para copiar o nº PMS" onclick="event.stopPropagation();copiarTexto('${res.nro}')">#${res.nro}</span>`;
       const infoLabel=res._labelExtra?`${res._labelExtra} · Ap ${res.apto}`:`${nroSpan} · Ap ${res.apto}`;
-      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${mao}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
+      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
       if(res.ajusteManual)span.classList.add('tem-ajuste');
       // 5.4 — arraste só de vaga (Pointer Events) nas seções de carro; clique abre detalhe.
       if(arrastavel){
@@ -1659,6 +1797,9 @@ function mkRow(label,linha,datas,isOver,isMoto){
 function corCls(res,over){
   if(over||res._over)return'vermelho';
   if(res.garagem&&res.garagem.includes('laranja'))return'laranja';
+  // v1.5.0 — a cor segue o STATUS EFETIVO (override manual prevalece sobre o do PDF).
+  if(res._statusEfetivo==='aguardando')return'amarelo';
+  if(res._statusEfetivo==='confirmado')return'azul';
   if(res.garagem==='amarelo')return'amarelo';
   return'azul';
 }
@@ -1775,6 +1916,9 @@ function reservasContato(){
     if(+r.saida>+g.saida)g.saida=new Date(r.saida);
     if(r._over)g.over=true;
     if(!g.nroOTA&&r.nroOTA)g.nroOTA=r.nroOTA;
+    // v1.5.0 — status efetivo + divergência com o PMS (por nro).
+    if(r._statusEfetivo)g._statusEfetivo=r._statusEfetivo;
+    if(r._pmsDivergente)g._pmsDivergente=true;
   });
   return Object.values(map);
 }
@@ -1820,7 +1964,14 @@ function subTitulo(txt){const d=document.createElement('div');d.className='ct-su
 
 function itemContato(g){
   const tipo=grupoTipo(g);
-  const corCl=tipo==='over'?'over':tipo==='amarelo'?'amarelo':tipo==='grande'||tipo==='pequeno'?'azul':tipo==='laranja'?'laranja':tipo==='moto'?'moto':'azul';
+  // v1.5.0 — a cor segue o STATUS EFETIVO (override manual prevalece); over/moto preservados.
+  let corCl;
+  if(tipo==='over')corCl='over';
+  else if(g._statusEfetivo==='sem_garagem')corCl='semgar';
+  else if(tipo==='moto')corCl='moto';
+  else if(g._statusEfetivo==='aguardando')corCl='amarelo';
+  else if(tipo==='laranja')corCl='laranja';
+  else corCl='azul';
   // v1.4.0 (5.3) — "enviado" é DERIVADO do histórico de envios (não mais do telefone).
   const enviado=statusEnvioReserva(enviosPorNro[g.nro])==='enviado';
   const item=document.createElement('div');
@@ -1835,6 +1986,9 @@ function itemContato(g){
   const statusBadge=enviado?'<span class="ct-badge status-env">✓ enviado</span>':'';
   // 5.3 — estado Confirmar↔Editar (bloqueia o campo quando já há telefone confirmado).
   const estTel=estadoTelefoneInicial({telefone:g.telefone,telefoneStatus:g.telefoneStatus});
+  // v1.5.0 — status efetivo + divergência (Parte A) para o editor no Contato.
+  const stEf=g._statusEfetivo||statusEfetivo(g,ajustesMap[g.nro]);
+  const diverge=g._pmsDivergente||pmsDivergente(g,ajustesMap[g.nro]);
 
   item.innerHTML=`
     <div class="ct-top">
@@ -1848,6 +2002,10 @@ function itemContato(g){
       <span>📅 ${fmtDate(g.entrada)} → ${fmtDate(g.saida)}</span>
       <span>🏨 Apto ${aptos}</span>
       <span>${oriEmoji[(g.origem||'direta').toLowerCase()]||'📋'} ${g.origem||'Direta'}</span>
+    </div>
+    <div class="ct-status">
+      <span class="ct-status-lbl">Status:</span>${statusEditorHTML(g.nro,stEf)}
+      ${diverge?'<span class="pms-diverg-badge sm" title="Alterado manualmente — PMS ainda não atualizado">⚠ PMS não atualizado</span>':''}
     </div>
     <div class="ct-fone">
       <input type="text" placeholder="Colar telefone..." value="${g.telefone||''}"
@@ -2265,19 +2423,51 @@ let moverCtx=null;        // contexto do modal "mover de vaga"
 const DRAG_LIMIAR=5;      // px — abaixo disso é clique (abre detalhe), não arraste
 
 // ── Persistência dos ajustes (store 'ajustes', chave nro) — só a edição manual escreve ──
+// v1.5.0: o registro carrega também `statusManual` + `ultimaAlteracao` (Parte A). Registros
+// antigos (só `vagaIdManual`) seguem válidos → campos ausentes = null.
 async function carregarAjustes(){
   ajustesMap={};
   if(!dbOk)return;
-  try{(await dbGetAll('ajustes')).forEach(a=>{if(a&&a.nro!=null)ajustesMap[a.nro]={vagaIdManual:a.vagaIdManual,criadoEm:a.criadoEm,atualizadoEm:a.atualizadoEm};});}
+  try{(await dbGetAll('ajustes')).forEach(a=>{if(a&&a.nro!=null)ajustesMap[a.nro]={
+    vagaIdManual:a.vagaIdManual!=null?a.vagaIdManual:null,
+    statusManual:a.statusManual!=null?a.statusManual:null,
+    ultimaAlteracao:a.ultimaAlteracao||null,
+    criadoEm:a.criadoEm,atualizadoEm:a.atualizadoEm};});}
   catch(e){console.warn('carregar ajustes falhou',e);}
 }
-async function salvarAjuste(nro,vagaIdManual){
+// Monta o registro preservando os demais campos já existentes (nunca zera o que não se está editando).
+function _montarAjuste(nro,patch){
   const agora=Date.now();
-  const ant=ajustesMap[nro];
-  const reg={nro:String(nro),vagaIdManual,criadoEm:ant&&ant.criadoEm?ant.criadoEm:agora,atualizadoEm:agora};
-  ajustesMap[nro]={vagaIdManual:reg.vagaIdManual,criadoEm:reg.criadoEm,atualizadoEm:reg.atualizadoEm};
+  const ant=ajustesMap[nro]||{};
+  return {
+    nro:String(nro),
+    vagaIdManual:('vagaIdManual'in patch)?patch.vagaIdManual:(ant.vagaIdManual!=null?ant.vagaIdManual:null),
+    statusManual:('statusManual'in patch)?patch.statusManual:(ant.statusManual!=null?ant.statusManual:null),
+    ultimaAlteracao:('ultimaAlteracao'in patch)?patch.ultimaAlteracao:(ant.ultimaAlteracao||null),
+    criadoEm:ant.criadoEm?ant.criadoEm:agora,
+    atualizadoEm:agora
+  };
+}
+async function _persistirAjuste(reg){
+  // se o registro ficou "vazio" (sem placement e sem status), remove-o para não deixar lixo
+  if(reg.vagaIdManual==null&&reg.statusManual==null){await removerAjuste(reg.nro);return;}
+  ajustesMap[reg.nro]={vagaIdManual:reg.vagaIdManual,statusManual:reg.statusManual,ultimaAlteracao:reg.ultimaAlteracao,criadoEm:reg.criadoEm,atualizadoEm:reg.atualizadoEm};
   if(dbOk){try{await dbPut('ajustes',reg);}catch(e){console.warn('salvar ajuste falhou',e);}}
   rerenderMapaEContato();
+}
+// Placement (arraste de vaga / overbooking). Preserva statusManual/ultimaAlteracao.
+async function salvarAjuste(nro,vagaIdManual){
+  await _persistirAjuste(_montarAjuste(nro,{vagaIdManual}));
+}
+// Status manual (Parte A). Registra quem alterou (funcionário padrão, texto) + data/hora ISO.
+async function salvarStatusManual(nro,statusManual){
+  const st=(['confirmado','aguardando','sem_garagem'].includes(statusManual))?statusManual:null;
+  const ultimaAlteracao=st?{funcionario:funcionarioPadraoNome(),dataHora:new Date().toISOString()}:null;
+  await _persistirAjuste(_montarAjuste(nro,{statusManual:st,ultimaAlteracao}));
+}
+// Nome-texto do funcionário padrão atual (estável); "—" se não houver.
+function funcionarioPadraoNome(){
+  try{const fp=funcionarioPadrao(gestaoConfig);return(fp&&fp.nome)?fp.nome:'—';}catch(e){return'—';}
 }
 async function removerAjuste(nro){
   delete ajustesMap[nro];
@@ -2357,7 +2547,8 @@ function arrasteUp(ev){
   const wrap=el&&el.closest&&el.closest('[data-vaga]');
   const vagaAlvo=wrap?wrap.dataset.vaga:null;
   if(!vagaAlvo||vagaAlvo===st.vagaOrig)return; // sem alvo válido ou mesma vaga → cancela silencioso
-  const conf=detectarConflito(st.res,vagaAlvo,ocupantesDaVaga(vagaAlvo));
+  // v1.5.0: conflito só se aplica ao cair numa VAGA real (não na área de overbooking).
+  const conf=vagaValida(vagaAlvo)?detectarConflito(st.res,vagaAlvo,ocupantesDaVaga(vagaAlvo)):{conflito:false,comQuem:null};
   abrirModalMover(st.res,st.vagaOrig,vagaAlvo,conf);
 }
 
@@ -2365,8 +2556,18 @@ function arrasteUp(ev){
 function abrirModalMover(res,vagaOrig,vagaAlvo,conf){
   moverCtx={nro:res.nro,vagaAlvo};
   const dt=`${fmtData(res.entrada)}–${fmtData(res.saida)}`;
-  document.getElementById('mover-texto').innerHTML=
-    `Mover <b>${escapeHtml(res.nomeCompleto)}</b> da vaga <b>${escapeHtml(vagaOrig||'—')}</b> para a vaga <b>${escapeHtml(vagaAlvo)}</b>?<br>As datas (<b>${dt}</b>) não mudam.`;
+  const nome=`<b>${escapeHtml(res.nomeCompleto)}</b>`;
+  let texto;
+  if(vagaAlvo==='OVERBOOKING'){
+    // para dentro do overbooking: organização visual — não altera status nem PMS.
+    texto=`Mover ${nome} para a área de <b>OVERBOOKING</b> (organização visual — não altera status nem PMS)?<br>As datas (<b>${dt}</b>) não mudam.`;
+  }else if(vagaOrig==='OVERBOOKING'){
+    // do overbooking para uma vaga real.
+    texto=`Mover ${nome} do <b>OVERBOOKING</b> para a vaga <b>${escapeHtml(vagaAlvo)}</b>?<br>As datas (<b>${dt}</b>) não mudam.`;
+  }else{
+    texto=`Mover ${nome} da vaga <b>${escapeHtml(vagaOrig||'—')}</b> para a vaga <b>${escapeHtml(vagaAlvo)}</b>?<br>As datas (<b>${dt}</b>) não mudam.`;
+  }
+  document.getElementById('mover-texto').innerHTML=texto;
   const elc=document.getElementById('mover-conflito');
   if(conf&&conf.conflito){
     elc.style.display='block';
@@ -2386,10 +2587,13 @@ document.addEventListener('keydown',(e)=>{if(e.key==='Escape'){if(document.getEl
 // ── Modal de detalhe (clique abaixo do limiar) + "voltar ao automático" ──
 function abrirDetalheReserva(res){
   const corpo=document.getElementById('detalhe-corpo');
+  const aj=ajustesMap[res.nro];
+  const st=statusEfetivo(res,aj);
+  const diverge=pmsDivergente(res,aj);
   // 5.5 (v1.4.0) — nº PMS e localizador OTA clicáveis para copiar (mesmo feedback/fallback do Contato).
   const nroCopy=`<span class="tt-val copyable" title="Clique para copiar o nº PMS" onclick="copiarTexto('${escapeAttr(res.nro)}')">#${escapeHtml(res.nro)}</span>`;
   const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val copyable" title="Clique para copiar o localizador OTA" onclick="copiarTexto('${escapeAttr(res.nroOTA)}')">${escapeHtml(res.nroOTA)}</span></div>`:'';
-  const mao=res.ajusteManual?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual)+')':''}</span></div>`:'';
+  const mao=(res.ajusteManual)?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual==='OVERBOOKING'?'Overbooking':res._vagaManual)+')':''}</span></div>`:'';
   corpo.innerHTML=`
     <div class="tt-nome" style="margin-bottom:8px">${escapeHtml(res.nomeCompleto)}</div>
     <div class="tt-row"><span class="tt-key">Reserva</span>${nroCopy}</div>
@@ -2398,20 +2602,48 @@ function abrirDetalheReserva(res){
     <div class="tt-row"><span class="tt-key">Check-in</span><span class="tt-val">${fmtData(res.entrada)}</span></div>
     <div class="tt-row"><span class="tt-key">Check-out</span><span class="tt-val">${fmtData(res.saida)}</span></div>
     <div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">${escapeHtml(res.origem||'Direta')}</span></div>
+    <div class="tt-row"><span class="tt-key">Status</span><span class="tt-val">${statusEditorHTML(res.nro,st)}</span></div>
+    ${divergenciaHTML(res,aj)}
     ${mao}
     <div class="prancheta prancheta-inline" id="detalhe-prancheta">
       <div class="pr-head"><span class="pr-titulo">📋 Envios</span></div>
       <div class="pr-corpo">${pranchetaCorpoHTML(res.nro)}</div>
     </div>`;
   const acoes=document.getElementById('detalhe-acoes');
-  const temAjuste=!!ajustesMap[res.nro];
+  const temPlacement=!!(aj&&placementValido(aj.vagaIdManual));
   acoes.innerHTML=
-    (temAjuste?`<button class="btn btn-ghost" onclick="voltarAoAutomatico('${escapeAttr(res.nro)}')">↩ Voltar ao automático</button>`:'')+
+    (temPlacement?`<button class="btn btn-ghost" onclick="voltarAoAutomatico('${escapeAttr(res.nro)}')">↩ Voltar ao automático</button>`:'')+
     `<button class="btn btn-primary" onclick="fecharDetalhe()">Fechar</button>`;
   document.getElementById('detalhe-modal').style.display='flex';
 }
 function fecharDetalhe(){document.getElementById('detalhe-modal').style.display='none';}
-async function voltarAoAutomatico(nro){fecharDetalhe();await removerAjuste(nro);}
+// Voltar ao automático (v1.3.0/v1.5.0): limpa SÓ o placement (vaga/overbooking); o status manual
+// é preservado. Se não houver status manual, o registro é removido por inteiro.
+async function voltarAoAutomatico(nro){
+  fecharDetalhe();
+  const aj=ajustesMap[nro];
+  if(aj&&['confirmado','aguardando','sem_garagem'].includes(aj.statusManual))await salvarAjuste(nro,null);
+  else await removerAjuste(nro);
+}
+
+/* ═══════════ v1.5.0 — STATUS MANUAL: editor + divergência (Parte A) ═══════════ */
+const STATUS_ROTULOS={confirmado:'Confirmado',aguardando:'Aguardando',sem_garagem:'Sem garagem'};
+// Editor reutilizável (detalhe, Contato, área "Sem garagem"). Grava via salvarStatusManual.
+function statusEditorHTML(nro,statusAtual){
+  const opts=['confirmado','aguardando','sem_garagem']
+    .map(v=>`<option value="${v}"${v===statusAtual?' selected':''}>${STATUS_ROTULOS[v]}</option>`).join('');
+  return`<select class="status-sel" title="Alterar status desta reserva" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}</select>`;
+}
+function onStatusChange(nro,val){salvarStatusManual(nro,val);}
+// Badge/nota de divergência com o PMS (quem/quando).
+function divergenciaHTML(res,aj){
+  if(!pmsDivergente(res,aj))return'';
+  const ua=aj&&aj.ultimaAlteracao;
+  const quem=ua&&ua.funcionario?escapeHtml(ua.funcionario):'—';
+  const quando=ua&&ua.dataHora?fmtDataHoraISO(ua.dataHora):'';
+  return`<div class="pms-diverg-badge" title="Alterado manualmente — PMS ainda não atualizado">⚠ Alterado manualmente por <b>${quem}</b>${quando?' em <b>'+quando+'</b>':''} — PMS ainda não atualizado</div>`;
+}
+function fmtDataHoraISO(iso){try{const d=new Date(iso);if(isNaN(d))return'';return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}catch(e){return'';}}
 
 // ── INIT ──
 async function init(){

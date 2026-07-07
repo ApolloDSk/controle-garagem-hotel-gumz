@@ -4,13 +4,29 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.4.0** (06/06/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
+- **Versão entregue: v1.5.0** (07/07/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
   (branch `master`). ⚠ **Nunca** tocar nos repos do **Garage Spot** (`garagespot-*`) — outro projeto.
 - App canônico: `garagem-app/index.html`; standalone (Chrome): `garagem-app/controle-garagem-standalone.html`
   (regenerar com `node build-standalone.js` em `garagem-app/` sempre que mexer no `index.html`).
 - Stack: HTML/JS/CSS puro + PDF.js + IndexedDB (DB `garagemGumz` **v4**: stores `reservas`,
   `contatos`, `gestao`, `ajustes`, **`envios`**). Sem backend, sem APK.
-- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.4.0). O que falta exige infraestrutura.
+- **⚠ Versionamento 1.5.x:** incrementos pequenos (`1.5.1`, …); correção sobre patch = `1.5.2.1`.
+  **A 2.0 NÃO sai sem ordem explícita do Douglas** (reservada p/ a versão mais redonda).
+- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.5.0). O que falta exige infraestrutura.
+
+## O que a v1.5.0 entregou
+1. **Status manual editável** (Confirmado/Aguardando/**Sem garagem**) no **detalhe** (Mapa) e na aba
+   **Contato**, com **auditoria** `ultimaAlteracao:{funcionario(nome-texto do padrão), dataHora(ISO)}`.
+   Funções puras `statusDerivadoDoPDF`/`statusEfetivo`/`pmsDivergente`. **"Sem garagem" tira do mapa.**
+2. **Filtro + área "Sem garagem (manual)"** (checkbox `#chk-semgar`, cor `--semgar`, abaixo do
+   overbooking) com status **re-editável** → a reserva **volta ao mapa**.
+3. **Divergência com o PMS** sinalizada (badge + marcador ◆ + tooltip com quem/quando). Ajuste manual
+   **preservado na reimportação**; some quando o PDF passa a bater.
+4. **Arraste para dentro/fora do overbooking** (sentinela `"OVERBOOKING"` em `vagaIdManual`): **visual/
+   organização — NÃO muda status nem PMS**; mover para overbooking **libera a vaga** e realoca os
+   automáticos. Motos seguem **não arrastáveis**. ✋ + "Voltar ao automático" limpa **só o placement**.
+5. Store **`ajustes` estendido** (DB **segue v4**; registros antigos válidos; `salvarAjuste`/
+   `salvarStatusManual` preservam os campos não editados via `_montarAjuste`).
 
 ## O que a v1.4.0 entregou
 1. **`[nome]` em formato de nome próprio** (`formatarNomeProprio`: conectores minúsculos, acentos,
@@ -36,7 +52,8 @@
 4. Marcador **✋** + "Voltar ao automático" (apaga o ajuste do `nro`).
 5. Store **`ajustes`** (DB v3, chave `nro`, sem campo de data): só a edição manual escreve;
    **sobrevive à reimportação do PDF**.
-6. **Escopo:** carros (P/G). **Motos e overbooking não são arrastáveis** (adiado).
+6. **Escopo (na v1.3.0):** carros (P/G). **Motos e overbooking não eram arrastáveis** — a v1.5.0
+   passou a permitir arrastar **overbooking** (motos seguem fora).
 
 ## v1.1.0 / v1.2.0 (mantidos)
 Abas Mapa/Contato/Gestão com ícones; copiar PMS/OTA; telefone Confirmar↔Editar; ordenação das
@@ -44,9 +61,9 @@ vagas; info de upload; check-in no passado (borda cortada). Gestão (Empresa/Fun
 Backup); Modelos com chaves `[nome][data][canal][empresa][funcionario]` (substituição real);
 envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 
-## Testes (versionados em `tests/`) — 188/188
+## Testes (versionados em `tests/`) — 212/212
 - `npm install` (jsdom, fake-indexeddb, @playwright/test) + `npx playwright install chromium`.
-- `npm run test:engine` (128) · `npm run test:integration` (40) · `npx playwright test` (20).
+- `npm run test:engine` (141) · `npm run test:integration` (47) · `npx playwright test` (24).
 - **Regra:** tudo verde antes de commitar; **sem `test.skip`** mascarando; corrigir causa raiz.
 - Funções puras testáveis ficam **dentro** dos marcadores `// ===ENGINE START/END===`.
 - ⚠ Estado (`gestaoConfig`, `contatoGrupos`, `db`, `ajustesMap`, `ultimaAlocacao`, **`enviosPorNro`**,
@@ -66,6 +83,10 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
   entrega/leitura (exige WhatsApp Business API/backend). Status é **derivado** do store `envios`
   (`statusEnvioReserva`), nunca do telefone. Reimport do PDF **não toca** em `envios`.
 - **`[nome]` formatado** (`formatarNomeProprio`) é **só na saída** da chave; `nomeCompleto` segue cru.
+- **v1.5.0 — ajuste manual NUNCA sobrescrito pela reimportação** (status **e** placement, por `nro`);
+  divergência com o PMS só é **sinalizada** (`pmsDivergente`). **Mover para overbooking é visual** — não
+  altera `statusEfetivo` nem o PMS. **`statusEfetivo`** = override manual (`ajustes.statusManual`) sobre
+  `statusDerivadoDoPDF`. Store `ajustes` foi **estendido** (segue DB v4; registros antigos válidos).
 - Substituição de chaves nunca deixa literal (v1.2.0); limitação de caminho do navegador (v1.1.0);
   check-in no passado só aparece se constar no PDF.
 - Alocação automática (amarelos/azuis/score/best-fit/overbooking) é **intocável**.
@@ -76,9 +97,9 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
   aprovados; a lógica de mensagem (`substituirChaves`/modelos) já é reutilizável.
 - **Integração Reserva → Garage Spot:** camada compartilhada; passo leve via export/import
   (Backup da v1.2.0 é base; chave = `nro`).
-- **Adiados:** motos/overbooking arrastáveis; mapeamento de `[canal]`; múltiplas empresas;
-  modelo p/ confirmadas/azuis.
+- **Adiados:** **motos** arrastáveis; (opção) arraste "posicional" sem realocar os automáticos;
+  mapeamento de `[canal]`; múltiplas empresas; modelo p/ confirmadas/azuis.
 
 ## Tags
 - `pre-v1.0.0`, `v1.0.0`, `pre-v1.1.0`, `v1.1.0`, `pre-v1.2.0`, `v1.2.0`, `pre-v1.3.0`, `v1.3.0`,
-  `pre-v1.4.0`, `v1.4.0`.
+  `pre-v1.4.0`, `v1.4.0`, `pre-v1.5.0`, `v1.5.0`.

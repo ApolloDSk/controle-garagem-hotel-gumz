@@ -33,9 +33,9 @@ async function importar(page) {
   await page.waitForSelector('.cell-span');
 }
 
-test('smoke: carrega, rodapé v1.4.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
+test('smoke: carrega, rodapé v1.5.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.4.0');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.0');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -309,14 +309,97 @@ test('5.6 pan: arrastar o FUNDO move o mapa nas duas direções; bloco ainda mov
   await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'ANA' })).toHaveCount(1);
 });
 
-test('screenshots do mapa, contato e gestão (v1.4.0)', async ({ page }) => {
+// ════════ v1.5.0 — status manual (Parte A) + arraste no overbooking (Parte D) ════════
+
+test('A: status no Contato → "Sem garagem" tira do mapa; checkbox mostra a área; voltar retorna', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1600 });
   await boot(page);
   await importar(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.4.0-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.4.0-contato.png'), fullPage: true });
+  // editor de status presente no Contato
+  const sel = page.locator('.ct-item[data-nro="30001"] .status-sel');
+  await expect(sel).toHaveCount(1);
+  await sel.selectOption('sem_garagem');
+  // some do mapa
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(0);
+  // área "Sem garagem (manual)" oculta até ligar o checkbox
+  await page.click('#tab-mapa');
+  await expect(page.locator('.secao-semgar')).toHaveCount(0);
+  await page.check('#chk-semgar');
+  await expect(page.locator('.secao-semgar')).toContainText('ANA PEQUENA');
+  // voltar status (confirmado) → reserva retorna ao mapa
+  await page.locator('.secao-semgar .status-sel').selectOption('confirmado');
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(1);
+});
+
+test('A: editar status no detalhe e divergência com o PMS sinalizada', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  // abre o detalhe da CARLA (amarela) por clique abaixo do limiar
+  const src = page.locator('.cell-span', { hasText: 'CARLA AMARELA' }).first();
+  const sb = await src.boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sb.x + sb.width / 2 + 2, sb.y + sb.height / 2 + 2, { steps: 2 });
+  await page.mouse.up();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  const sel = page.locator('#detalhe-corpo .status-sel');
+  await expect(sel).toHaveCount(1);
+  await sel.selectOption('confirmado'); // amarelo→confirmado diverge do PDF
+  // reabre o detalhe para ver a divergência
+  await page.locator('#detalhe-acoes >> text=Fechar').click();
+  const src2 = page.locator('.cell-span', { hasText: 'CARLA AMARELA' }).first();
+  const sb2 = await src2.boundingBox();
+  await page.mouse.move(sb2.x + sb2.width / 2, sb2.y + sb2.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sb2.x + sb2.width / 2 + 2, sb2.y + sb2.height / 2 + 2, { steps: 2 });
+  await page.mouse.up();
+  await expect(page.locator('#detalhe-corpo .pms-diverg-badge')).toContainText('PMS ainda não atualizado');
+});
+
+test('D: arrastar bloco de vaga → overbooking (fixa) e overbooking → vaga (reposiciona)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 2600 });
+  await boot(page);
+  await importar(page);
+  // semeia um bloco no overbooking p/ existir o alvo de drop (organização visual)
+  await page.evaluate(() => window.salvarAjuste('30002', 'OVERBOOKING'));
+  await page.waitForSelector('.row-cells[data-vaga="OVERBOOKING"] .cell-span');
+  // arrasta ANA (vaga) → área de overbooking
+  await arrastar(page, 'ANA', 'OVERBOOKING');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await expect(page.locator('#mover-texto')).toContainText('OVERBOOKING');
+  await expect(page.locator('#mover-texto')).toContainText('não altera status');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="OVERBOOKING"] .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(1);
+  // arrasta BRUNO (overbooking) → vaga P5
+  await arrastar(page, 'BRUNO', 'P5');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await expect(page.locator('#mover-texto')).toContainText('do');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'BRUNO' })).toHaveCount(1);
+});
+
+test('D: Cancelar o arraste p/ overbooking não muda nada', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 2600 });
+  await boot(page);
+  await importar(page);
+  await page.evaluate(() => window.salvarAjuste('30002', 'OVERBOOKING'));
+  await page.waitForSelector('.row-cells[data-vaga="OVERBOOKING"] .cell-span');
+  await arrastar(page, 'ANA', 'OVERBOOKING');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-modal >> text=Cancelar');
+  await expect(page.locator('.row-cells[data-vaga="OVERBOOKING"] .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(0);
+});
+
+test('screenshots do mapa, contato e gestão (v1.5.0)', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.0-mapa.png'), fullPage: true });
+  await page.click('#tab-contato');
+  await page.waitForSelector('.ct-item');
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.0-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.4.0-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.0-gestao.png'), fullPage: true });
 });

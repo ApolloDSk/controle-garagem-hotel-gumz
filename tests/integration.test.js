@@ -78,9 +78,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.4.0', async () => {
+  await T('rodapé mostra v1.5.0', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.4.0');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.0');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -483,7 +483,7 @@ async function aguardarBoot(w) {
     ok(!linhaP9.some(s => s.classList.contains('tem-ajuste')), 'sem marcador de ajuste em P9');
   });
 
-  await T('linhas de carro têm data-vaga; moto/overbooking não', async () => {
+  await T('linhas de carro têm data-vaga; moto NÃO (v1.5.0: overbooking passa a ter)', async () => {
     const { w } = await novoApp();
     await w.importarPDF(w.parsear(montarPDF()));
     await sleep(20);
@@ -491,6 +491,100 @@ async function aguardarBoot(w) {
     ok(w.document.querySelector('.row-cells[data-vaga="G1"]'), 'G1 tem data-vaga');
     const motoRow = [...w.document.querySelectorAll('.row-label')].find(e => /^M/.test(e.textContent));
     if (motoRow) { const wrap = motoRow.parentElement.querySelector('.row-cells'); ok(!wrap.dataset.vaga, 'moto não é arrastável'); }
+  });
+
+  /* ── v1.5.0 — Parte A: status manual editável + auditoria + divergência ── */
+  await T('A3 salvarStatusManual grava statusManual + auditoria (funcionário + dataHora)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    w.gestaoAddFuncionario(); await sleep(10);
+    const fid = w.getGestaoConfig().funcionarios[0].id;
+    w.gestaoSetFuncNome(fid, 'Douglas'); await sleep(10);
+    await w.salvarStatusManual('30002', 'sem_garagem'); // BRUNO GRANDE → sem garagem
+    await sleep(20);
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30002');
+    ok(aj && aj.statusManual === 'sem_garagem', 'statusManual persistido');
+    ok(aj.ultimaAlteracao && aj.ultimaAlteracao.funcionario === 'Douglas', 'grava nome-texto do funcionário');
+    ok(aj.ultimaAlteracao.dataHora && !isNaN(new Date(aj.ultimaAlteracao.dataHora)), 'grava dataHora ISO');
+  });
+
+  await T('A2 sem_garagem tira a reserva do mapa; checkbox mostra a área', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarStatusManual('30001', 'sem_garagem'); // ANA PEQUENA
+    await sleep(20);
+    const noMapa = [...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /ANA PEQUENA/.test(s.textContent));
+    ok(!noMapa, 'ANA saiu do mapa');
+    // área "Sem garagem (manual)" só aparece com o checkbox ligado
+    ok(!w.document.querySelector('.secao-semgar'), 'área oculta por padrão');
+    const chk = w.document.getElementById('chk-semgar'); chk.checked = true; w.toggleSemGaragem();
+    await sleep(20);
+    const area = w.document.querySelector('.secao-semgar');
+    ok(area && /ANA PEQUENA/.test(area.textContent), 'ANA listada na área Sem garagem');
+  });
+
+  await T('A6 voltar status (sem_garagem→confirmado) retorna a reserva ao mapa', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarStatusManual('30001', 'sem_garagem'); await sleep(20);
+    await w.salvarStatusManual('30001', 'confirmado'); await sleep(20);
+    const noMapa = [...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /ANA PEQUENA/.test(s.textContent));
+    ok(noMapa, 'ANA voltou ao mapa');
+  });
+
+  await T('A4 statusManual persiste e SOBREVIVE à reimportação do PDF', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarStatusManual('30003', 'confirmado'); // CARLA AMARELA → confirmado (diverge do PDF)
+    await sleep(20);
+    await w.importarPDF(w.parsear(montarPDF())); // reimporta
+    await sleep(20);
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30003');
+    ok(aj && aj.statusManual === 'confirmado', 'statusManual sobrevive à reimportação');
+  });
+
+  await T('A6 divergência com o PMS é sinalizada no Contato', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarStatusManual('30003', 'confirmado'); // amarelo→confirmado diverge
+    await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    const item = w.document.querySelector('.ct-item[data-nro="30003"]');
+    ok(item && item.querySelector('.pms-diverg-badge'), 'badge de divergência presente no Contato');
+    ok(item.querySelector('.status-sel'), 'editor de status presente no Contato');
+  });
+
+  /* ── v1.5.0 — Parte D: arraste no overbooking (placement visual) ── */
+  await T('D7 salvarAjuste OVERBOOKING move a reserva para a área de overbooking', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarAjuste('30001', 'OVERBOOKING'); // ANA → overbooking (visual)
+    await sleep(20);
+    const overRow = [...w.document.querySelectorAll('.row-cells[data-vaga="OVERBOOKING"] .cell-span')];
+    ok(overRow.some(s => /ANA PEQUENA/.test(s.textContent)), 'ANA aparece no overbooking');
+    // não muda o status efetivo (continua confirmado/azul de origem)
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30001');
+    ok(aj && aj.vagaIdManual === 'OVERBOOKING' && aj.statusManual == null, 'placement gravado; status intacto');
+  });
+
+  await T('D9 placement OVERBOOKING sobrevive à reimportação; voltar limpa só o placement', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF()));
+    await sleep(20);
+    await w.salvarStatusManual('30001', 'aguardando'); await sleep(10);
+    await w.salvarAjuste('30001', 'OVERBOOKING'); await sleep(10);
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    let aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30001');
+    ok(aj && aj.vagaIdManual === 'OVERBOOKING' && aj.statusManual === 'aguardando', 'placement + status sobrevivem');
+    await w.voltarAoAutomatico('30001'); await sleep(20);
+    aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === '30001');
+    ok(aj && aj.vagaIdManual == null && aj.statusManual === 'aguardando', 'voltar limpa placement, mantém status');
   });
 
   /* ── 16. v1.4.0 — status "enviado" derivado + histórico/prancheta + seleção ── */

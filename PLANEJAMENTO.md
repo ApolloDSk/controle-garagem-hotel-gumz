@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.4.0** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura.
+> Versão atual: **v1.5.0** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura.
 
 ---
 
@@ -65,6 +65,20 @@
 - Testes **188/188** (128 engine + 40 jsdom + 20 Playwright); flakiness pré-existente do harness
   corrigida na raiz (`window.__appReady`). Ver `RELATORIO-v1.4.0.md`.
 
+### v1.5.0 (entregue 07/07/2026) — status manual editável + arraste no overbooking
+- **Parte A — status manual editável** (Confirmado/Aguardando/**Sem garagem**) no **detalhe** e no
+  **Contato**, com **auditoria** (funcionário-texto + data/hora). `statusEfetivo` injetado na
+  alocação; **"Sem garagem" tira do mapa** e vai para a **área "Sem garagem (manual)"** (checkbox,
+  cor distinta, abaixo do overbooking) com status **re-editável** (volta ao mapa).
+- **Sinalização de divergência com o PMS** (`pmsDivergente`): override manual ≠ status do PDF →
+  badge + marcador ◆ + tooltip (quem/quando). Ajuste manual **preservado** na reimportação.
+- **Parte D — arraste para dentro/fora do overbooking** (sentinela `"OVERBOOKING"` em `vagaIdManual`):
+  **visual/organização — NÃO muda status nem PMS**; mover para overbooking **libera a vaga** e os
+  automáticos **realocam**. Datas nunca mudam. Motos **continuam não arrastáveis**.
+- Store **`ajustes` estendido** (DB **segue v4**, não-destrutivo; registros antigos válidos).
+  **Versionamento 1.5.x** registrado (sem 2.0 sem ordem). Testes **212/212** (141 engine + 47 jsdom
+  + 24 Playwright). Ver `RELATORIO-v1.5.0.md`.
+
 ---
 
 ## ✅ ROADMAP LOCAL (sem backend) — CONCLUÍDO
@@ -85,7 +99,9 @@ infraestrutura.
 ## 🕓 ADIADOS ("vamos ver depois")
 - **Confirmação real de entrega da mensagem** (entregue/lida) — exige **WhatsApp Business API/backend**.
   O status "enviado" (v1.4.0) só garante que o `wa.me` foi **disparado** pelo app.
-- **Motos/overbooking arrastáveis** (hoje só carros P/G).
+- **Motos arrastáveis** (v1.5.0 tornou **overbooking** arrastável; motos seguem fora).
+- **(Opção) Arraste manual "posicional"** — fixar a reserva na posição solta **sem realocar** os
+  automáticos (hoje mover libera a vaga e os automáticos se reorganizam), se o Douglas preferir.
 - Mapeamento do **nome do canal** para `[canal]` (expedia.com / hoteis.com / omnibees).
 - Suporte a **mais de uma empresa**.
 - **Modelo de mensagem para reservas confirmadas/azuis** (hoje azul usa link `wa.me` simples).
@@ -147,9 +163,11 @@ infraestrutura.
 ---
 
 ## Atualização ao final desta versão
-- **Versão atual:** v1.4.0 (Contato + histórico de envios/prancheta + pan vertical + `[nome]` formatado).
-- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.4.0).
+- **Versão atual:** v1.5.0 (status manual editável + área/filtro "Sem garagem" + divergência PMS +
+  arraste no overbooking). **Regra de versionamento 1.5.x** registrada (sem 2.0 sem ordem).
+- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.5.0).
 - **Próximos passos (infra):** **confirmação real de entrega** + envio em massa (backend + WhatsApp
   Business API); integração Reserva → Garage Spot (passo leve via export/import).
-- **Adiados:** confirmação real de entrega; motos/overbooking arrastáveis; mapeamento de `[canal]`;
-  múltiplas empresas; modelo p/ reservas azuis/confirmadas.
+- **Adiados:** confirmação real de entrega; **motos arrastáveis**; (opção) arraste "posicional" sem
+  realocar os automáticos; mapeamento de `[canal]`; múltiplas empresas; modelo p/ reservas azuis;
+  envio em massa; múltiplas empresas.

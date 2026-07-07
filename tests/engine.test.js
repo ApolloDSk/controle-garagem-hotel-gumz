@@ -31,7 +31,9 @@ const EXPORTS = [
   // v1.3.0
   'aplicarAjustes','detectarConflito','ehReservaCarro','vagaValida',
   // v1.4.0
-  'formatarNomeProprio','statusEnvioReserva','montarRegistroEnvio','enviosOrdenados'
+  'formatarNomeProprio','statusEnvioReserva','montarRegistroEnvio','enviosOrdenados',
+  // v1.5.0
+  'statusDerivadoDoPDF','statusEfetivo','pmsDivergente','placementOverbooking','placementValido'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -518,7 +520,110 @@ t('5.4 enviosOrdenados: não muta o array original', () => {
   const arr = [{ dataHora: 'a' }, { dataHora: 'b' }]; E.enviosOrdenados(arr); eq(arr[0].dataHora, 'a');
 });
 
-t('APP_VERSION é v1.4.0', () => { eq(E.APP_VERSION, 'v1.4.0'); });
+/* ════════════════════════════════════════════════════════════════
+   v1.5.0 — status manual (Parte A) + arraste no overbooking (Parte D)
+   ════════════════════════════════════════════════════════════════ */
+const rCarro = (nro, gar, ent, sai, extra) => Object.assign({ nro, garagem: gar, entrada: D(ent), saida: D(sai), nomeCompleto: 'N' + nro, apto: nro }, extra || {});
+
+// ── A1. statusDerivadoDoPDF / statusEfetivo ──
+t('A1 statusDerivadoDoPDF: amarelo→aguardando, resto→confirmado', () => {
+  eq(E.statusDerivadoDoPDF({ garagem: 'amarelo' }), 'aguardando');
+  eq(E.statusDerivadoDoPDF({ garagem: 'azul_pequeno' }), 'confirmado');
+  eq(E.statusDerivadoDoPDF({ garagem: 'laranja_grande' }), 'confirmado');
+  eq(E.statusDerivadoDoPDF({ garagem: 'azul_moto' }), 'confirmado');
+});
+t('A1 statusEfetivo: sem override → PDF; com override → prevalece', () => {
+  const r = { garagem: 'amarelo' };
+  eq(E.statusEfetivo(r, null), 'aguardando');
+  eq(E.statusEfetivo(r, {}), 'aguardando');
+  eq(E.statusEfetivo(r, { statusManual: 'confirmado' }), 'confirmado');
+  eq(E.statusEfetivo(r, { statusManual: 'sem_garagem' }), 'sem_garagem');
+  eq(E.statusEfetivo(r, { statusManual: 'lixo' }), 'aguardando', 'valor inválido cai no PDF');
+});
+
+// ── A2. Alocação com override ──
+t('A2 sem_garagem: reserva SAI da alocação e vai para resultado.semGaragem', () => {
+  const r = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r], { '1': { statusManual: 'sem_garagem' } });
+  const naVaga = [].concat(...aloc.linhasP, ...aloc.linhasG).some(x => x.nro === '1');
+  ok(!naVaga, 'não ocupa vaga');
+  ok((aloc.semGaragem || []).some(x => x.nro === '1'), 'roteada para semGaragem');
+  eq(r._semGaragem, true);
+});
+t('A2 override confirmado em amarelo: entra protegido (não vai a overbooking)', () => {
+  const r = rCarro('1', 'amarelo', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r], { '1': { statusManual: 'confirmado' } });
+  ok([].concat(...aloc.linhasP, ...aloc.linhasG).some(x => x.nro === '1'), 'alocado em vaga');
+  eq(r.garagem, 'amarelo', 'garagem original RESTAURADA (override não persiste)');
+  eq(r._statusEfetivo, 'confirmado');
+});
+t('A2 override aguardando em azul: tratado como amarelo na alocação, garagem restaurada', () => {
+  const r = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  E.aplicarAjustes([r], { '1': { statusManual: 'aguardando' } });
+  eq(r.garagem, 'azul_pequeno', 'restaurada');
+  eq(r._statusEfetivo, 'aguardando');
+});
+
+// ── A5. pmsDivergente ──
+t('A5 pmsDivergente: true quando manual ≠ PDF; false quando iguais/sem override', () => {
+  const amar = { garagem: 'amarelo' }, azul = { garagem: 'azul_pequeno' };
+  eq(E.pmsDivergente(amar, { statusManual: 'confirmado' }), true);
+  eq(E.pmsDivergente(amar, { statusManual: 'aguardando' }), false, 'igual ao PDF → sem divergência');
+  eq(E.pmsDivergente(azul, { statusManual: 'sem_garagem' }), true);
+  eq(E.pmsDivergente(azul, null), false);
+  eq(E.pmsDivergente(azul, {}), false);
+});
+
+// ── D7/D8. placement no overbooking ──
+t('D placementOverbooking / placementValido', () => {
+  ok(E.placementOverbooking('OVERBOOKING') && !E.placementOverbooking('P3'));
+  ok(E.placementValido('P3') && E.placementValido('G14') && E.placementValido('OVERBOOKING'));
+  ok(!E.placementValido('Z9') && !E.placementValido('') && !E.placementValido(null));
+});
+t('D7 vagaIdManual="OVERBOOKING": vai ao overflow e NÃO ocupa vaga', () => {
+  const r1 = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  const r2 = rCarro('2', 'azul_pequeno', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r1, r2], { '1': { vagaIdManual: 'OVERBOOKING' } });
+  ok(aloc.overflow.some(x => x.nro === '1'), 'r1 está no overflow');
+  ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'), 'r1 não ocupa vaga');
+  ok(aloc.overflowLinhas.length >= 1, 'overflowLinhas montadas');
+  eq(r1.ajusteManual, true); eq(r1._vagaManual, 'OVERBOOKING'); eq(r1._over, true);
+  ok([].concat(...aloc.linhasP, ...aloc.linhasG).some(x => x.nro === '2'), 'livre r2 realoca no espaço');
+});
+t('D7 mover p/ overbooking mantém DATAS originais', () => {
+  const r1 = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  E.aplicarAjustes([r1], { '1': { vagaIdManual: 'OVERBOOKING' } });
+  eq(+r1.entrada, +D('05/06/26')); eq(+r1.saida, +D('08/06/26'));
+});
+t('D8 overbooking→vaga: vagaIdManual=<vaga> fixa na vaga com datas originais', () => {
+  const r1 = rCarro('1', 'amarelo', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'G7' } });
+  ok(aloc.linhasG[6].some(x => x.nro === '1'), 'fixada em G7');
+  eq(+r1.entrada, +D('05/06/26'));
+});
+
+// ── D10. compat: statusManual + vagaIdManual coexistem; registro antigo válido ──
+t('D10 statusManual e vagaIdManual coexistem (aguardando + vaga fixa)', () => {
+  const r1 = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r1], { '1': { statusManual: 'aguardando', vagaIdManual: 'P5' } });
+  ok(aloc.linhasP[4].some(x => x.nro === '1'), 'fixada em P5');
+  eq(r1._statusEfetivo, 'aguardando');
+  eq(r1.garagem, 'azul_pequeno', 'garagem restaurada');
+});
+t('D10 registro antigo (só vagaIdManual) segue válido', () => {
+  const r1 = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'P2' } });
+  ok(aloc.linhasP[1].some(x => x.nro === '1'));
+  eq(r1._statusEfetivo, 'confirmado');
+});
+t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
+  const r1 = rCarro('1', 'azul_pequeno', '05/06/26', '08/06/26');
+  const aloc = E.aplicarAjustes([r1], { '1': { statusManual: 'sem_garagem', vagaIdManual: 'P5' } });
+  ok((aloc.semGaragem || []).some(x => x.nro === '1'));
+  ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
+});
+
+t('APP_VERSION é v1.5.0', () => { eq(E.APP_VERSION, 'v1.5.0'); });
 
 /* ── runner (suporta testes async) ── */
 (async () => {

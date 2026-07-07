@@ -69,6 +69,9 @@ relatório. Mantenha essa estratégia; ela desamarra o produto de qualquer forne
 ## Regras de trabalho (padrão do Douglas — herdadas e inegociáveis)
 
 1. **Versionamento formal:** `vX.Y.Z` **visível na tela** (constante `APP_VERSION`, no rodapé).
+   **Regra 1.5.x (v1.5.0+):** incrementos **pequenos** (`1.5.1`, `1.5.2`, …); uma **correção em cima
+   de um patch** ganha um nível extra (`1.5.2.1`, `1.5.2.2`). **NÃO lançar a 2.0 sem ordem explícita
+   do Douglas** — a **2.0 é reservada** para a versão mais completa/redonda.
 2. **O app nunca quebra:** fallback em tudo. Se o IndexedDB falhar (modo privado, navegador
    antigo), continua funcionando **em memória**, sem travar.
 3. **Migração de dados NÃO destrutiva:** nunca apagar o que o usuário salvou; evoluir o schema
@@ -187,13 +190,41 @@ Garage Spot** (a chave é o `nro` do PMS).
 - **Boot determinístico nos testes:** `init()` expõe `window.__appReady`; o harness aguarda o boot
   COMPLETO (corrige flakiness pré-existente de timing — sem mascarar).
 
+## Comportamentos da v1.5.0 a preservar
+
+- **Status manual editável (Parte A):** editor (Confirmado/Aguardando/**Sem garagem**) no **detalhe**
+  (Mapa) e na aba **Contato**. Funções puras `statusDerivadoDoPDF` (amarelo→`aguardando`; resto→
+  `confirmado`), `statusEfetivo(reserva, ajuste)` (override manual **prevalece** sobre o PDF) e
+  `pmsDivergente`. **"Sem garagem" tira a reserva do mapa/alocação** (roteada para
+  `resultado.semGaragem`). Editar grava no store **`ajustes`** com **auditoria**
+  `ultimaAlteracao:{funcionario(nome-texto do padrão), dataHora(ISO)}`.
+- **Filtro + área "Sem garagem (manual)":** checkbox `#chk-semgar` (desligado por padrão) exibe a
+  **área com cor distinta** (`--semgar`, `.secao-semgar`) **logo abaixo do overbooking**, com editor
+  para **voltar** o status (Confirmado/Aguardando) → a reserva **retorna ao mapa**.
+- **Divergência com o PMS:** `pmsDivergente` = há override manual **≠** status do PDF → **badge**
+  (detalhe/Contato) + **marcador ◆** (bloco do mapa / item da área) + tooltip com **quem/quando**.
+  Some quando o PDF passa a bater. Reimport **mantém** o ajuste e apenas **sinaliza**.
+- **Arraste no overbooking (Parte D):** blocos de overbooking **arrastáveis** e a área de overbooking
+  é **alvo de drop** (`data-vaga="OVERBOOKING"`). Sentinela **`"OVERBOOKING"`** em `vagaIdManual`
+  (`placementOverbooking`/`placementValido`): a reserva é **fixada na área de overbooking** (libera a
+  vaga; **não ocupa vaga**; automáticos realocam no espaço). **É visual/organização — NÃO altera o
+  status (`statusEfetivo`) nem o PMS. Datas nunca mudam.** Confirmações para dentro/fora; conflito só
+  ao cair em vaga real. **Motos continuam NÃO arrastáveis.** ✋ + "Voltar ao automático" **limpa só o
+  placement** (mantém o status manual, se houver).
+- **Migração não-destrutiva SEM subir o DB (segue v4):** nenhum store novo. O store **`ajustes`** foi
+  **estendido** (`statusManual`, `ultimaAlteracao`, sentinela `"OVERBOOKING"` em `vagaIdManual`);
+  registros antigos (só `vagaIdManual`) seguem válidos (campos ausentes = `null`). **Ajuste manual
+  (status e placement) NUNCA é sobrescrito pela reimportação do PDF** (mantido por `nro`). `salvarAjuste`
+  (placement) e `salvarStatusManual` (status) **preservam** os demais campos (`_montarAjuste`).
+
 ## Versão atual
 
-**v1.4.0** — Contato (seleção por toda a reserva, status **enviado** derivado + histórico/prancheta) +
-detalhe (copiar nº PMS/OTA, prancheta) + **pan vertical** no mapa + **`[nome]` em formato de nome
-próprio**. Store `envios` (DB v4, não-destrutivo). Tudo de v1.1/1.2/1.3 **inalterado** (alocação
-automática, arraste de mover vaga, selo de gravação). Testes 188/188 (128 engine + 40 jsdom + 20
-Playwright). Ver `RELATORIO-v1.4.0.md`.
+**v1.5.0** — **status manual editável** (detalhe + Contato, com auditoria) + **filtro/área "Sem garagem
+(manual)"** + **sinalização de divergência com o PMS** + **arraste para dentro/fora do overbooking**
+(visual, não muda status; libera a vaga). Store `ajustes` **estendido** (DB **segue v4**, não-destrutivo).
+Tudo de v1.1/1.2/1.3/1.4 **inalterado** (alocação automática, arraste de mover vaga, pan, histórico de
+envios, selo de gravação). Testes **212/212** (141 engine + 47 jsdom + 24 Playwright). Ver
+`RELATORIO-v1.5.0.md`.
 
 **Roadmap local (sem backend) concluído.** Próximos passos exigem infraestrutura: **confirmação real de
 entrega** + envio em massa (backend + WhatsApp Business API) e integração Reserva → Garage Spot. Ver
