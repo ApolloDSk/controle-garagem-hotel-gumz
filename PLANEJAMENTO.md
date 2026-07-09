@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.1** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.1.1** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -92,6 +92,17 @@
   entre os dois documentos (hospedado prevalece).
 - Migração não-destrutiva; reimport de um slot não afeta o outro. Testes **256/256** (173 engine + 56
   jsdom + 27 Playwright) + exercício de ponta a ponta com o **PDF real**. Ver `RELATORIO-v1.5.1.md`.
+
+### v1.5.1.1 (entregue 09/07/2026) — correção do parser do Comandas (ordem de leitura real)
+- **Bug:** a `parsearComandas` da v1.5.1 esperava o bloco do hóspede em **linha única**; no PDF real
+  (PDF.js, ordem de leitura) os campos vêm em **linhas separadas/outra ordem** → 0 hóspedes → o app
+  recusava o Comandas real ("informações não conferem").
+- **Correção:** parser **por regiões/estado**, independente de ordem (início `<apto> <NOME>`; entrada/
+  saída pelas 2 primeiras datas de **ano 4 dígitos**, ignorando as diárias de 2 dígitos; canal entre
+  Extras/Taxas; veículo nas linhas GARAGEM do corpo). **Regra do período explícita** (ocupação =
+  entrada→saida; basta ≥1 comanda de garagem; check-out libera). Validação aceita ≥1 hospedado.
+- Sem mudança de schema. Testes **265/265** (181 engine + 57 jsdom + 27 Playwright) + 2 hooks `[real]`
+  (pendentes das amostras em `amostras/`, gitignored). Ver `RELATORIO-v1.5.1.1.md`.
 
 ---
 

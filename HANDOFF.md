@@ -4,7 +4,13 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.1** (08/07/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
+- **Versão entregue: v1.5.1.1** (09/07/2026) — correção do parser do Comandas para a **ordem de leitura
+  real do PDF.js** (a v1.5.1 esperava linha única → 0 hóspedes no PDF real → recusava). Parser agora é
+  **por regiões/estado** (independente de ordem) + **regra do período explícita** (ocupação =
+  entrada→saida; basta ≥1 comanda de garagem; check-out libera). **Validação com o Comandas real fica
+  PENDENTE das amostras** (pasta `amostras/`, gitignored; hooks Playwright `[real]` prontos). Sem
+  mudança de schema. Testes **265/265** (+2 hooks `[real]` pulados por falta de amostra).
+- **Versão anterior: v1.5.1** (08/07/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
   (branch `master`). ⚠ **Nunca** tocar nos repos do **Garage Spot** (`garagespot-*`) — outro projeto.
 - App canônico: `garagem-app/index.html`; standalone (Chrome): `garagem-app/controle-garagem-standalone.html`
   (regenerar com `node build-standalone.js` em `garagem-app/` sempre que mexer no `index.html`).

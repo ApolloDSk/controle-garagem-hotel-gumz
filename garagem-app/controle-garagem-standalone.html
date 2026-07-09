@@ -542,7 +542,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.1';
+const APP_VERSION='v1.5.1.1';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -1337,13 +1337,19 @@ function compararEmissao(novaMs,atualMs){
   return novaMs>=atualMs?'aplicar':'recusar';
 }
 
-// ── PARSER "Comandas em aberto" (puro) ──
-// Cada hóspede é um BLOCO iniciado por: <apto(int)> <NOME> <entrada dd/mm/aaaa> <saída dd/mm/aaaa>
-// [<CANAL>] Extras (canal pode faltar). Abaixo, itens do PDV GARAGEM com a descrição do veículo:
-// "CARRO DE PASSEIO"→P, "CAMIONETE"→G, "MOTO"→moto. Sem tipo reconhecido → null (padrão de
-// lançamento atual). Auto-filtro: só é hospedado o bloco com ≥1 GARAGEM. Multi-veículo: tipos
-// distintos → um ocupante por tipo. Tolera valor colado, descrição quebrada e "Origem" repetindo
-// o apto. Nunca quebra num bloco malformado (pula com log). Não amarra a posições fixas de coluna.
+// ── PARSER "Comandas em aberto" (puro) — v1.5.1.1: POR REGIÕES/ESTADO, independente de ordem ──
+// ⚠ v1.5.1 quebrava com o PDF REAL: esperava o bloco do hóspede numa ÚNICA linha. Na ordem de
+// leitura do PDF.js os campos vêm em LINHAS SEPARADAS e outra ordem (não existe a linha única).
+// Agora: um bloco começa numa linha "<apto> <NOME>" (o nome é o texto ANTES da 1ª data/"Extras",
+// então funciona TANTO no layout de linha única QUANTO na ordem de leitura real). Dentro da REGIÃO
+// do bloco (até o próximo bloco ou "Total Geral"), colhe-se, independente de ordem:
+//   • entrada/saída = os DOIS primeiros valores de data com ANO DE 4 DÍGITOS (as diárias de 2
+//     dígitos das linhas GARAGEM são IGNORADAS — ver REGRA DO PERÍODO em hospedadoParaReserva);
+//   • canal = entre "Extras" e "Taxas" (ordem real) OU entre a 2ª data e "Extras" (linha única);
+//     opcional (pode faltar). Reforço por lista de canais conhecidos;
+//   • tipoVeiculo nas linhas GARAGEM/ESTACIONAMENTO: CARRO DE PASSEIO→P, CAMIONETE→G, MOTO→moto.
+// Auto-filtro: só é hospedado o bloco com ≥1 lançamento de garagem (no CORPO — o nome "SEM GARAGEM"
+// não conta). Multi-veículo: tipos distintos → um ocupante por tipo. Nunca quebra (pula com log).
 function parseDataComanda(s){const p=String(s).split('/');const dt=new Date(+p[2],+p[1]-1,+p[0]);return isNaN(dt)?null:dt;}
 function tipoVeiculoDeSegmento(seg){
   const up=String(seg).toUpperCase();
@@ -1352,37 +1358,65 @@ function tipoVeiculoDeSegmento(seg){
   if(/\bMOTO\b/.test(up))return'moto';
   return null; // GARAGEM sem tipo reconhecido → padrão
 }
-const RE_BLOCO_COMANDA=/^(\d{1,6})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s*(.*?)\s*Extras\b/;
+// Palavras que NÃO são nome de hóspede (evita falso início de bloco se o PDF.js quebrar a linha).
+const RE_NOISE_NOME=/^(ESTACIONAMENTO|GARAGEM|LAN[ÇC]AMENTO|TOTAL|PONTO\s+DE\s+VENDA|DATA|COMANDA|CUPOM|EXTRAS|TAXAS|APARTAMENTO|ORIGEM|QTDE|DESCRI)/i;
+const RE_CANAIS_CONHECIDOS=/\b(BOOKING\.COM|BOOKING|MOTOR\s+OMNIBEES|OMNIBEES|EXPEDIA|HOTEIS\.COM|HOTELS\.COM|ORINTER|DECOLAR|CVC|AIRBNB|DESPEGAR|SITE\s+HOTEL)\b/i;
+// Início de bloco: "<apto> <NOME>". O nome é o texto antes da 1ª data (dd/mm/aa(aa)) ou de
+// "Extras"/"Taxas" — cobre linha única e ordem de leitura real. Rejeita ruído/valores/lançamentos.
+function inicioBlocoComanda(l){
+  const m=String(l).match(/^(\d{1,4})\s+(.+)$/);
+  if(!m)return null;
+  const corte=m[2].search(/\s\d{2}\/\d{2}\/\d{2,4}\b|\s+Extras\b|\s+Taxas\b/i);
+  const nome=(corte>=0?m[2].slice(0,corte):m[2]).trim();
+  if(!/^[A-Za-zÀ-ú]/.test(nome))return null; // precisa parecer nome (não "60,00", "0 0", etc.)
+  if(RE_NOISE_NOME.test(nome))return null;
+  return{apto:m[1],nome};
+}
+// Canal (opcional) da região do bloco. '' quando ausente.
+function extrairCanalComanda(header,regiao){
+  const hi=String(header).match(/\d{2}\/\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}\s+(.*?)\s*Extras\b/i);
+  if(hi&&hi[1].trim())return hi[1].trim(); // layout single-line (canal entre 2ª data e "Extras")
+  const iE=regiao.findIndex(l=>/^Extras$/i.test(l));
+  const iT=regiao.findIndex((l,i)=>i>iE&&/^Taxas$/i.test(l));
+  if(iE>=0&&iT>iE){
+    const meio=regiao.slice(iE+1,iT).map(s=>s.trim()).filter(Boolean);
+    if(meio.length)return meio.join(' ');
+  }
+  for(const l of regiao){const mm=String(l).match(RE_CANAIS_CONHECIDOS);if(mm)return mm[1].replace(/\s+/g,' ');}
+  return'';
+}
 function parsearComandas(textoOriginal){
   const out=[];
   const linhas=String(textoOriginal||'').split('\n').map(l=>l.replace(/[ \t]+/g,' ').trim());
-  // agrupa em blocos a partir das linhas de cabeçalho de hóspede
+  const RE_TOTAL_GERAL=/^Total\s+Geral\b/i;
+  // 1) delimita blocos por região (início "<apto> <NOME>" → até próximo início ou "Total Geral").
   const blocos=[];let atual=null;
   for(const l of linhas){
     if(!l)continue;
-    const mb=l.match(RE_BLOCO_COMANDA);
-    if(mb){atual={apto:mb[1],nome:mb[2].trim(),entrada:mb[3],saida:mb[4],canal:(mb[5]||'').trim(),corpo:[]};blocos.push(atual);continue;}
-    if(atual)atual.corpo.push(l);
+    const ini=inicioBlocoComanda(l);
+    if(ini){atual={apto:ini.apto,nome:ini.nome,header:l,corpo:[]};blocos.push(atual);continue;}
+    if(!atual)continue;                               // ruído antes do 1º bloco
+    if(RE_TOTAL_GERAL.test(l)){atual=null;continue;}  // fim do bloco
+    atual.corpo.push(l);
   }
+  // 2) extrai campos por região (independente de ordem).
   blocos.forEach(b=>{
     try{
-      // segmenta o corpo por lançamento de GARAGEM (linha que começa/contém "GARAGEM" +
-      // as continuações até o próximo GARAGEM). Só o texto do PDV GARAGEM decide o veículo —
-      // evita falso-positivo do canal (ex.: "MOTOR OMNIBEES" no cabeçalho do bloco).
-      const tipos=[];let seg=null;
-      b.corpo.forEach(l=>{
-        if(/^GARAGEM\b/.test(l)||/\bGARAGEM\b.*ESTACIONAMENTO/.test(l)){if(seg!=null)tipos.push(seg);seg=l;}
-        else if(seg!=null)seg+=' '+l;
-      });
-      if(seg!=null)tipos.push(seg);
-      if(!tipos.length)return; // auto-filtro: bloco sem GARAGEM não é hospedado
-      const entrada=parseDataComanda(b.entrada),saida=parseDataComanda(b.saida);
+      const regiao=[b.header,...b.corpo];
+      // entrada/saída = 2 primeiras datas de ANO 4 DÍGITOS (ignora diárias de 2 dígitos).
+      const datas4=[];
+      regiao.forEach(l=>{const ms=l.match(/\b\d{2}\/\d{2}\/\d{4}\b/g);if(ms)datas4.push(...ms);});
+      if(datas4.length<2)return;
+      const entrada=parseDataComanda(datas4[0]),saida=parseDataComanda(datas4[1]);
       if(!entrada||!saida)return;
-      // tipos distintos → um ocupante por tipo; só nulls (GARAGEM sem tipo) → um ocupante padrão.
+      // lançamentos de garagem SÓ no corpo (o nome "SEM GARAGEM" não conta como lançamento).
+      const lanc=b.corpo.filter(l=>/^GARAGEM\b/i.test(l)||/ESTACIONAMENTO/i.test(l));
+      if(!lanc.length)return; // auto-filtro: sem comanda de garagem → não é hospedado
       const setTipos=new Set();let temNull=false;
-      tipos.forEach(s=>{const tp=tipoVeiculoDeSegmento(s);if(tp)setTipos.add(tp);else temNull=true;});
+      lanc.forEach(l=>{const tp=tipoVeiculoDeSegmento(l);if(tp)setTipos.add(tp);else temNull=true;});
       const finais=setTipos.size?[...setTipos]:(temNull?[null]:[]);
-      finais.forEach(tp=>out.push({apto:b.apto,nome:b.nome,entrada,saida,canal:b.canal||'',tipoVeiculo:tp,origem:'hospedado'}));
+      const canal=extrairCanalComanda(b.header,regiao);
+      finais.forEach(tp=>out.push({apto:b.apto,nome:b.nome,entrada,saida,canal,tipoVeiculo:tp,origem:'hospedado'}));
     }catch(e){/* bloco malformado: pula (nunca quebra) */ if(typeof console!=='undefined')console.warn('bloco de comanda ignorado',e);}
   });
   return out;
@@ -1409,6 +1443,12 @@ function garagemDeTipoVeiculo(tipo){
   if(tipo==='moto')return'azul_moto';
   return'azul_pequeno'; // 'P' ou null (padrão de lançamento atual)
 }
+// REGRA DO PERÍODO (v1.5.1.1): a ocupação da vaga é o PERÍODO DA HOSPEDAGEM (entrada→saida — as
+// datas de 4 dígitos do cabeçalho do bloco), NUNCA a data da última comanda diária. O PMS pode
+// gerar as comandas do dia em outro horário, então pode faltar a comanda de hoje mesmo o hóspede
+// ainda hospedado — basta ≥1 comanda de garagem p/ ocupar até o fim da estadia. O dia de check-out
+// LIBERA a vaga (o mapa desenha `entrada<=dt<saida`, igual às reservas). Se o carro sair antes, o
+// usuário remove na mão pelo "marcar saída / remover".
 function hospedadoParaReserva(h){
   const entrada=h.entrada instanceof Date?h.entrada:new Date(h.entrada);
   const saida=h.saida instanceof Date?h.saida:new Date(h.saida);

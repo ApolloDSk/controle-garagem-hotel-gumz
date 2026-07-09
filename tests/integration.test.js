@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.1', async () => {
+  await T('rodapé mostra v1.5.1.1', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.1');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.1.1');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -840,6 +840,39 @@ async function aguardarBoot(w) {
     // igual/mais recente aplica
     const r3 = await w.aplicarUploadHospedados(montarComandas([blocoComanda('999', 'RECENTE', diasDeHoje(0), diasDeHoje(3), '', 'CARRO DE PASSEIO')]), 3000, { nomeArquivo: 'recente.pdf', dataHoraUpload: Date.now() });
     eq(r3.status, 'aplicado', 'emissão mais recente aplica');
+  });
+
+  await T('v1.5.1.1 comandas na ORDEM DE LEITURA real → hospedados no mapa (não recusa)', async () => {
+    const { w } = await novoApp();
+    // datas relativas a hoje, mas em ordem de leitura (campos em linhas separadas)
+    const ent = diasDeHoje(0), sai = diasDeHoje(5);
+    const f4 = d => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const f2 = d => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
+    const txt = `Comandas em aberto - detalhado Página: 1
+HOTEL GUMZ
+Filtro: Lançadas até 31/12/3000
+Apartamento
+801 HOSPEDE LEITURA
+Ponto de Venda Qtde Descrição Val.Unit. Val.Total Tipo Func
+Data Origem
+${f4(ent)} ${f4(sai)}
+Comanda Cupom
+Extras
+BOOKING.COM
+Taxas
+GARAGEM 1 ESTACIONAMENTO CAMIONETE - BAIXA 2025
+60,00 60,00 Lançamento X
+${f2(ent)} 1
+Total Geral`;
+    // validação aceita
+    ok(w.validarDocumentoComandas(txt).ok, 'documento na ordem de leitura é aceito');
+    const r = await w.aplicarUploadHospedados(txt, 1000, { nomeArquivo: 'comanda.pdf', dataHoraUpload: Date.now() });
+    eq(r.status, 'aplicado');
+    await sleep(20);
+    const spans = [...w.document.querySelectorAll('#mapa-container .cell-span.hospedado')];
+    ok(spans.some(s => /HOSPEDE LEITURA/.test(s.textContent)), 'hospedado renderizado');
+    // camionete (G) → seção grande
+    ok([].concat(...w.aplicarAjustes(w.conjuntoAtivo(), {}).linhasG).some(x => /HOSPEDE LEITURA/.test(x.nomeCompleto)), 'camionete em vaga grande');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

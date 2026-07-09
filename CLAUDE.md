@@ -233,12 +233,21 @@ Garage Spot** (a chave é o `nro` do PMS).
   avisa** se não. **Emissão** via `CreationDate` (`getMetadata`) + reforço impresso
   (`parsePdfDate`/`extrairEmissaoImpressa`); **documento mais antigo é recusado** (`compararEmissao`),
   mantendo o atual; emissão desconhecida prossegue sinalizando.
-- **Parser do Comandas** (`parsearComandas`, pura): blocos por `<apto> <NOME> <2 datas dd/mm/aaaa>
-  [canal] Extras`; veículo pelo PDV **GARAGEM** (`CARRO DE PASSEIO`→P, `CAMIONETE`→G, `MOTO`→moto);
-  **tamanho opcional → padrão (pequeno)**; auto-filtro (só bloco com GARAGEM); multi-veículo (um
-  ocupante por tipo). O tipo é lido **só** no segmento do lançamento GARAGEM (não no canal).
-  **Extrator isolado/plugável**; heurísticas calibradas no Desbravador (única amostra) — outros PMSs
-  podem exigir recalibração.
+- **Parser do Comandas** (`parsearComandas`, pura) — **v1.5.1.1: POR REGIÕES/ESTADO, independente de
+  ordem** (⚠ a v1.5.1 assumia bloco em **linha única** e dava **0 hóspedes** no PDF real, pois o PDF.js
+  entrega os campos em **linhas separadas / outra ordem**). Um bloco começa na linha `<apto> <NOME>` (o
+  nome é o texto **antes** da 1ª data / "Extras" — casa linha única **e** ordem de leitura real); a
+  região vai até o próximo bloco ou "Total Geral". Dentro da região, independente de ordem:
+  **entrada/saída = 2 primeiras datas de ANO 4 DÍGITOS** (as diárias de 2 dígitos das linhas GARAGEM são
+  **ignoradas**); **canal** entre "Extras"/"Taxas" (ou entre a 2ª data e "Extras" no layout de linha
+  única), opcional; **veículo** nas linhas **GARAGEM/ESTACIONAMENTO** do corpo (`CARRO DE PASSEIO`→P,
+  `CAMIONETE`→G, `MOTO`→moto; **tamanho opcional → padrão**; multi-veículo → um por tipo; auto-filtro).
+  **Extrator isolado/plugável**; heurísticas calibradas no Desbravador — outros PMSs podem exigir
+  recalibração (validação com PDF real vive em `amostras/`, gitignored; hooks Playwright `[real]`).
+- **REGRA DO PERÍODO** (v1.5.1.1, `hospedadoParaReserva`): a ocupação é o **período da hospedagem
+  `entrada`→`saida`** (datas de 4 dígitos), **NUNCA** a data da última comanda diária; basta **≥1
+  comanda de garagem** p/ ocupar até o fim da estadia (cobre o PMS não ter lançado a comanda de hoje);
+  o **dia de check-out libera a vaga**.
 - **Hospedado = objeto reserva-like** (`hospedadoParaReserva`, `ehHospedado:true`), alocado como
   **ocupante já presente** (confirmado, check-in no passado → entra primeiro). **Render próprio**
   (`.cell-span.hospedado`, cor `--hosped`, "🏠 Hospedado", legenda). **Arrastável e editável**
@@ -255,12 +264,19 @@ Garage Spot** (a chave é o `nro` do PMS).
 
 ## Versão atual
 
-**v1.5.1** — **2º documento (Comandas / Hospedados)**: dois slots com emissão, validação por
-informação, bloqueio de documento mais antigo, parser do Comandas (veículo→vaga, tamanho opcional),
-store `hospedados` (DB v4→v5), hospedados alocados/renderizados como ocupantes de prioridade máxima e
-**arrastáveis/editáveis** (remoção → "Sem garagem (manual)"), anti-duplicação entre os documentos.
-Tudo de v1.1–v1.5.0 **inalterado**; selo de gravação intacto. Testes **256/256** (173 engine + 56
-jsdom + 27 Playwright) + exercício de ponta a ponta com o PDF real. Ver `RELATORIO-v1.5.1.md`.
+**v1.5.1.1** — **correção do parser do Comandas** (a v1.5.1 quebrava com o PDF real: esperava linha
+única; o PDF.js entrega os campos em linhas separadas / outra ordem → 0 hóspedes → validação recusava).
+`parsearComandas` reescrita **por regiões/estado** (independente de ordem; entrada/saída por ano de 4
+dígitos; canal entre Extras/Taxas; veículo nas linhas GARAGEM) + **regra do período explícita**
+(ocupação = entrada→saida; não usa a comanda diária; check-out libera). Validação aceita ≥1 hospedado.
+Sem mudança de schema (DB **v5**). Testes **265/265** (181 engine + 57 jsdom + 27 Playwright) + 2 hooks
+`[real]` prontos (pendentes das amostras em `amostras/`) + exercício com o PDF real de Reservas (37,
+sem regressão). Ver `RELATORIO-v1.5.1.1.md`.
+
+**v1.5.1** — 2º documento (Comandas / Hospedados): dois slots com emissão, validação por informação,
+bloqueio de documento mais antigo, store `hospedados` (DB v4→v5), hospedados alocados/renderizados como
+ocupantes de prioridade máxima e **arrastáveis/editáveis** (remoção → "Sem garagem (manual)"),
+anti-duplicação entre os documentos. Ver `RELATORIO-v1.5.1.md`.
 
 **Próximos passos** (adiados, ver `PLANEJAMENTO.md`): **calibrar a extração para outros PMSs** (quando
 houver amostras reais); confirmação real de entrega + envio em massa (backend + WhatsApp Business API);

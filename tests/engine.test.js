@@ -627,7 +627,110 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.1', () => { eq(E.APP_VERSION, 'v1.5.1'); });
+t('APP_VERSION é v1.5.1.1', () => { eq(E.APP_VERSION, 'v1.5.1.1'); });
+
+/* ════════════ v1.5.1.1 — parser do Comandas na ORDEM DE LEITURA REAL do PDF.js ════════════ */
+// Fixture na ordem de leitura real (campos em LINHAS SEPARADAS, não numa linha única) — reproduz
+// o que o PDF.js entrega no Comandas em aberto real do Desbravador.
+const COMANDAS_LEITURA = `Comandas em aberto - detalhado Página: 1
+HOTEL GUMZ
+Filtro: Lançadas até 31/12/3000 | Todas contas:sim | Todos PDVs:não |
+Apartamento
+1 FULANO DE TAL
+Ponto de Venda Qtde Descrição Val.Unit. Val.Total Tipo Func
+Data Origem
+06/07/2026 11/07/2026
+Comanda Cupom
+Extras
+BOOKING.COM
+Taxas
+GARAGEM 1 ESTACIONAMENTO CAMIONETE - BAIXA 2025
+60,00 60,00 Lançamento BELTRANO X
+06/07/26 1
+0 0
+0,00
+Total da Conta 180,00 0,00
+Total Geral
+238 CICLANO E FULANA
+Ponto de Venda Qtde Descrição Val.Unit. Val.Total Tipo Func
+Data Origem
+07/07/2026 10/07/2026
+Comanda Cupom
+Extras
+Taxas
+GARAGEM 1 ESTACIONAMENTO CARRO DE PASSEIO
+40,00 40,00 Lançamento BELTRANO X
+07/07/26 1
+Total Geral
+300 SICRANO SOUZA
+Data Origem
+05/07/2026 09/07/2026
+Extras
+MOTOR OMNIBEES
+Taxas
+GARAGEM 1 ESTACIONAMENTO MOTO - ALTA 2025/2026
+30,00 30,00 Lançamento BELTRANO X
+05/07/26 1
+Total Geral`;
+
+t('v1.5.1.1 ordem de leitura: 3 hospedados (o bug da v1.5.1 dava 0)', () => {
+  eq(E.parsearComandas(COMANDAS_LEITURA).length, 3);
+});
+t('v1.5.1.1 ordem de leitura: apto 1 CAMIONETE→G, canal BOOKING.COM, período 4 dígitos', () => {
+  const h = E.parsearComandas(COMANDAS_LEITURA).find(x => x.apto === '1');
+  eq(h.tipoVeiculo, 'G'); eq(h.canal, 'BOOKING.COM'); eq(h.nome, 'FULANO DE TAL');
+  eq(h.entrada.getDate(), 6); eq(h.entrada.getFullYear(), 2026);
+  eq(h.saida.getDate(), 11); eq(h.saida.getFullYear(), 2026);
+});
+t('v1.5.1.1 ordem de leitura: apto 238 CARRO→P, canal VAZIO (Extras→Taxas), nome com E', () => {
+  const h = E.parsearComandas(COMANDAS_LEITURA).find(x => x.apto === '238');
+  eq(h.tipoVeiculo, 'P'); eq(h.canal, ''); eq(h.nome, 'CICLANO E FULANA');
+  eq(h.entrada.getDate(), 7); eq(h.saida.getDate(), 10);
+});
+t('v1.5.1.1 ordem de leitura: apto 300 MOTO→moto, canal MOTOR OMNIBEES', () => {
+  const h = E.parsearComandas(COMANDAS_LEITURA).find(x => x.apto === '300');
+  eq(h.tipoVeiculo, 'moto'); eq(h.canal, 'MOTOR OMNIBEES'); eq(h.nome, 'SICRANO SOUZA');
+});
+t('v1.5.1.1 ordem de leitura: data diária de 2 dígitos NÃO vira entrada/saída', () => {
+  const h = E.parsearComandas(COMANDAS_LEITURA).find(x => x.apto === '1');
+  // se pegasse a diária (06/07/26) como saída, o ano seria 2026 mas o dia 6 — aqui saída é 11
+  eq(h.saida.getDate(), 11);
+});
+
+t('v1.5.1.1 REGRA DO PERÍODO: ocupação = entrada→saida (faltando comanda de hoje não encurta)', () => {
+  // bloco com UMA comanda de garagem antiga (dia 05) mas estadia até 20/07 → ocupa até 20/07
+  const txt = `9 HOSPEDE LONGO
+Data Origem
+05/07/2026 20/07/2026
+Extras
+Taxas
+GARAGEM 1 ESTACIONAMENTO CARRO DE PASSEIO
+40,00 40,00 Lançamento X
+05/07/26 1
+Total Geral`;
+  const h = E.parsearComandas(txt);
+  eq(h.length, 1);
+  eq(h[0].entrada.getDate(), 5); eq(h[0].saida.getDate(), 20);
+  // reserva-like: dia de check-out (20) libera a vaga → cobre 19, não cobre 20
+  const r = E.hospedadoParaReserva(h[0]);
+  const dia19 = new Date(2026, 6, 19), dia20 = new Date(2026, 6, 20);
+  ok(r.entrada <= dia19 && r.saida > dia19, 'ocupa o dia 19');
+  ok(!(r.entrada <= dia20 && r.saida > dia20), 'check-out (20) libera a vaga');
+});
+t('v1.5.1.1 ordem de leitura: bloco sem garagem no corpo é ignorado (nome "SEM GARAGEM" não conta)', () => {
+  const txt = `7 SEM GARAGEM
+Data Origem
+01/07/2026 05/07/2026
+Extras
+Taxas
+RESTAURANTE 1 JANTAR
+40,00 40,00 Lançamento X
+Total Geral`;
+  eq(E.parsearComandas(txt).length, 0);
+});
+t('v1.5.1.1 validação aceita comandas na ordem de leitura real', () => {
+  ok(E.validarDocumentoComandas(COMANDAS_LEITURA).ok);
+});
 
 /* ════════════ v1.5.1 — 2º DOCUMENTO (Comandas/Hospedados) ════════════ */
 // Fixture real (reproduz as manhas do Desbravador: valor colado, descrição quebrada, canal ausente).

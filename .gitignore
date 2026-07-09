@@ -10,3 +10,6 @@ blob-report/
 
 # backups locais
 *.bak-*
+
+# amostras reais de PDF (contêm dados de hóspedes — NÃO versionar); só o README fica no repo
+amostras/*.pdf

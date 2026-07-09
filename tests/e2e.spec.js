@@ -5,6 +5,15 @@
 const { test, expect } = require('@playwright/test');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
+
+// v1.5.1.1 — procura PDFs reais em amostras/ (o usuário coloca depois). Hook pronto p/ validar
+// contra o documento REAL; se não houver amostra, o teste é pulado com motivo (não mascara bug).
+const AMOSTRAS_DIR = path.join(__dirname, '..', 'amostras');
+function acharAmostras(regex) {
+  try { return fs.readdirSync(AMOSTRAS_DIR).filter(f => /\.pdf$/i.test(f) && regex.test(f)).map(f => path.join(AMOSTRAS_DIR, f)); }
+  catch (e) { return []; }
+}
 
 // ── PDF sintético com datas relativas a hoje (determinístico) ──
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -57,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.1');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.1.1');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -481,6 +490,31 @@ test('v1.5.1 documento mais antigo é recusado; arquivo sem info não gera + avi
   const resCount = await page.evaluate(() => window.hospedadosNoPeriodo().length);
   await page.evaluate(async (res) => window.aplicarUploadReservas(res, 3000, { nomeArquivo: 'r2.pdf', dataHoraUpload: Date.now() }), montarPDF());
   expect(await page.evaluate(() => window.hospedadosNoPeriodo().length)).toBe(resCount);
+});
+
+test('v1.5.1.1 [real] Comandas de amostras/ → hospedados (pendente até haver amostra)', async ({ page }) => {
+  const pdfs = acharAmostras(/comanda/i);
+  test.skip(pdfs.length === 0, 'Sem PDF de Comandas em amostras/ — validação com o real fica pendente das amostras.');
+  const avisos = [];
+  page.on('dialog', d => { avisos.push(d.message()); d.accept(); });
+  await boot(page);
+  await page.setInputFiles('#file-input-hosp', pdfs[0]);
+  // parsing/import independem da janela de datas: confere o store direto
+  await page.waitForFunction(async () => (await window.dbGetAll('hospedados')).length > 0, null, { timeout: 15000 });
+  const n = await page.evaluate(async () => (await window.dbGetAll('hospedados')).length);
+  console.log(`[amostra real] hospedados extraídos: ${n}`);
+  expect(n).toBeGreaterThan(0);
+  expect(avisos.join(' ')).not.toContain('não conferem'); // não recusou o comandas real
+});
+
+test('v1.5.1.1 [real] Reservas de amostras/ → sem regressão (pendente até haver amostra)', async ({ page }) => {
+  const pdfs = acharAmostras(/reserva|listagem/i);
+  test.skip(pdfs.length === 0, 'Sem PDF de Reservas em amostras/ — validação com o real fica pendente das amostras.');
+  await boot(page);
+  await page.setInputFiles('#file-input', pdfs[0]);
+  await page.waitForSelector('.cell-span', { timeout: 15000 });
+  const n = await page.evaluate(() => document.querySelectorAll('#mapa-container .cell-span').length);
+  expect(n).toBeGreaterThan(0);
 });
 
 test('screenshots do mapa, contato e gestão (v1.5.1)', async ({ page }) => {
