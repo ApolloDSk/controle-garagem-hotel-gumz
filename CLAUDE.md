@@ -43,12 +43,16 @@ relatório. Mantenha essa estratégia; ela desamarra o produto de qualquer forne
   (parser, classificação, alocação, prioridade, mesclagem, mensagens). É testada em Node
   extraindo esse bloco — **mantenha as funções puras dentro desses marcadores**.
 - Fora do bloco: DOM, IndexedDB, render do mapa e da aba Contato.
-- **IndexedDB** (`garagemGumz`, **v4**): stores **`reservas`** (keyPath `id`, escrito **só** pela
-  importação de PDF), **`contatos`** (keyPath `nro`, só a ferramenta de contato), **`gestao`**
-  (singleton `id:"config"`, v1.2.0), **`ajustes`** (keyPath `nro`, edição manual, v1.3.0) e
-  **`envios`** (keyPath `id` autoincrement + índice `nro`, histórico de envios, v1.4.0 — só o
-  disparo do `wa.me` escreve). Essa separação é o que torna a mesclagem **não-destrutiva** trivial:
-  importar PDF nunca toca em telefones/ajustes/envios.
+- **IndexedDB** (`garagemGumz`, **v5**): stores **`reservas`** (keyPath `id`, escrito **só** pela
+  importação do PDF de Reservas), **`contatos`** (keyPath `nro`, só a ferramenta de contato),
+  **`gestao`** (singleton `id:"config"`, v1.2.0), **`ajustes`** (keyPath `nro`, edição manual/status,
+  v1.3.0/v1.5.0), **`envios`** (keyPath `id` autoincrement + índice `nro`, histórico de envios,
+  v1.4.0) e **`hospedados`** (keyPath `id`, 2º documento — Comandas em aberto, v1.5.1 — só o comandas
+  escreve, reconstruído a cada import). Essa separação é o que torna a mesclagem **não-destrutiva**
+  trivial: importar um documento nunca toca em telefones/ajustes/envios nem no outro slot.
+- **Chave estável do hospedado** = `${apto}__${entradaISO}__${tipoVeiculo||'x'}`, usada como `id` do
+  store `hospedados` **e** como `nro` sintético do objeto reserva-like — é isso que permite reusar
+  `ajustes` (arraste/status), a área "Sem garagem (manual)" e a divergência para hospedados.
 - **Chave da reserva no PMS = `nro`** (estável mesmo se nome/apto mudarem). Como um `nro` pode
   ter vários aptos/carros, a chave primária do store `reservas` é `id = nro__apto__vagaIdx`.
 
@@ -217,15 +221,47 @@ Garage Spot** (a chave é o `nro` do PMS).
   (status e placement) NUNCA é sobrescrito pela reimportação do PDF** (mantido por `nro`). `salvarAjuste`
   (placement) e `salvarStatusManual` (status) **preservam** os demais campos (`_montarAjuste`).
 
+## Comportamentos da v1.5.1 a preservar (2º documento — Comandas/Hospedados)
+
+- **Dois slots** (Reservas / Hospedados) no cabeçalho, cada um com **info própria** (upload +
+  **emissão** do documento em uso, sempre visível). Parse **sempre pelo conteúdo** (`file-input` e
+  `file-input-hosp`). Fluxo de cada upload: `lerPDFcompleto` → **validar por informação** →
+  **bloqueio de emissão** → aplicar. Núcleos testáveis: `aplicarUploadReservas` /
+  `aplicarUploadHospedados`.
+- **Validação por informação** (não por formato): `validarDocumentoReservas` /
+  `validarDocumentoComandas` (puras) — gera se extraiu ≥1 registro (mesmo em outro PMS), **recusa +
+  avisa** se não. **Emissão** via `CreationDate` (`getMetadata`) + reforço impresso
+  (`parsePdfDate`/`extrairEmissaoImpressa`); **documento mais antigo é recusado** (`compararEmissao`),
+  mantendo o atual; emissão desconhecida prossegue sinalizando.
+- **Parser do Comandas** (`parsearComandas`, pura): blocos por `<apto> <NOME> <2 datas dd/mm/aaaa>
+  [canal] Extras`; veículo pelo PDV **GARAGEM** (`CARRO DE PASSEIO`→P, `CAMIONETE`→G, `MOTO`→moto);
+  **tamanho opcional → padrão (pequeno)**; auto-filtro (só bloco com GARAGEM); multi-veículo (um
+  ocupante por tipo). O tipo é lido **só** no segmento do lançamento GARAGEM (não no canal).
+  **Extrator isolado/plugável**; heurísticas calibradas no Desbravador (única amostra) — outros PMSs
+  podem exigir recalibração.
+- **Hospedado = objeto reserva-like** (`hospedadoParaReserva`, `ehHospedado:true`), alocado como
+  **ocupante já presente** (confirmado, check-in no passado → entra primeiro). **Render próprio**
+  (`.cell-span.hospedado`, cor `--hosped`, "🏠 Hospedado", legenda). **Arrastável e editável**
+  reusando `ajustes` pela chave estável: arraste de vaga/overbooking; editor "🏠 Na garagem ↔ 🚗 Saiu
+  (sem garagem)" (`sem_garagem` → área "Sem garagem (manual)", com **auditoria**, **persistência na
+  reimportação** e **divergência** "comanda ainda mostra garagem"). Motos hospedadas seguem **não
+  arrastáveis**.
+- **Anti-duplicação** (`dedupeReservasHospedados`): mesmo **apto + período sobreposto** nos dois
+  documentos → **vale o hospedado**; a instância de reserva não é desenhada (nem no mapa nem no
+  Contato). Rede de segurança (o Doug passará a gerar o relatório de reservas sem "In Efetuado").
+- **Migração NÃO destrutiva (DB v4→v5):** só o store `hospedados` foi criado; `ajustes` continua o
+  mesmo (agora chaveado também por `nro` sintético de hospedado); demais stores intactos; **reimport
+  de um slot não afeta o outro**.
+
 ## Versão atual
 
-**v1.5.0** — **status manual editável** (detalhe + Contato, com auditoria) + **filtro/área "Sem garagem
-(manual)"** + **sinalização de divergência com o PMS** + **arraste para dentro/fora do overbooking**
-(visual, não muda status; libera a vaga). Store `ajustes` **estendido** (DB **segue v4**, não-destrutivo).
-Tudo de v1.1/1.2/1.3/1.4 **inalterado** (alocação automática, arraste de mover vaga, pan, histórico de
-envios, selo de gravação). Testes **212/212** (141 engine + 47 jsdom + 24 Playwright). Ver
-`RELATORIO-v1.5.0.md`.
+**v1.5.1** — **2º documento (Comandas / Hospedados)**: dois slots com emissão, validação por
+informação, bloqueio de documento mais antigo, parser do Comandas (veículo→vaga, tamanho opcional),
+store `hospedados` (DB v4→v5), hospedados alocados/renderizados como ocupantes de prioridade máxima e
+**arrastáveis/editáveis** (remoção → "Sem garagem (manual)"), anti-duplicação entre os documentos.
+Tudo de v1.1–v1.5.0 **inalterado**; selo de gravação intacto. Testes **256/256** (173 engine + 56
+jsdom + 27 Playwright) + exercício de ponta a ponta com o PDF real. Ver `RELATORIO-v1.5.1.md`.
 
-**Roadmap local (sem backend) concluído.** Próximos passos exigem infraestrutura: **confirmação real de
-entrega** + envio em massa (backend + WhatsApp Business API) e integração Reserva → Garage Spot. Ver
-`PLANEJAMENTO.md`.
+**Próximos passos** (adiados, ver `PLANEJAMENTO.md`): **calibrar a extração para outros PMSs** (quando
+houver amostras reais); confirmação real de entrega + envio em massa (backend + WhatsApp Business API);
+integração Reserva → Garage Spot.

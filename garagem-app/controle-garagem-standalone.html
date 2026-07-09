@@ -41,6 +41,7 @@ const __workerBlob=new Blob([atob("LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzI
   --vermelho:#ef4444;--vermelho-bg:rgba(239,68,68,.18);
   --verde:#22c55e;--verde-bg:rgba(34,197,94,.16);--moto:#a855f7;--moto-bg:rgba(168,85,247,.18);
   --semgar:#94a3b8;--semgar-bg:rgba(148,163,184,.18);
+  --hosped:#14b8a6;--hosped-bg:rgba(20,184,166,.18);--nome-hosped:#5eead4;
   --nome-azul:#93c5fd;--nome-amarelo:#fcd34d;--nome-laranja:#fb923c;
   --nome-vermelho:#fca5a5;--nome-moto:#d8b4fe;
   --cw:88px;--rh:44px;--lw:52px;
@@ -54,6 +55,7 @@ body.light {
   --vermelho:#dc2626;--vermelho-bg:rgba(220,38,38,.12);
   --verde:#16a34a;--verde-bg:rgba(22,163,74,.12);--moto:#9333ea;--moto-bg:rgba(147,51,234,.12);
   --semgar:#64748b;--semgar-bg:rgba(100,116,139,.14);
+  --hosped:#0d9488;--hosped-bg:rgba(13,148,136,.13);--nome-hosped:#0f766e;
   --nome-azul:#1d4ed8;--nome-amarelo:#92400e;--nome-laranja:#9a3412;
   --nome-vermelho:#991b1b;--nome-moto:#6b21a8;
 }
@@ -67,7 +69,10 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-he
 .upload-btn{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:8px;padding:8px 16px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .2s;flex-shrink:0}
 .upload-btn:hover{border-color:var(--azul);color:var(--azul)}
 .upload-btn.loaded{border-color:var(--verde);color:var(--verde);border-style:solid}
-#file-input{display:none}
+#file-input,#file-input-hosp{display:none}
+.slots{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.slot{display:flex;align-items:center;gap:6px}
+#upload-label-hosp:hover{border-color:var(--hosped);color:var(--hosped)}
 .theme-btn{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 13px;cursor:pointer;color:var(--muted);font-size:12px;font-family:'Sora',sans-serif;font-weight:600;transition:all .2s;flex-shrink:0;white-space:nowrap}
 .theme-btn:hover{color:var(--text);border-color:var(--muted)}
 @media(max-width:600px){#upload-text{display:none}.sep{display:none}.brand-title{font-size:14px}}
@@ -127,6 +132,7 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-span.laranja{background:var(--laranja-bg);border:1.5px solid var(--laranja)}
 .cell-span.vermelho{background:var(--vermelho-bg);border:1.5px solid var(--vermelho);animation:pulse 1.5s infinite}
 .cell-span.moto-c {background:var(--moto-bg);   border:1.5px solid var(--moto)}
+.cell-span.hospedado{background:var(--hosped-bg);border:1.5px solid var(--hosped)}
 /* A4 — carro grande ocupando vaga pequena: borda tracejada de alerta */
 .cell-span.grande-peq{border-style:dashed;border-width:2px;box-shadow:0 0 0 1px var(--laranja) inset}
 .cell-inner{overflow:hidden;width:100%;display:flex;flex-direction:column;justify-content:center;gap:1px}
@@ -138,6 +144,7 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-span.laranja .cell-nome,.cell-span.laranja .cell-nome-duplo{color:var(--nome-laranja)}
 .cell-span.vermelho .cell-nome,.cell-span.vermelho .cell-nome-duplo{color:var(--nome-vermelho)}
 .cell-span.moto-c  .cell-nome,.cell-span.moto-c  .cell-nome-duplo{color:var(--nome-moto)}
+.cell-span.hospedado .cell-nome,.cell-span.hospedado .cell-nome-duplo{color:var(--nome-hosped)}
 .tooltip{display:none;position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;z-index:9999;min-width:220px;max-width:310px;box-shadow:0 10px 40px rgba(0,0,0,.25);pointer-events:none}
 .tooltip.show{display:block}
 .tt-nome{font-weight:700;font-size:13px;margin-bottom:8px;line-height:1.4}
@@ -344,13 +351,25 @@ body.arrastando .cell-span{cursor:grabbing}
       <span class="brand-title">🅿 Reserva de Garagem</span>
     </div>
     <div class="sep"></div>
-    <label class="upload-btn" id="upload-label">
-      <span id="upload-icon">📄</span>
-      <span id="upload-text">Importar Relatório PDF</span>
-      <input type="file" id="file-input" accept=".pdf">
-    </label>
-    <div id="upload-info" class="upload-info" style="display:none" onclick="toggleUploadInfoDetalhe()"
-      title="Clique para ver o nome do arquivo"></div>
+    <div class="slots">
+      <div class="slot">
+        <label class="upload-btn" id="upload-label" title="Listagem de Reservas (quem vai chegar)">
+          <span id="upload-icon">📄</span>
+          <span id="upload-text">Reservas (PDF)</span>
+          <input type="file" id="file-input" accept=".pdf">
+        </label>
+        <div id="upload-info" class="upload-info" style="display:none" onclick="toggleUploadInfoDetalhe()"
+          title="Clique para ver o nome do arquivo"></div>
+      </div>
+      <div class="slot">
+        <label class="upload-btn" id="upload-label-hosp" title="Comandas em aberto (hospedados que já fizeram check-in e usam garagem)">
+          <span id="upload-icon-hosp">🏠</span>
+          <span id="upload-text-hosp">Hospedados (Comandas)</span>
+          <input type="file" id="file-input-hosp" accept=".pdf">
+        </label>
+        <div id="upload-info-hosp" class="upload-info" style="display:none"></div>
+      </div>
+    </div>
   </div>
   <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">
     <span id="theme-icon">☀️</span>
@@ -407,6 +426,7 @@ body.arrastando .cell-span{cursor:grabbing}
 
 <div class="legenda">
   <div class="leg"><div class="legbox" style="background:var(--azul-bg);border:1px solid var(--azul)"></div>Confirmado</div>
+  <div class="leg"><div class="legbox" style="background:var(--hosped-bg);border:1px solid var(--hosped)"></div>🏠 Hospedado (check-in feito)</div>
   <div class="leg"><div class="legbox" style="background:var(--amarelo-bg);border:1px solid var(--amarelo)"></div>Aguardando</div>
   <div class="leg"><div class="legbox" style="background:var(--laranja-bg);border:1px solid var(--laranja)"></div>Grupo/Múlt. aptos</div>
   <div class="leg"><div class="legbox" style="background:var(--vermelho-bg);border:1px solid var(--vermelho)"></div>Overbooking</div>
@@ -522,7 +542,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.0';
+const APP_VERSION='v1.5.1';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -1281,6 +1301,136 @@ function aplicarAjustes(reservas,ajustes){
     try{const r=alocarVagas(reservas||[]);r.semGaragem=[];return r;}catch(_){return{linhasP:[],linhasG:[],vagaMoto:[],overflowLinhas:[],overflow:[],semGaragem:[]};}
   }
 }
+
+/* ═══════════════ v1.5.1 — 2º DOCUMENTO (Comandas/Hospedados) — funções puras ═══════════════
+   Dois documentos: (1) Listagem de Reservas (já lido) e (2) Comandas em aberto (hospedados que
+   já fizeram check-in e usam garagem). O extrator do Comandas é orientado à INFORMAÇÃO (nome +
+   par de datas do período + indicação de garagem + tipo de veículo), calibrado nas amostras do
+   Desbravador; o ponto de extração é isolado/plugável (parsearComandas). Ver RELATORIO/CLAUDE. */
+
+// ── EMISSÃO DO DOCUMENTO (puro) ──
+// Converte a CreationDate do PDF ("D:20260708173949Z" / "D:...-03'00'") OU uma data impressa
+// ("dd/mm/aaaa hh:mm[:ss]") em ms. Retorna null quando indeterminável (nunca lança).
+function parsePdfDate(str){
+  if(str==null)return null;
+  const s=String(str).trim();if(!s)return null;
+  let m=s.match(/^D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?/);
+  if(m){const dt=new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0));return isNaN(dt)?null:dt.getTime();}
+  m=s.match(/(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(m){const dt=new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0));return isNaN(dt)?null:dt.getTime();}
+  return null;
+}
+// Reforço: procura no texto uma data/hora de emissão impressa. null se não encontrar.
+function extrairEmissaoImpressa(texto){
+  if(!texto)return null;
+  const t=String(texto);
+  const m=t.match(/(?:Emit[ié]|Emiss[ãa]o|Impress[ãa]o|Gerado|Data\/Hora)[^0-9]{0,24}(\d{2}\/\d{2}\/\d{4}[ T]\d{2}:\d{2}(?::\d{2})?)/i)
+        ||t.match(/\b(\d{2}\/\d{2}\/\d{4}[ T]\d{2}:\d{2}(?::\d{2})?)\b/);
+  return m?parsePdfDate(m[1]):null;
+}
+// Bloqueio de documento mais antigo (por slot). 'aplicar' | 'recusar' | 'desconhecida'.
+//  • nova desconhecida (null) → 'desconhecida' (prossegue sinalizando "emissão não detectada").
+//  • sem emissão atual → 'aplicar'. • nova >= atual → 'aplicar'. • nova < atual → 'recusar'.
+function compararEmissao(novaMs,atualMs){
+  if(novaMs==null)return'desconhecida';
+  if(atualMs==null)return'aplicar';
+  return novaMs>=atualMs?'aplicar':'recusar';
+}
+
+// ── PARSER "Comandas em aberto" (puro) ──
+// Cada hóspede é um BLOCO iniciado por: <apto(int)> <NOME> <entrada dd/mm/aaaa> <saída dd/mm/aaaa>
+// [<CANAL>] Extras (canal pode faltar). Abaixo, itens do PDV GARAGEM com a descrição do veículo:
+// "CARRO DE PASSEIO"→P, "CAMIONETE"→G, "MOTO"→moto. Sem tipo reconhecido → null (padrão de
+// lançamento atual). Auto-filtro: só é hospedado o bloco com ≥1 GARAGEM. Multi-veículo: tipos
+// distintos → um ocupante por tipo. Tolera valor colado, descrição quebrada e "Origem" repetindo
+// o apto. Nunca quebra num bloco malformado (pula com log). Não amarra a posições fixas de coluna.
+function parseDataComanda(s){const p=String(s).split('/');const dt=new Date(+p[2],+p[1]-1,+p[0]);return isNaN(dt)?null:dt;}
+function tipoVeiculoDeSegmento(seg){
+  const up=String(seg).toUpperCase();
+  if(/CARRO\s+DE\s+PASSEIO/.test(up))return'P';
+  if(/CAMIONETE/.test(up))return'G';
+  if(/\bMOTO\b/.test(up))return'moto';
+  return null; // GARAGEM sem tipo reconhecido → padrão
+}
+const RE_BLOCO_COMANDA=/^(\d{1,6})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s*(.*?)\s*Extras\b/;
+function parsearComandas(textoOriginal){
+  const out=[];
+  const linhas=String(textoOriginal||'').split('\n').map(l=>l.replace(/[ \t]+/g,' ').trim());
+  // agrupa em blocos a partir das linhas de cabeçalho de hóspede
+  const blocos=[];let atual=null;
+  for(const l of linhas){
+    if(!l)continue;
+    const mb=l.match(RE_BLOCO_COMANDA);
+    if(mb){atual={apto:mb[1],nome:mb[2].trim(),entrada:mb[3],saida:mb[4],canal:(mb[5]||'').trim(),corpo:[]};blocos.push(atual);continue;}
+    if(atual)atual.corpo.push(l);
+  }
+  blocos.forEach(b=>{
+    try{
+      // segmenta o corpo por lançamento de GARAGEM (linha que começa/contém "GARAGEM" +
+      // as continuações até o próximo GARAGEM). Só o texto do PDV GARAGEM decide o veículo —
+      // evita falso-positivo do canal (ex.: "MOTOR OMNIBEES" no cabeçalho do bloco).
+      const tipos=[];let seg=null;
+      b.corpo.forEach(l=>{
+        if(/^GARAGEM\b/.test(l)||/\bGARAGEM\b.*ESTACIONAMENTO/.test(l)){if(seg!=null)tipos.push(seg);seg=l;}
+        else if(seg!=null)seg+=' '+l;
+      });
+      if(seg!=null)tipos.push(seg);
+      if(!tipos.length)return; // auto-filtro: bloco sem GARAGEM não é hospedado
+      const entrada=parseDataComanda(b.entrada),saida=parseDataComanda(b.saida);
+      if(!entrada||!saida)return;
+      // tipos distintos → um ocupante por tipo; só nulls (GARAGEM sem tipo) → um ocupante padrão.
+      const setTipos=new Set();let temNull=false;
+      tipos.forEach(s=>{const tp=tipoVeiculoDeSegmento(s);if(tp)setTipos.add(tp);else temNull=true;});
+      const finais=setTipos.size?[...setTipos]:(temNull?[null]:[]);
+      finais.forEach(tp=>out.push({apto:b.apto,nome:b.nome,entrada,saida,canal:b.canal||'',tipoVeiculo:tp,origem:'hospedado'}));
+    }catch(e){/* bloco malformado: pula (nunca quebra) */ if(typeof console!=='undefined')console.warn('bloco de comanda ignorado',e);}
+  });
+  return out;
+}
+
+// ── VALIDAÇÃO POR PRESENÇA DE INFORMAÇÃO (puro) — antes de aplicar ──
+// Gera o controle se o documento TEM as informações necessárias (mesmo em formato/PMS diferente);
+// recusa+avisa se as infos não foram encontradas. Extração orientada à informação (parse-based).
+function validarDocumentoReservas(texto){
+  let n=0;try{n=parsear(String(texto||'')).length;}catch(e){n=0;}
+  return{ok:n>=1,registros:n};
+}
+function validarDocumentoComandas(texto){
+  let n=0;try{n=parsearComandas(String(texto||'')).length;}catch(e){n=0;}
+  return{ok:n>=1,registros:n};
+}
+
+// ── HOSPEDADO → objeto reserva-like (puro) — reaproveita alocação/arraste/status ──
+// Chave estável (nro sintético) sobrevive ao reimport do comandas: `${apto}__${entradaISO}__${tipo|x}`.
+function isoDataChave(d){const dt=d instanceof Date?d:new Date(d);if(isNaN(dt))return'x';return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;}
+function chaveHospedado(h){return`${h.apto}__${isoDataChave(h.entrada)}__${h.tipoVeiculo||'x'}`;}
+function garagemDeTipoVeiculo(tipo){
+  if(tipo==='G')return'azul_grande';
+  if(tipo==='moto')return'azul_moto';
+  return'azul_pequeno'; // 'P' ou null (padrão de lançamento atual)
+}
+function hospedadoParaReserva(h){
+  const entrada=h.entrada instanceof Date?h.entrada:new Date(h.entrada);
+  const saida=h.saida instanceof Date?h.saida:new Date(h.saida);
+  const nro=chaveHospedado(h);
+  return{
+    id:nro,nro,nroOTA:'',nomeCompleto:h.nome||'Hóspede',hospedeDetalhe:'',
+    entrada,saida,apto:h.apto||'-',garagem:garagemDeTipoVeiculo(h.tipoVeiculo),
+    origem:'Hospedado',canal:h.canal||'',obs:'',ehGrupo:false,ehMultiplo:false,
+    ehHospedado:true,tipoVeiculo:(h.tipoVeiculo!=null?h.tipoVeiculo:null)
+  };
+}
+
+// ── ANTI-DUPLICAÇÃO (puro) — rede de segurança entre os dois documentos ──
+// Mesmo apto + período sobreposto nos dois documentos → vale o HOSPEDADO; a instância de reserva
+// correspondente não é desenhada. (O Doug passará a gerar o relatório de reservas sem "In Efetuado".)
+function dedupeReservasHospedados(reservas,hospedados){
+  const hs=(hospedados||[]).filter(h=>h&&h.apto&&h.apto!=='-');
+  return(reservas||[]).filter(r=>{
+    if(!r||!r.apto||r.apto==='-')return true;
+    return!hs.some(h=>String(h.apto)===String(r.apto)&&sobrepoe(h,r));
+  });
+}
 // ===ENGINE END===
 /* ═══════════════════════════════════════════════════════════
    ENGINE END
@@ -1337,7 +1487,7 @@ function toggleOrdemVagas(){
   ordemVagas=ordemVagas==='baixo'?'cima':'baixo';
   try{localStorage.setItem('garagem_ordem_vagas',ordemVagas);}catch(e){}
   atualizarBtnOrdem();
-  if(todasReservas.length)renderMapa();
+  if(todasReservas.length||todosHospedados.length)renderMapa();
 }
 
 // ── 5.5 Info de data/hora do upload (persistida em localStorage) ──
@@ -1361,10 +1511,25 @@ function renderUploadInfo(){
       : `<span class="ui-when" title="O navegador não expõe o caminho completo do arquivo">caminho indisponível pelo navegador</span>`;
     el.innerHTML=`<span class="ui-detail" title="${nome}">📄 ${nome}</span>${caminho}`;
   }else{
-    el.innerHTML=`<span class="ui-when">🕑 Último PDF</span><span class="ui-when">${fmtDataHora(uploadInfo.dataHoraUpload)}</span>`;
+    // v1.5.1 — mostra também a EMISSÃO do documento em uso (CreationDate), sempre visível.
+    const emi=uploadInfo.emissaoMs!=null?`📄 Emissão ${fmtDataHora(uploadInfo.emissaoMs)}`:`📄 Emissão não detectada`;
+    el.innerHTML=`<span class="ui-when">🕑 Reservas · ${fmtDataHora(uploadInfo.dataHoraUpload)}</span><span class="ui-when">${emi}</span>`;
   }
 }
 function toggleUploadInfoDetalhe(){uploadInfoDetalhe=!uploadInfoDetalhe;renderUploadInfo();}
+
+/* ═══════════ v1.5.1 — SLOT HOSPEDADOS: info própria (upload + emissão) ═══════════ */
+let uploadInfoHosp=null;
+function carregarUploadInfoHosp(){try{const s=localStorage.getItem('garagem_upload_info_hosp');if(s)uploadInfoHosp=JSON.parse(s);}catch(e){uploadInfoHosp=null;}}
+function salvarUploadInfoHosp(info){uploadInfoHosp=info;try{localStorage.setItem('garagem_upload_info_hosp',JSON.stringify(info));}catch(e){}renderUploadInfoHosp();}
+function renderUploadInfoHosp(){
+  const el=document.getElementById('upload-info-hosp');
+  if(!el)return;
+  if(!uploadInfoHosp||!uploadInfoHosp.dataHoraUpload){el.style.display='none';return;}
+  el.style.display='flex';
+  const emi=uploadInfoHosp.emissaoMs!=null?`📄 Emissão ${fmtDataHora(uploadInfoHosp.emissaoMs)}`:`📄 Emissão não detectada`;
+  el.innerHTML=`<span class="ui-when">🏠 Hospedados · ${fmtDataHora(uploadInfoHosp.dataHoraUpload)}</span><span class="ui-when">${emi}</span>`;
+}
 
 // ── TEMA ──
 let modoEscuro=true;
@@ -1455,13 +1620,13 @@ function setRange(ini,fim){
   document.getElementById('data-inicio').value=toID(ini);
   document.getElementById('data-fim').value=toID(fim);
   syncTxt('data-inicio',ini);syncTxt('data-fim',fim);
-  if(todasReservas.length)atualizarTudo();
+  if(todasReservas.length||todosHospedados.length)atualizarTudo();
 }
 function aplicarFiltro(){
   const i=new Date(document.getElementById('data-inicio').value+'T00:00:00');
   const f=new Date(document.getElementById('data-fim').value+'T00:00:00');
   if(!isNaN(i)&&!isNaN(f)){dataInicio=i;dataFim=f;}
-  if(todasReservas.length)atualizarTudo();
+  if(todasReservas.length||todosHospedados.length)atualizarTudo();
 }
 function resetarFiltro(){const h=new Date();h.setHours(0,0,0,0);const f=new Date(h);f.setDate(f.getDate()+30);setRange(h,f);}
 function verHoje(){const h=new Date();h.setHours(0,0,0,0);setRange(h,h);}
@@ -1480,7 +1645,7 @@ function ativasNoPeriodo(){
 }
 
 /* ═══════════ INDEXEDDB (B1) — com fallback em memória ═══════════ */
-const DB_NAME='garagemGumz',DB_VER=4; // v1.4.0: +store 'envios' (migração não-destrutiva)
+const DB_NAME='garagemGumz',DB_VER=5; // v1.5.1: +store 'hospedados' (2º documento — migração não-destrutiva)
 let db=null,dbOk=false;
 
 function abrirDB(){
@@ -1502,6 +1667,10 @@ function abrirDB(){
         const es=d.createObjectStore('envios',{keyPath:'id',autoIncrement:true});
         es.createIndex('nro','nro',{unique:false});
       }
+      // v1.5.1 — cria 'hospedados' (2º documento: Comandas em aberto) só se não existir; NÃO
+      // toca em reservas/contatos/gestao/ajustes/envios. Retrato do momento: só o comandas escreve
+      // (reconstruído a cada import). Chave estável = `${apto}__${entradaISO}__${tipoVeiculo||'x'}`.
+      if(!d.objectStoreNames.contains('hospedados'))d.createObjectStore('hospedados',{keyPath:'id'});
     };
     req.onsuccess=(e)=>{db=e.target.result;dbOk=true;resolve(true);};
     req.onerror=()=>resolve(false);
@@ -1533,6 +1702,12 @@ function dbPut(store,obj){
 function dbDelete(store,key){
   return new Promise((res,rej)=>{
     try{const r=tx(store,'readwrite').delete(key);r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error);}
+    catch(e){rej(e);}
+  });
+}
+function dbClear(store){
+  return new Promise((res,rej)=>{
+    try{const r=tx(store,'readwrite').clear();r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error);}
     catch(e){rej(e);}
   });
 }
@@ -1575,6 +1750,46 @@ function anexarTelefones(){
   });
 }
 
+/* ═══════════ v1.5.1 — HOSPEDADOS (2º documento: Comandas em aberto) ═══════════ */
+let todosHospedados=[]; // array de objetos reserva-like (ehHospedado:true), retrato do momento
+
+// Carrega o store 'hospedados' → memória (reserva-like hidratado). Só leitura.
+async function carregarHospedados(){
+  todosHospedados=[];
+  if(!dbOk)return;
+  try{(await dbGetAll('hospedados')).forEach(rec=>{if(rec)todosHospedados.push(hospedadoParaReserva(rec));});}
+  catch(e){console.warn('carregar hospedados falhou',e);}
+}
+// Importa o Comandas: reconstrói o conjunto (retrato do momento) — limpa e regrava. Só o comandas
+// escreve neste store; nunca toca em reservas/contatos/ajustes/envios (o ajuste manual sobrevive
+// pela chave estável do hospedado). Fallback em memória quando não há DB.
+async function importarComandas(hospedadosParsed){
+  const recs=(hospedadosParsed||[]).map(h=>({
+    id:chaveHospedado(h),apto:h.apto,nome:h.nome,
+    entrada:(h.entrada instanceof Date?h.entrada:new Date(h.entrada)),
+    saida:(h.saida instanceof Date?h.saida:new Date(h.saida)),
+    canal:h.canal||'',tipoVeiculo:(h.tipoVeiculo!=null?h.tipoVeiculo:null)
+  }));
+  // dedup por id (a chave estável já colapsa duplicatas do mesmo apto/entrada/tipo)
+  const porId={};recs.forEach(r=>{porId[r.id]=r;});
+  const unicos=Object.values(porId);
+  if(dbOk){
+    try{await dbClear('hospedados');if(unicos.length)await dbPutMany('hospedados',unicos);}catch(e){console.warn('gravar hospedados falhou',e);}
+    await carregarHospedados();
+  }else{
+    todosHospedados=unicos.map(hospedadoParaReserva);
+  }
+  if(todasReservas.length||todosHospedados.length)atualizarTudo();
+}
+// Hospedados ativos no período (janela visível).
+function hospedadosNoPeriodo(){return todosHospedados.filter(h=>h.entrada<=dataFim&&h.saida>dataInicio);}
+// Conjunto ativo do MAPA: reservas (menos as duplicadas por um hospedado) + hospedados.
+function conjuntoAtivo(){
+  const hosp=hospedadosNoPeriodo();
+  const reservas=dedupeReservasHospedados(ativasNoPeriodo(),hosp);
+  return reservas.concat(hosp);
+}
+
 // ── IMPORTAÇÃO + MESCLAGEM (B2) ──
 async function importarPDF(novas){
   if(dbOk){
@@ -1591,36 +1806,86 @@ async function importarPDF(novas){
   }
 }
 
-// ── UPLOAD ──
+/* ═══════════ v1.5.1 — UPLOAD DOS DOIS SLOTS (validação por informação + bloqueio de emissão) ═══════════
+   Parseia SEMPRE pelo conteúdo (nunca pelo nome do arquivo). Fluxo por slot:
+   1) validar por presença de informação (5.2) — recusa+avisa se não conferir;
+   2) bloqueio de documento mais antigo (5.3) — mantém o atual, pede emissão igual/mais recente;
+   3) aplicar (reservas → mesclagem; hospedados → reconstrói o conjunto). */
+const MSG_DOC_INVALIDO='As informações deste documento não conferem com o que o app precisa para gerar o controle.';
+function msgRecusaEmissao(novaMs,atualMs){
+  return`Este documento (emitido em ${fmtDataHora(novaMs)||'—'}) é mais antigo que o atual (emitido em ${fmtDataHora(atualMs)||'—'}). `+
+        `O controle mantém o documento atual; suba um documento com emissão igual ou mais recente.`;
+}
+// Núcleos testáveis (retornam {status, ...}); aplicam de fato ao passar em validação + emissão.
+async function aplicarUploadReservas(texto,emissaoMs,fileInfo){
+  const val=validarDocumentoReservas(texto);
+  if(!val.ok)return{status:'invalido',msg:MSG_DOC_INVALIDO};
+  const atual=(uploadInfo&&uploadInfo.emissaoMs!=null)?uploadInfo.emissaoMs:null;
+  const dec=compararEmissao(emissaoMs,atual);
+  if(dec==='recusar')return{status:'recusado_antigo',msg:msgRecusaEmissao(emissaoMs,atual)};
+  await importarPDF(parsear(texto));
+  salvarUploadInfo({...(fileInfo||montarUploadInfo(null,Date.now())),emissaoMs:emissaoMs!=null?emissaoMs:null});
+  return{status:dec==='desconhecida'?'aplicado_sem_emissao':'aplicado',registros:val.registros};
+}
+async function aplicarUploadHospedados(texto,emissaoMs,fileInfo){
+  const val=validarDocumentoComandas(texto);
+  if(!val.ok)return{status:'invalido',msg:MSG_DOC_INVALIDO};
+  const atual=(uploadInfoHosp&&uploadInfoHosp.emissaoMs!=null)?uploadInfoHosp.emissaoMs:null;
+  const dec=compararEmissao(emissaoMs,atual);
+  if(dec==='recusar')return{status:'recusado_antigo',msg:msgRecusaEmissao(emissaoMs,atual)};
+  await importarComandas(parsearComandas(texto));
+  salvarUploadInfoHosp({...(fileInfo||montarUploadInfo(null,Date.now())),emissaoMs:emissaoMs!=null?emissaoMs:null});
+  return{status:dec==='desconhecida'?'aplicado_sem_emissao':'aplicado',registros:val.registros};
+}
+function tratarResultadoUpload(r,slot,fileName){
+  if(r.status==='invalido'||r.status==='recusado_antigo'){if(typeof alert==='function')alert(r.msg);return;}
+  const es=document.getElementById('empty-state');if(es)es.style.display='none';
+  const map=slot==='reservas'?{label:'upload-label',text:'upload-text',icon:'upload-icon'}
+                             :{label:'upload-label-hosp',text:'upload-text-hosp',icon:'upload-icon-hosp'};
+  const lb=document.getElementById(map.label);if(lb)lb.classList.add('loaded');
+  const t=document.getElementById(map.text);if(t)t.textContent='✓ '+fileName;
+  const ic=document.getElementById(map.icon);if(ic)ic.textContent='';
+  if(r.status==='aplicado_sem_emissao')mostrarToast('Aplicado (emissão não detectada)');
+  else mostrarToast(slot==='hospedados'?`${r.registros} hospedado(s) importado(s)`:`${r.registros} reserva(s) importada(s)`);
+}
+
+// ── UPLOAD — slot RESERVAS ──
 document.getElementById('file-input').addEventListener('change',async(e)=>{
   const file=e.target.files[0];if(!file)return;
   document.getElementById('loading').classList.add('show');
   document.getElementById('empty-state').style.display='none';
-  document.getElementById('mapa-wrapper').style.display='none';
-  document.getElementById('counters').style.display='none';
   try{
-    const textoOriginal=await lerPDFcomNewlines(file);
-    const novas=parsear(textoOriginal);
-    await importarPDF(novas);
-    document.getElementById('upload-label').classList.add('loaded');
-    document.getElementById('upload-text').textContent='✓ '+file.name;
-    document.getElementById('upload-icon').textContent='';
-    salvarUploadInfo(montarUploadInfo(file,Date.now())); // 5.5 — data/hora + nome do arquivo
+    const {texto,emissaoMs}=await lerPDFcompleto(file);
+    const r=await aplicarUploadReservas(texto,emissaoMs,montarUploadInfo(file,Date.now()));
+    tratarResultadoUpload(r,'reservas',file.name);
   }catch(err){alert('Erro ao ler PDF: '+err.message);console.error(err);}
   document.getElementById('loading').classList.remove('show');
+  e.target.value=''; // permite re-subir o mesmo arquivo
+});
+// ── UPLOAD — slot HOSPEDADOS (Comandas em aberto) ──
+document.getElementById('file-input-hosp').addEventListener('change',async(e)=>{
+  const file=e.target.files[0];if(!file)return;
+  document.getElementById('loading').classList.add('show');
+  try{
+    const {texto,emissaoMs}=await lerPDFcompleto(file);
+    const r=await aplicarUploadHospedados(texto,emissaoMs,montarUploadInfo(file,Date.now()));
+    tratarResultadoUpload(r,'hospedados',file.name);
+  }catch(err){alert('Erro ao ler PDF: '+err.message);console.error(err);}
+  document.getElementById('loading').classList.remove('show');
+  e.target.value='';
 });
 
-// Lê o PDF mantendo newlines (preservado da v21)
-async function lerPDFcomNewlines(file){
+// Lê o PDF: texto (mantendo newlines, preservado da v21) + EMISSÃO (CreationDate via getMetadata,
+// com reforço de data impressa). A emissão vem do DOCUMENTO, nunca do nome do arquivo.
+async function lerPDFcompleto(file){
   const buf=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
   let txt='';
   for(let i=1;i<=pdf.numPages;i++){
     const pg=await pdf.getPage(i);
     const c=await pg.getTextContent();
-    const itens=c.items;
     let ultimoY=null;
-    for(const item of itens){
+    for(const item of c.items){
       const y=Math.round(item.transform[5]);
       if(ultimoY!==null&&Math.abs(y-ultimoY)>2){txt+='\n';}
       txt+=item.str+(item.hasEOL?'\n':' ');
@@ -1628,8 +1893,13 @@ async function lerPDFcomNewlines(file){
     }
     txt+='\n';
   }
-  return txt;
+  let emissaoMeta=null;
+  try{const md=await pdf.getMetadata();emissaoMeta=parsePdfDate(md&&md.info&&md.info.CreationDate);}catch(e){}
+  const emissaoMs=emissaoMeta!=null?emissaoMeta:extrairEmissaoImpressa(txt);
+  return{texto:txt,emissaoMs};
 }
+// Compat: leitura só do texto (preservado da v21) — usada onde a emissão não é necessária.
+async function lerPDFcomNewlines(file){return(await lerPDFcompleto(file)).texto;}
 
 // ── RENDER MAPA ──
 function renderMapa(){
@@ -1640,10 +1910,10 @@ function renderMapa(){
   while(d<=dataFim){datas.push(new Date(d));d.setDate(d.getDate()+1);}
   if(!datas.length)return;
   const hoje=new Date();hoje.setHours(0,0,0,0);
-  const rP=ativasNoPeriodo();
+  const rP=conjuntoAtivo(); // v1.5.1: reservas (sem duplicadas por hospedado) + hospedados
   const aloc=aplicarAjustes(rP,ajustesMap); // v1.3.0: aplica ajustes manuais sobre o automático
   ultimaAlocacao=aloc;                       // referência p/ resolver ocupantes da vaga no drop
-  calcContadores(aloc,dataInicio<=hoje&&hoje<=dataFim?hoje:dataInicio);
+  calcContadores(aloc,dataInicio<=hoje&&hoje<=dataFim?hoje:dataInicio,rP);
   renderSecaoLinhas(container,aloc.linhasP,datas,'P','▸ Carros Pequenos — 18 vagas',hoje,false);
   renderSecaoLinhas(container,aloc.linhasG,datas,'G','▸ Camionetes / Grandes — 14 vagas',hoje,false);
   renderSecaoMoto(container,aloc.vagaMoto,datas,hoje);
@@ -1657,7 +1927,7 @@ let mostrarSemGaragem=false;
 function toggleSemGaragem(){
   const c=document.getElementById('chk-semgar');
   mostrarSemGaragem=!!(c&&c.checked);
-  if(todasReservas.length)renderMapa();
+  if(todasReservas.length||todosHospedados.length)renderMapa();
 }
 // Área com cor distinta listando as reservas com statusManual==='sem_garagem'. Cada item tem editor
 // para VOLTAR o status (Confirmado/Aguardando) → a reserva retorna ao mapa. Divergência sinalizada.
@@ -1674,18 +1944,21 @@ function renderSecaoSemGaragem(container,lista,hoje){
   }
   // agrupa por nro (uma reserva pode ter vários blocos/aptos)
   const porNro={};
-  lista.forEach(r=>{if(!porNro[r.nro])porNro[r.nro]={nro:r.nro,nome:r.nomeCompleto,entrada:r.entrada,saida:r.saida,aptos:new Set(),res:r};porNro[r.nro].aptos.add(r.apto);});
+  lista.forEach(r=>{if(!porNro[r.nro])porNro[r.nro]={nro:r.nro,nome:r.nomeCompleto,entrada:r.entrada,saida:r.saida,aptos:new Set(),res:r,ehHospedado:!!r.ehHospedado};porNro[r.nro].aptos.add(r.apto);});
   Object.values(porNro).sort((a,b)=>a.entrada-b.entrada).forEach(g=>{
     const aj=ajustesMap[g.nro];
     const item=document.createElement('div');item.className='semgar-item';
     const aptos=[...g.aptos].filter(x=>x&&x!=='-').join(', ')||'-';
+    // v1.5.1 — hospedado usa o editor "na garagem ↔ saiu"; o meta mostra "🏠 Hospedado" (a chave sintética não é um nº PMS).
+    const meta=g.ehHospedado?`🏠 Hospedado · Ap ${escapeHtml(aptos)} · ${fmtData(g.entrada)}→${fmtData(g.saida)}`:`#${escapeHtml(g.nro)} · Ap ${escapeHtml(aptos)} · ${fmtData(g.entrada)}→${fmtData(g.saida)}`;
+    const editor=g.ehHospedado?statusEditorHospedadoHTML(g.nro,'sem_garagem'):statusEditorHTML(g.nro,'sem_garagem');
     item.innerHTML=`
       <div class="semgar-info">
         <span class="semgar-nome">${escapeHtml(g.nome)}</span>
-        <span class="semgar-meta">#${escapeHtml(g.nro)} · Ap ${escapeHtml(aptos)} · ${fmtData(g.entrada)}→${fmtData(g.saida)}</span>
-        ${pmsDivergente(g.res,aj)?'<span class="pms-diverg" title="Alterado manualmente — PMS ainda não atualizado">◆</span>':''}
+        <span class="semgar-meta">${meta}</span>
+        ${pmsDivergente(g.res,aj)?'<span class="pms-diverg" title="'+(g.ehHospedado?'Marcado como saiu manualmente — comanda ainda mostra garagem':'Alterado manualmente — PMS ainda não atualizado')+'">◆</span>':''}
       </div>
-      <div class="semgar-acao">${statusEditorHTML(g.nro,'sem_garagem')}</div>`;
+      <div class="semgar-acao">${editor}</div>`;
     bloco.appendChild(item);
   });
   container.appendChild(bloco);
@@ -1778,7 +2051,10 @@ function mkRow(label,linha,datas,isOver,isMoto){
       const diverg=res._pmsDivergente?'<span class="pms-diverg" title="Alterado manualmente — PMS ainda não atualizado">◆</span>':'';
       // 5.2 — nº PMS clicável para copiar (com fallback file://); não dispara o arraste.
       const nroSpan=`<span class="copyable" title="Clique para copiar o nº PMS" onclick="event.stopPropagation();copiarTexto('${res.nro}')">#${res.nro}</span>`;
-      const infoLabel=res._labelExtra?`${res._labelExtra} · Ap ${res.apto}`:`${nroSpan} · Ap ${res.apto}`;
+      // v1.5.1 — hospedado (check-in feito): rótulo próprio (a chave sintética não é um nº PMS).
+      const infoLabel=res.ehHospedado
+        ?`🏠 Hospedado · Ap ${escapeHtml(res.apto)}`
+        :(res._labelExtra?`${res._labelExtra} · Ap ${res.apto}`:`${nroSpan} · Ap ${res.apto}`);
       span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
       if(res.ajusteManual)span.classList.add('tem-ajuste');
       // 5.4 — arraste só de vaga (Pointer Events) nas seções de carro; clique abre detalhe.
@@ -1796,6 +2072,8 @@ function mkRow(label,linha,datas,isOver,isMoto){
 
 function corCls(res,over){
   if(over||res._over)return'vermelho';
+  // v1.5.1 — hospedado (check-in feito) tem visual próprio, distinto das cores de status de reserva.
+  if(res.ehHospedado&&res._statusEfetivo!=='aguardando')return'hospedado';
   if(res.garagem&&res.garagem.includes('laranja'))return'laranja';
   // v1.5.0 — a cor segue o STATUS EFETIVO (override manual prevalece sobre o do PDF).
   if(res._statusEfetivo==='aguardando')return'amarelo';
@@ -1810,20 +2088,25 @@ const oriEmoji={whatsapp:'💬',booking:'🔵',expedia:'🟡',telefone:'📞','s
 function ttHtml(res,isOver,isMoto){
   const ok=(res.origem||'direta').toLowerCase();
   const em=oriEmoji[ok]||'📋';
-  const status=isMoto?'🟣 Moto confirmada':isOver?'🔴 Overbooking — sem vaga garantida':res.garagem==='amarelo'?'🟡 Aguardando':res.garagem&&res.garagem.includes('laranja')?'🟠 Grupo / Múlt. aptos':res.garagem==='azul_grande'?'🔵 Confirmado — Grande':'🔵 Confirmado — Pequeno';
+  const tipoHosp=res.tipoVeiculo==='G'?'Camionete/Grande':res.tipoVeiculo==='moto'?'Moto':res.tipoVeiculo==='P'?'Carro pequeno':'Carro (padrão)';
+  const status=res.ehHospedado&&!isOver?`🏠 Hospedado — ${tipoHosp}`:isMoto?'🟣 Moto confirmada':isOver?'🔴 Overbooking — sem vaga garantida':res.garagem==='amarelo'?'🟡 Aguardando':res.garagem&&res.garagem.includes('laranja')?'🟠 Grupo / Múlt. aptos':res.garagem==='azul_grande'?'🔵 Confirmado — Grande':'🔵 Confirmado — Pequeno';
+  const canalHospRow=res.ehHospedado&&res.canal?`<div class="tt-row"><span class="tt-key">Canal</span><span class="tt-val">${escapeHtml(res.canal)}</span></div>`:'';
   const hospedeRow=res.hospedeDetalhe?`<div class="tt-row"><span class="tt-key">Hóspede</span><span class="tt-val">${res.hospedeDetalhe}</span></div>`:'';
   const otaRow=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val">${res.nroOTA}</span></div>`:'';
   const totalInfo=res._labelExtra?`<div class="tt-row"><span class="tt-key">Veículos</span><span class="tt-val" style="color:var(--laranja);font-weight:700">${res._labelExtra} · Vaga ${res.vagaIdx||1}</span></div>`:'';
   const grandePeqRow=res._grandeEmPequena?`<div class="tt-row"><span class="tt-key tt-warn">⚠ Atenção</span><span class="tt-val tt-warn">Carro grande em vaga pequena</span></div>`:'';
   const overRow=isOver?`<div class="tt-row"><span class="tt-key tt-warn">⚠</span><span class="tt-val tt-warn">Priorizar contato: não há vaga</span></div>`:'';
+  const idRow=res.ehHospedado
+    ?`<div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">🏠 Comanda (check-in feito)</span></div>`
+    :`<div class="tt-row"><span class="tt-key">Reserva</span><span class="tt-val">#${res.nro}</span></div>`;
   return`<div class="tt-nome">${res.nomeCompleto}</div>
-    <div class="tt-row"><span class="tt-key">Reserva</span><span class="tt-val">#${res.nro}</span></div>
+    ${idRow}
     ${otaRow}
     <div class="tt-row"><span class="tt-key">Apto</span><span class="tt-val">${res.apto}</span></div>
     <div class="tt-row"><span class="tt-key">Check-in</span><span class="tt-val">${fmtDate(res.entrada)}</span></div>
     <div class="tt-row"><span class="tt-key">Check-out</span><span class="tt-val">${fmtDate(res.saida)}</span></div>
     <div class="tt-row"><span class="tt-key">Status</span><span class="tt-val">${status}</span></div>
-    ${grandePeqRow}${overRow}${hospedeRow}${totalInfo}
+    ${canalHospRow}${grandePeqRow}${overRow}${hospedeRow}${totalInfo}
     ${res.obs?`<div class="tt-row"><span class="tt-key">Obs</span><span class="tt-val">${res.obs}</span></div>`:''}
     <div class="tt-origem">${em} ${res.origem||'Direta'}</div>`;
 }
@@ -1869,11 +2152,11 @@ function addTTPar(el,r1,r2){
 }
 
 // ── CONTADORES (a partir da alocação real) ──
-function calcContadores(aloc,dtRef){
+function calcContadores(aloc,dtRef,conjunto){
   const dt=new Date(dtRef);dt.setHours(0,0,0,0);
   const cobre=r=>r.entrada<=dt&&r.saida>dt;
   const occ=linhas=>linhas.filter(l=>l.some(cobre)).length;
-  const rP=ativasNoPeriodo().filter(cobre);
+  const rP=(conjunto||conjuntoAtivo()).filter(cobre); // v1.5.1: inclui hospedados
   const peq=rP.filter(r=>r.garagem==='azul_pequeno'||r.garagem==='laranja_pequeno').length;
   const gra=rP.filter(r=>r.garagem==='azul_grande'||r.garagem==='laranja_grande').length;
   const amar=rP.filter(r=>r.garagem==='amarelo').length;
@@ -1900,7 +2183,8 @@ function setContatoFiltro(f){
 
 // Agrupa por nº PMS (nro): uma reserva pode ocupar vários aptos/vagas.
 function reservasContato(){
-  const rP=ativasNoPeriodo();
+  // v1.5.1 — não lista reservas já duplicadas por um hospedado (mesmo apto + período sobreposto).
+  const rP=dedupeReservasHospedados(ativasNoPeriodo(),hospedadosNoPeriodo());
   aplicarAjustes(rP,ajustesMap); // tagueia _aloc/_over/_grandeEmPequena considerando ajustes manuais
   const map={};
   rP.forEach(r=>{
@@ -2475,7 +2759,7 @@ async function removerAjuste(nro){
   rerenderMapaEContato();
 }
 function rerenderMapaEContato(){
-  if(todasReservas.length)renderMapa();
+  if(todasReservas.length||todosHospedados.length)renderMapa();
   if(abaAtual==='contato')renderContato();
 }
 
@@ -2594,15 +2878,25 @@ function abrirDetalheReserva(res){
   const nroCopy=`<span class="tt-val copyable" title="Clique para copiar o nº PMS" onclick="copiarTexto('${escapeAttr(res.nro)}')">#${escapeHtml(res.nro)}</span>`;
   const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val copyable" title="Clique para copiar o localizador OTA" onclick="copiarTexto('${escapeAttr(res.nroOTA)}')">${escapeHtml(res.nroOTA)}</span></div>`:'';
   const mao=(res.ajusteManual)?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual==='OVERBOOKING'?'Overbooking':res._vagaManual)+')':''}</span></div>`:'';
+  // v1.5.1 — hospedado: identificação, editor "na garagem ↔ saiu", canal e tipo de veículo.
+  const ehH=!!res.ehHospedado;
+  const idRow=ehH
+    ?`<div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">🏠 Comanda (check-in feito)</span></div>`
+    :`<div class="tt-row"><span class="tt-key">Reserva</span>${nroCopy}</div>${ota}`;
+  const tipoHosp=res.tipoVeiculo==='G'?'Camionete/Grande':res.tipoVeiculo==='moto'?'Moto':res.tipoVeiculo==='P'?'Carro pequeno':'Carro (padrão)';
+  const hospRows=ehH?`
+    <div class="tt-row"><span class="tt-key">Veículo</span><span class="tt-val">${escapeHtml(tipoHosp)}</span></div>
+    ${res.canal?`<div class="tt-row"><span class="tt-key">Canal</span><span class="tt-val">${escapeHtml(res.canal)}</span></div>`:''}`:'';
+  const statusEditor=ehH?statusEditorHospedadoHTML(res.nro,st):statusEditorHTML(res.nro,st);
   corpo.innerHTML=`
     <div class="tt-nome" style="margin-bottom:8px">${escapeHtml(res.nomeCompleto)}</div>
-    <div class="tt-row"><span class="tt-key">Reserva</span>${nroCopy}</div>
-    ${ota}
+    ${idRow}
     <div class="tt-row"><span class="tt-key">Apto</span><span class="tt-val">${escapeHtml(res.apto)}</span></div>
     <div class="tt-row"><span class="tt-key">Check-in</span><span class="tt-val">${fmtData(res.entrada)}</span></div>
     <div class="tt-row"><span class="tt-key">Check-out</span><span class="tt-val">${fmtData(res.saida)}</span></div>
-    <div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">${escapeHtml(res.origem||'Direta')}</span></div>
-    <div class="tt-row"><span class="tt-key">Status</span><span class="tt-val">${statusEditorHTML(res.nro,st)}</span></div>
+    ${ehH?'':`<div class="tt-row"><span class="tt-key">Origem</span><span class="tt-val">${escapeHtml(res.origem||'Direta')}</span></div>`}
+    ${hospRows}
+    <div class="tt-row"><span class="tt-key">Status</span><span class="tt-val">${statusEditor}</span></div>
     ${divergenciaHTML(res,aj)}
     ${mao}
     <div class="prancheta prancheta-inline" id="detalhe-prancheta">
@@ -2635,13 +2929,25 @@ function statusEditorHTML(nro,statusAtual){
   return`<select class="status-sel" title="Alterar status desta reserva" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}</select>`;
 }
 function onStatusChange(nro,val){salvarStatusManual(nro,val);}
+// v1.5.1 — editor de HOSPEDADO: "na garagem ↔ saiu (sem garagem)". Reusa salvarStatusManual.
+// "Saiu" = statusManual 'sem_garagem' → some do mapa/libera vaga → vai p/ "Sem garagem (manual)".
+const STATUS_ROTULOS_HOSP={confirmado:'🏠 Na garagem',sem_garagem:'🚗 Saiu (sem garagem)'};
+function statusEditorHospedadoHTML(nro,statusAtual){
+  const st=(statusAtual==='sem_garagem')?'sem_garagem':'confirmado';
+  const opts=['confirmado','sem_garagem']
+    .map(v=>`<option value="${v}"${v===st?' selected':''}>${STATUS_ROTULOS_HOSP[v]}</option>`).join('');
+  return`<select class="status-sel" title="Marcar saída / voltar para a garagem" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}</select>`;
+}
 // Badge/nota de divergência com o PMS (quem/quando).
 function divergenciaHTML(res,aj){
   if(!pmsDivergente(res,aj))return'';
   const ua=aj&&aj.ultimaAlteracao;
   const quem=ua&&ua.funcionario?escapeHtml(ua.funcionario):'—';
   const quando=ua&&ua.dataHora?fmtDataHoraISO(ua.dataHora):'';
-  return`<div class="pms-diverg-badge" title="Alterado manualmente — PMS ainda não atualizado">⚠ Alterado manualmente por <b>${quem}</b>${quando?' em <b>'+quando+'</b>':''} — PMS ainda não atualizado</div>`;
+  // v1.5.1 — hospedado: "marcado como saiu manualmente — comanda ainda mostra garagem".
+  const fim=(res&&res.ehHospedado)?'comanda ainda mostra garagem':'PMS ainda não atualizado';
+  const acao=(res&&res.ehHospedado)?'Marcado como saiu manualmente':'Alterado manualmente';
+  return`<div class="pms-diverg-badge" title="${acao} — ${fim}">⚠ ${acao} por <b>${quem}</b>${quando?' em <b>'+quando+'</b>':''} — ${fim}</div>`;
 }
 function fmtDataHoraISO(iso){try{const d=new Date(iso);if(isNaN(d))return'';return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}catch(e){return'';}}
 
@@ -2650,6 +2956,7 @@ async function init(){
   document.getElementById('footer-version').textContent=APP_VERSION;
   carregarOrdemVagas();atualizarBtnOrdem();      // 5.4
   carregarUploadInfo();renderUploadInfo();        // 5.5
+  carregarUploadInfoHosp();renderUploadInfoHosp();// v1.5.1 — slot Hospedados
   initDatas();
   const ep=document.getElementById('envio-preview');if(ep)ep.addEventListener('input',envioPreviewInput);
   const ee=document.getElementById('envio-enviar');if(ee)ee.addEventListener('click',onEnvioEnviarClick); // v1.4.0
@@ -2658,7 +2965,13 @@ async function init(){
   await carregarGestao();    // v1.2.0
   await carregarAjustes();   // v1.3.0 (antes do render p/ aplicar ajustes)
   await carregarEnvios();    // v1.4.0 (histórico p/ status "enviado" + prancheta)
+  await carregarHospedados();// v1.5.1 (2º documento — antes do render p/ alocar hospedados)
   await carregarDoBanco();
+  // v1.5.1 — se só houver hospedados (sem reservas), ainda assim renderiza o mapa.
+  if(!todasReservas.length&&todosHospedados.length){
+    document.getElementById('empty-state').style.display='none';
+    atualizarTudo();
+  }
 }
 // Expõe a promessa de init() p/ que os testes aguardem o boot COMPLETO (evita corrida com
 // o fim do init quando um teste dispara import/ajuste logo após o app abrir). Inócuo em produção.

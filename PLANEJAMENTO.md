@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.0** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura.
+> Versão atual: **v1.5.1** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -79,6 +79,20 @@
   **Versionamento 1.5.x** registrado (sem 2.0 sem ordem). Testes **212/212** (141 engine + 47 jsdom
   + 24 Playwright). Ver `RELATORIO-v1.5.0.md`.
 
+### v1.5.1 (entregue 08/07/2026) — 2º documento (Comandas / Hospedados)
+- **Dois slots** (Reservas / Hospedados) com **emissão** do documento sempre visível; parse pelo
+  conteúdo. **Validação por presença de informação** (gera com a info em qualquer formato/PMS;
+  recusa+avisa sem a info). **Bloqueio de documento mais antigo** (emissão via `CreationDate` +
+  reforço impresso) mantendo o atual.
+- **Parser do Comandas** (`parsearComandas`): apto/nome/período/canal(opcional); veículo pelo PDV
+  GARAGEM (CARRO→P, CAMIONETE→G, MOTO→moto); **tamanho opcional → padrão**; auto-filtro; multi-veículo.
+- **Hospedados** (store `hospedados`, DB **v4→v5**) alocados como **ocupantes de prioridade máxima**,
+  com **render próprio** (🏠), **arrastáveis e editáveis** (remoção → área "Sem garagem (manual)" com
+  auditoria/persistência/divergência) reusando o `ajustes` pela **chave estável**. **Anti-duplicação**
+  entre os dois documentos (hospedado prevalece).
+- Migração não-destrutiva; reimport de um slot não afeta o outro. Testes **256/256** (173 engine + 56
+  jsdom + 27 Playwright) + exercício de ponta a ponta com o **PDF real**. Ver `RELATORIO-v1.5.1.md`.
+
 ---
 
 ## ✅ ROADMAP LOCAL (sem backend) — CONCLUÍDO
@@ -97,9 +111,13 @@ infraestrutura.
   importação de arquivo (o Backup da v1.2.0 já é uma base; chave de integração = `nro`).
 
 ## 🕓 ADIADOS ("vamos ver depois")
+- **Calibrar a extração do Comandas para outros PMSs** — as heurísticas do `parsearComandas` foram
+  calibradas na única amostra disponível (Desbravador). Quando houver documentos reais de outro PMS,
+  ajustar o extrator (isolado/plugável). Refinamento de multi-veículo também aqui.
 - **Confirmação real de entrega da mensagem** (entregue/lida) — exige **WhatsApp Business API/backend**.
   O status "enviado" (v1.4.0) só garante que o `wa.me` foi **disparado** pelo app.
-- **Motos arrastáveis** (v1.5.0 tornou **overbooking** arrastável; motos seguem fora).
+- **Motos arrastáveis** (v1.5.0/v1.5.1: overbooking arrastável e hospedados arrastáveis; motos seguem fora).
+- **Hospedados na aba Contato** (hoje só no mapa; Contato é ferramenta de telefonema para reservas).
 - **(Opção) Arraste manual "posicional"** — fixar a reserva na posição solta **sem realocar** os
   automáticos (hoje mover libera a vaga e os automáticos se reorganizam), se o Douglas preferir.
 - Mapeamento do **nome do canal** para `[canal]` (expedia.com / hoteis.com / omnibees).

@@ -24,6 +24,24 @@ function montarPDF() {
   ].join('\n');
 }
 
+// v1.5.1 — Comandas em aberto (datas dd/mm/aaaa relativas a hoje)
+function fmtComandaData(d) { return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; }
+function blocoComanda(apto, nome, ent, sai, canal, desc) {
+  return `        ${apto} ${nome} ${fmtComandaData(ent)}      ${fmtComandaData(sai)}      ${canal}      Extras
+GARAGEM           ${fmtBloco(ent)}       1 ESTACIONAMENTO ${desc}
+                                                     40,00           0,00 Lançamento      0     0    ${apto} FUNC X`;
+}
+function montarComandas(list) {
+  const hoje = dias(0), maisTarde = dias(5), ontem = dias(-2), depois = dias(3);
+  const blocos = list || [
+    blocoComanda('501', 'HOSPEDE CARRO', hoje, maisTarde, 'BOOKING.COM', 'CARRO DE PASSEIO'),
+    blocoComanda('502', 'HOSPEDE GRANDE', ontem, depois, '', 'CAMIONETE - BAIXA60,00'),
+  ];
+  return `HOTEL GUMZ                     Comandas em aberto - detalhado            Página:    1
+Filtro: Lançadas até 31/12/3000 | Todas contas:sim |
+` + blocos.join('\n');
+}
+
 async function boot(page) {
   await page.goto('/index.html');
   await page.waitForFunction(() => /salvo|mem/.test(document.getElementById('db-chip').textContent));
@@ -32,14 +50,21 @@ async function importar(page) {
   await page.evaluate(async (txt) => { await window.importarPDF(window.parsear(txt)); }, montarPDF());
   await page.waitForSelector('.cell-span');
 }
+async function importarComandas(page, txt) {
+  await page.evaluate(async (t) => { await window.importarComandas(window.parsearComandas(t)); }, txt || montarComandas());
+  await page.waitForSelector('.cell-span.hospedado');
+}
 
-test('smoke: carrega, rodapé v1.5.0, abas (Mapa/Contato/Gestão)', async ({ page }) => {
+test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.0');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.1');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
   await expect(page.locator('#tab-gestao')).toContainText('Gestão');
+  // v1.5.1 — dois slots identificados (Reservas / Hospedados)
+  await expect(page.locator('#upload-label')).toContainText('Reservas');
+  await expect(page.locator('#upload-label-hosp')).toContainText('Hospedados');
 });
 
 test('Gestão: seções presentes e legenda de chaves + botão "?"', async ({ page }) => {
@@ -285,7 +310,7 @@ test('5.5/5.4 detalhe: copiar nº PMS/OTA + prancheta no canto inferior direito'
 });
 
 test('5.6 pan: arrastar o FUNDO move o mapa nas duas direções; bloco ainda move de vaga', async ({ page }) => {
-  await page.setViewportSize({ width: 760, height: 520 }); // força overflow horizontal e vertical
+  await page.setViewportSize({ width: 760, height: 680 }); // força overflow horiz. e vert. (altura p/ P5 ficar visível após o cabeçalho de 2 slots)
   await boot(page);
   await importar(page);
   // estado inicial de scroll
@@ -392,14 +417,81 @@ test('D: Cancelar o arraste p/ overbooking não muda nada', async ({ page }) => 
   await expect(page.locator('.row-cells[data-vaga="OVERBOOKING"] .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(0);
 });
 
-test('screenshots do mapa, contato e gestão (v1.5.0)', async ({ page }) => {
+// ════════ v1.5.1 — 2º DOCUMENTO (Comandas/Hospedados) ════════
+
+test('v1.5.1 subir comandas → hospedados no mapa (visual próprio, vaga por tipo) + emissão no slot', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  await boot(page);
+  await importarComandas(page);
+  // hospedados renderizados com visual próprio (classe .hospedado)
+  await expect(page.locator('#mapa-container .cell-span.hospedado', { hasText: 'HOSPEDE CARRO' })).toHaveCount(1);
+  await expect(page.locator('#mapa-container .cell-span.hospedado', { hasText: 'HOSPEDE GRANDE' })).toHaveCount(1);
+  // camionete (G) na seção Grande
+  const gVagas = page.locator('.row-cells[data-vaga^="G"] .cell-span', { hasText: 'HOSPEDE GRANDE' });
+  await expect(gVagas).toHaveCount(1);
+  // legenda inclui Hospedado
+  await expect(page.locator('.legenda')).toContainText('Hospedado');
+});
+
+test('v1.5.1 arrastar hospedado e "marcar saída" → vai para Sem garagem (manual)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 2000 });
+  await boot(page);
+  await importarComandas(page);
+  // arrasta o hospedado carro para a vaga P8
+  await arrastar(page, 'HOSPEDE CARRO', 'P8');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P8"] .cell-span', { hasText: 'HOSPEDE CARRO' })).toHaveCount(1);
+  // abre o detalhe (clique abaixo do limiar) e marca saída
+  const src = page.locator('.cell-span', { hasText: 'HOSPEDE CARRO' }).first();
+  const sb = await src.boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sb.x + sb.width / 2 + 2, sb.y + sb.height / 2 + 2, { steps: 2 });
+  await page.mouse.up();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  await page.locator('#detalhe-corpo .status-sel').selectOption('sem_garagem');
+  await page.evaluate(() => window.fecharDetalhe()); // fecha o modal antes de mexer no mapa
+  // some do mapa
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'HOSPEDE CARRO' })).toHaveCount(0);
+  // aparece na área Sem garagem (manual)
+  await page.check('#chk-semgar');
+  await expect(page.locator('.secao-semgar')).toContainText('HOSPEDE CARRO');
+});
+
+test('v1.5.1 documento mais antigo é recusado; arquivo sem info não gera + avisa; reimport de um slot não apaga o outro', async ({ page }) => {
+  await boot(page);
+  // aplica reservas + comandas (emissão 2000)
+  await page.evaluate(async ({ res, com }) => {
+    await window.aplicarUploadReservas(res, 2000, { nomeArquivo: 'r.pdf', dataHoraUpload: Date.now() });
+    await window.aplicarUploadHospedados(com, 2000, { nomeArquivo: 'c.pdf', dataHoraUpload: Date.now() });
+  }, { res: montarPDF(), com: montarComandas() });
+  await page.waitForSelector('.cell-span.hospedado');
+  const hospAntes = await page.evaluate(() => window.hospedadosNoPeriodo().length);
+  // documento de comandas MAIS ANTIGO (emissão 1000) → recusado, mantém o atual + mensagem de aviso
+  const r = await page.evaluate(async (com) => window.aplicarUploadHospedados(com, 1000, { nomeArquivo: 'antigo.pdf', dataHoraUpload: Date.now() }), montarComandas([blocoComanda('900', 'SO UM', dias(0), dias(3), '', 'CARRO DE PASSEIO')]));
+  expect(r.status).toBe('recusado_antigo');
+  expect(r.msg).toContain('mais antigo');
+  expect(await page.evaluate(() => window.hospedadosNoPeriodo().length)).toBe(hospAntes);
+  // arquivo SEM as infos no slot de comandas → não gera + aviso
+  const r2 = await page.evaluate(async () => window.aplicarUploadHospedados('documento aleatorio sem estrutura', 5000, { nomeArquivo: 'x.pdf', dataHoraUpload: Date.now() }));
+  expect(r2.status).toBe('invalido');
+  expect(r2.msg).toContain('não conferem');
+  // reimport SÓ das reservas não apaga hospedados
+  const resCount = await page.evaluate(() => window.hospedadosNoPeriodo().length);
+  await page.evaluate(async (res) => window.aplicarUploadReservas(res, 3000, { nomeArquivo: 'r2.pdf', dataHoraUpload: Date.now() }), montarPDF());
+  expect(await page.evaluate(() => window.hospedadosNoPeriodo().length)).toBe(resCount);
+});
+
+test('screenshots do mapa, contato e gestão (v1.5.1)', async ({ page }) => {
   await boot(page);
   await importar(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.0-mapa.png'), fullPage: true });
+  await importarComandas(page);
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.1-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.0-contato.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.1-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.0-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.1-gestao.png'), fullPage: true });
 });

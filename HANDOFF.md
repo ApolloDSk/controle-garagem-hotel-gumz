@@ -4,15 +4,33 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.0** (07/07/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
+- **Versão entregue: v1.5.1** (08/07/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
   (branch `master`). ⚠ **Nunca** tocar nos repos do **Garage Spot** (`garagespot-*`) — outro projeto.
 - App canônico: `garagem-app/index.html`; standalone (Chrome): `garagem-app/controle-garagem-standalone.html`
   (regenerar com `node build-standalone.js` em `garagem-app/` sempre que mexer no `index.html`).
-- Stack: HTML/JS/CSS puro + PDF.js + IndexedDB (DB `garagemGumz` **v4**: stores `reservas`,
-  `contatos`, `gestao`, `ajustes`, **`envios`**). Sem backend, sem APK.
-- **⚠ Versionamento 1.5.x:** incrementos pequenos (`1.5.1`, …); correção sobre patch = `1.5.2.1`.
+- Stack: HTML/JS/CSS puro + PDF.js + IndexedDB (DB `garagemGumz` **v5**: stores `reservas`,
+  `contatos`, `gestao`, `ajustes`, `envios`, **`hospedados`**). Sem backend, sem APK.
+- **⚠ Versionamento 1.5.x:** incrementos pequenos (`1.5.2`, …); correção sobre patch = `1.5.2.1`.
   **A 2.0 NÃO sai sem ordem explícita do Douglas** (reservada p/ a versão mais redonda).
-- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.5.0). O que falta exige infraestrutura.
+- **Roadmap local (sem backend) CONCLUÍDO** (v1.0.0 → v1.5.1). O que falta exige infraestrutura ou
+  amostras de outros PMSs (para calibrar a extração do Comandas).
+
+## O que a v1.5.1 entregou (2º documento — Comandas / Hospedados)
+1. **Dois slots** (Reservas / Hospedados) com **emissão** do documento sempre visível; parse pelo
+   conteúdo. Núcleos testáveis `aplicarUploadReservas`/`aplicarUploadHospedados`.
+2. **Validação por informação** (`validarDocumentoReservas`/`validarDocumentoComandas`): gera se
+   extraiu a info (qualquer formato/PMS), **recusa + avisa** se não. **Bloqueio de documento mais
+   antigo** (`compararEmissao`; emissão via `CreationDate`/`getMetadata` + reforço impresso).
+3. **Parser `parsearComandas`** (pura): apto/nome/período/canal(opcional); veículo pelo PDV GARAGEM
+   (CARRO→P, CAMIONETE→G, MOTO→moto); **tamanho opcional → padrão**; auto-filtro; multi-veículo.
+   Extrator **isolado/plugável**, calibrado no Desbravador (única amostra).
+4. **Hospedados** (store `hospedados`, DB **v4→v5**) como **ocupantes de prioridade máxima**, **render
+   próprio** (🏠, `.cell-span.hospedado`), **arrastáveis e editáveis** (editor "Na garagem ↔ Saiu";
+   remoção → área "Sem garagem (manual)" com auditoria/persistência/divergência) reusando `ajustes`
+   pela **chave estável** = `${apto}__${entradaISO}__${tipoVeiculo||'x'}`.
+5. **Anti-duplicação** (`dedupeReservasHospedados`): mesmo apto + período sobreposto → hospedado
+   prevalece; a reserva não é desenhada. Migração não-destrutiva; reimport de um slot não afeta o
+   outro. Testes **256/256** + exercício de ponta a ponta com o PDF real.
 
 ## O que a v1.5.0 entregou
 1. **Status manual editável** (Confirmado/Aguardando/**Sem garagem**) no **detalhe** (Mapa) e na aba

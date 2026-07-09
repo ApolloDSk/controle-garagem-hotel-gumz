@@ -44,6 +44,24 @@ function montarPDF() {
   ].join('\n');
 }
 
+// v1.5.1 — Comandas em aberto (datas dd/mm/aaaa relativas a hoje)
+function fmtComandaData(d) { return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; }
+function blocoComanda(apto, nome, ent, sai, canal, desc) {
+  return `        ${apto} ${nome} ${fmtComandaData(ent)}      ${fmtComandaData(sai)}      ${canal}      Extras
+GARAGEM           ${fmtBloco(ent)}       1 ESTACIONAMENTO ${desc}
+                                                     40,00           0,00 Lançamento      0     0    ${apto} FUNC X`;
+}
+function montarComandas(blocos) {
+  const hoje = diasDeHoje(0), maisTarde = diasDeHoje(5), ontem = diasDeHoje(-2), depois = diasDeHoje(3);
+  const list = blocos || [
+    blocoComanda('501', 'HOSPEDE CARRO', hoje, maisTarde, 'BOOKING.COM', 'CARRO DE PASSEIO'),
+    blocoComanda('502', 'HOSPEDE GRANDE', ontem, depois, '', 'CAMIONETE - BAIXA60,00'),
+  ];
+  return `HOTEL GUMZ                     Comandas em aberto - detalhado            Página:    1
+Filtro: Lançadas até 31/12/3000 | Todas contas:sim |
+` + list.join('\n');
+}
+
 async function novoApp() {
   // IndexedDB limpo a cada app
   const idb = new fidb.IDBFactory();
@@ -78,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.0', async () => {
+  await T('rodapé mostra v1.5.1', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.0');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.1');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -704,6 +722,124 @@ async function aguardarBoot(w) {
     // clicar na área de meta (não o nome) dispara a seleção via item.onclick
     item.querySelector('.ct-meta').dispatchEvent(new w.Event('click', { bubbles: true }));
     ok(item.classList.contains('active'), 'item selecionado ao clicar fora do nome');
+  });
+
+  /* ── v1.5.1 — 2º DOCUMENTO (Comandas/Hospedados) ── */
+  await T('v1.5.1 migração v4→v5: store hospedados existe, demais intactos', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    ok(Array.isArray(await w.dbGetAll('hospedados')), 'store hospedados acessível');
+    ok(Array.isArray(await w.dbGetAll('reservas')), 'reservas intacto');
+    ok(Array.isArray(await w.dbGetAll('ajustes')), 'ajustes intacto');
+    ok(Array.isArray(await w.dbGetAll('envios')), 'envios intacto');
+  });
+
+  await T('v1.5.1 importarComandas → hospedados no mapa (visual próprio, vaga por tipo)', async () => {
+    const { w } = await novoApp();
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(20);
+    const spans = [...w.document.querySelectorAll('#mapa-container .cell-span.hospedado')];
+    ok(spans.some(s => /HOSPEDE CARRO/.test(s.textContent)), 'hospedado carro pequeno renderizado (classe hospedado)');
+    ok(spans.some(s => /HOSPEDE GRANDE/.test(s.textContent)), 'hospedado camionete renderizado');
+    // camionete (G) deve ocupar a seção Grande
+    const alocG = w.aplicarAjustes(w.conjuntoAtivo(), {});
+    ok([].concat(...alocG.linhasG).some(r => /HOSPEDE GRANDE/.test(r.nomeCompleto)), 'camionete alocada em vaga grande');
+  });
+
+  await T('v1.5.1 anti-duplicação: reserva com mesmo apto+período some (hospedado prevalece)', async () => {
+    const { w } = await novoApp();
+    const hoje = diasDeHoje(0), maisTarde = diasDeHoje(5);
+    await w.importarPDF(w.parsear(bloco('40001', hoje, maisTarde, '601', 'WHATSAPP', 'GARAGEM PEQUENO', 'FULANO RESERVA'))); await sleep(20);
+    await w.importarComandas(w.parsearComandas(montarComandas([blocoComanda('601', 'FULANO HOSPEDE', hoje, maisTarde, '', 'CARRO DE PASSEIO')]))); await sleep(20);
+    ok(!w.conjuntoAtivo().some(r => r.nro === '40001'), 'reserva 40001 (apto 601) deduplicada');
+    ok(w.conjuntoAtivo().some(r => r.ehHospedado && r.apto === '601'), 'hospedado do apto 601 presente');
+  });
+
+  await T('v1.5.1 hospedado editável: marcar saída → sai do mapa, aparece em Sem garagem, restaurável', async () => {
+    const { w } = await novoApp();
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(20);
+    const h = w.hospedadosNoPeriodo().find(x => x.apto === '501');
+    await w.salvarStatusManual(h.nro, 'sem_garagem'); await sleep(20);
+    ok(![...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /HOSPEDE CARRO/.test(s.textContent)), 'saiu do mapa');
+    const chk = w.document.getElementById('chk-semgar'); chk.checked = true; w.toggleSemGaragem(); await sleep(20);
+    const area = w.document.querySelector('.secao-semgar');
+    ok(area && /HOSPEDE CARRO/.test(area.textContent), 'listado na área Sem garagem (manual)');
+    // auditoria gravada
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === h.nro);
+    ok(aj && aj.statusManual === 'sem_garagem' && aj.ultimaAlteracao, 'override + auditoria gravados');
+    // restaura
+    await w.salvarStatusManual(h.nro, 'confirmado'); await sleep(20);
+    ok([...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /HOSPEDE CARRO/.test(s.textContent)), 'voltou ao mapa');
+  });
+
+  await T('v1.5.1 hospedado arrastável: salvarAjuste grava placement na chave do hospedado', async () => {
+    const { w } = await novoApp();
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(20);
+    const h = w.hospedadosNoPeriodo().find(x => x.apto === '501');
+    await w.salvarAjuste(h.nro, 'P7'); await sleep(20);
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === h.nro);
+    ok(aj && aj.vagaIdManual === 'P7', 'placement gravado na chave do hospedado');
+    // a vaga P7 passa a conter o hospedado
+    const cellP7 = w.document.querySelector('.row-cells[data-vaga="P7"]');
+    ok(cellP7 && /HOSPEDE CARRO/.test(cellP7.textContent), 'hospedado fixado na vaga P7');
+  });
+
+  await T('v1.5.1 override do hospedado SOBREVIVE ao reimport do comandas; divergência se comanda ainda mostra garagem', async () => {
+    const { w } = await novoApp();
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(20);
+    const h = w.hospedadosNoPeriodo().find(x => x.apto === '501');
+    await w.salvarStatusManual(h.nro, 'sem_garagem'); await sleep(20);
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(20); // reimporta (comanda ainda mostra garagem)
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === h.nro);
+    ok(aj && aj.statusManual === 'sem_garagem', 'override sobrevive ao reimport');
+    const h2 = w.hospedadosNoPeriodo().find(x => x.apto === '501');
+    ok(w.pmsDivergente(h2, aj), 'divergência: saiu manualmente mas comanda ainda mostra garagem');
+  });
+
+  await T('v1.5.1 reimport de um slot NÃO afeta o outro; hospedados persistem ao reabrir', async () => {
+    const idb = new fidb.IDBFactory();
+    const mk = async () => {
+      const dom = new JSDOM(fs.readFileSync(path.join(__dirname, '..', 'garagem-app', 'index.html'), 'utf8'), {
+        runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/',
+        beforeParse(window) {
+          window.indexedDB = idb; window.IDBKeyRange = fidb.IDBKeyRange;
+          window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) };
+          window.alert = () => { };
+        }
+      });
+      const w = dom.window; await aguardarBoot(w); return w;
+    };
+    const w1 = await mk();
+    await w1.importarPDF(w1.parsear(montarPDF())); await sleep(20);
+    await w1.importarComandas(w1.parsearComandas(montarComandas())); await sleep(20);
+    // reimporta SÓ reservas → hospedados intactos
+    await w1.importarPDF(w1.parsear(montarPDF())); await sleep(20);
+    ok((await w1.dbGetAll('hospedados')).length >= 2, 'reimport de reservas não apaga hospedados');
+    ok((await w1.dbGetAll('reservas')).length >= 4, 'reservas presentes');
+    // reabre mesmo IndexedDB
+    const w2 = await mk(); await sleep(20);
+    ok(w2.hospedadosNoPeriodo().length >= 2, 'hospedados persistem ao reabrir');
+  });
+
+  await T('v1.5.1 validação por informação: comanda no slot reservas é recusada (mantém atual)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    const antes = (await w.dbGetAll('reservas')).length;
+    const r = await w.aplicarUploadReservas(montarComandas(), 999, { nomeArquivo: 'comanda.pdf', dataHoraUpload: Date.now() });
+    eq(r.status, 'invalido', 'comanda não gera controle de reservas');
+    eq((await w.dbGetAll('reservas')).length, antes, 'reservas mantidas');
+  });
+
+  await T('v1.5.1 bloqueio de emissão: documento mais antigo é recusado, mantém o atual', async () => {
+    const { w } = await novoApp();
+    const r1 = await w.aplicarUploadHospedados(montarComandas(), 2000, { nomeArquivo: 'novo.pdf', dataHoraUpload: Date.now() });
+    eq(r1.status, 'aplicado', '1º documento aplicado');
+    const n1 = (await w.dbGetAll('hospedados')).length;
+    const r2 = await w.aplicarUploadHospedados(montarComandas([blocoComanda('999', 'ANTIGO', diasDeHoje(0), diasDeHoje(3), '', 'CARRO DE PASSEIO')]), 1000, { nomeArquivo: 'antigo.pdf', dataHoraUpload: Date.now() });
+    eq(r2.status, 'recusado_antigo', 'documento mais antigo recusado');
+    eq((await w.dbGetAll('hospedados')).length, n1, 'conjunto de hospedados mantido (não substituído)');
+    // igual/mais recente aplica
+    const r3 = await w.aplicarUploadHospedados(montarComandas([blocoComanda('999', 'RECENTE', diasDeHoje(0), diasDeHoje(3), '', 'CARRO DE PASSEIO')]), 3000, { nomeArquivo: 'recente.pdf', dataHoraUpload: Date.now() });
+    eq(r3.status, 'aplicado', 'emissão mais recente aplica');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

@@ -33,7 +33,11 @@ const EXPORTS = [
   // v1.4.0
   'formatarNomeProprio','statusEnvioReserva','montarRegistroEnvio','enviosOrdenados',
   // v1.5.0
-  'statusDerivadoDoPDF','statusEfetivo','pmsDivergente','placementOverbooking','placementValido'
+  'statusDerivadoDoPDF','statusEfetivo','pmsDivergente','placementOverbooking','placementValido',
+  // v1.5.1
+  'parsePdfDate','extrairEmissaoImpressa','compararEmissao','parsearComandas','tipoVeiculoDeSegmento',
+  'validarDocumentoReservas','validarDocumentoComandas','chaveHospedado','garagemDeTipoVeiculo',
+  'hospedadoParaReserva','dedupeReservasHospedados'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -623,7 +627,133 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.0', () => { eq(E.APP_VERSION, 'v1.5.0'); });
+t('APP_VERSION é v1.5.1', () => { eq(E.APP_VERSION, 'v1.5.1'); });
+
+/* ════════════ v1.5.1 — 2º DOCUMENTO (Comandas/Hospedados) ════════════ */
+// Fixture real (reproduz as manhas do Desbravador: valor colado, descrição quebrada, canal ausente).
+const COMANDAS_FIXTURE = `HOTEL GUMZ                              Comandas em aberto - detalhado            Página:    1
+Filtro: Lançadas até 31/12/3000 | Todas contas:sim | Todos PDVs:não |
+                                                            Apartamento
+        1 FULANO DE TAL                          06/07/2026      11/07/2026      BOOKING.COM      Extras
+Ponto de Venda Data          Qtde Descrição                     Val.Unit.  Val.Total  Taxas Tipo       Comanda Cupom Origem Func
+GARAGEM           06/07/26       1 ESTACIONAMENTO CAMIONETE - BAIXA60,00
+                                                        2025               60,00   0,00 Lançamento     0     0      1 BELTRANO X
+      238 CICLANO E FULANA 07/07/2026                            10/07/2026      Extras
+GARAGEM           07/07/26       1 ESTACIONAMENTO CARRO DE PASSEIO
+                                                     40,00
+                                                       - BAIXA 2025
+                                                                  40,00           0,00 Lançamento      0     0    238 BELTRANO X
+      300 SICRANO SOUZA                           05/07/2026      09/07/2026      MOTOR OMNIBEES   Extras
+GARAGEM           05/07/26       1 ESTACIONAMENTO MOTO - ALTA 2025/2026
+                                                                  30,00           0,00 Lançamento      0     0    300 BELTRANO X`;
+
+// ── EMISSÃO ──
+t('parsePdfDate lê CreationDate D:YYYYMMDDHHmmSS', () => { const ms = E.parsePdfDate('D:20260708173949Z'); const d = new Date(ms); eq(d.getFullYear(), 2026); eq(d.getMonth(), 6); eq(d.getDate(), 8); eq(d.getHours(), 17); });
+t('parsePdfDate aceita offset -03\'00\'', () => { ok(E.parsePdfDate("D:20260708193822-03'00'") != null); });
+t('parsePdfDate lê data impressa dd/mm/aaaa hh:mm', () => { const ms = E.parsePdfDate('08/07/2026 19:38'); const d = new Date(ms); eq(d.getDate(), 8); eq(d.getMonth(), 6); eq(d.getHours(), 19); });
+t('parsePdfDate null quando indeterminável', () => { eq(E.parsePdfDate('xyz'), null); eq(E.parsePdfDate(null), null); });
+t('extrairEmissaoImpressa acha data/hora no texto', () => { ok(E.extrairEmissaoImpressa('rodapé 08/07/2026 19:38:22 fim') != null); });
+t('compararEmissao: mais recente aplica', () => { eq(E.compararEmissao(2000, 1000), 'aplicar'); });
+t('compararEmissao: igual aplica', () => { eq(E.compararEmissao(1000, 1000), 'aplicar'); });
+t('compararEmissao: mais antigo recusa', () => { eq(E.compararEmissao(500, 1000), 'recusar'); });
+t('compararEmissao: sem atual aplica', () => { eq(E.compararEmissao(1000, null), 'aplicar'); });
+t('compararEmissao: nova desconhecida → desconhecida', () => { eq(E.compararEmissao(null, 1000), 'desconhecida'); });
+
+// ── PARSER COMANDAS ──
+t('parsearComandas: 3 hospedados da fixture', () => { eq(E.parsearComandas(COMANDAS_FIXTURE).length, 3); });
+t('parsearComandas: apto 1 CAMIONETE→G, canal BOOKING.COM', () => {
+  const h = E.parsearComandas(COMANDAS_FIXTURE).find(x => x.apto === '1');
+  eq(h.tipoVeiculo, 'G'); eq(h.canal, 'BOOKING.COM'); eq(h.nome, 'FULANO DE TAL');
+  eq(h.entrada.getDate(), 6); eq(h.saida.getDate(), 11);
+});
+t('parsearComandas: apto 238 CARRO→P, canal vazio (ausente), nome com E', () => {
+  const h = E.parsearComandas(COMANDAS_FIXTURE).find(x => x.apto === '238');
+  eq(h.tipoVeiculo, 'P'); eq(h.canal, ''); eq(h.nome, 'CICLANO E FULANA');
+});
+t('parsearComandas: apto 300 MOTO→moto (canal MOTOR OMNIBEES não vira moto por engano)', () => {
+  const h = E.parsearComandas(COMANDAS_FIXTURE).find(x => x.apto === '300');
+  eq(h.tipoVeiculo, 'moto'); eq(h.canal, 'MOTOR OMNIBEES');
+});
+t('parsearComandas: sem tamanho reconhecido → tipoVeiculo null (padrão)', () => {
+  const txt = `        9 HOSPEDE X 01/07/2026 05/07/2026 Extras
+GARAGEM 01/07/26 1 ESTACIONAMENTO 40,00`;
+  const h = E.parsearComandas(txt);
+  eq(h.length, 1); eq(h[0].tipoVeiculo, null);
+});
+t('parsearComandas: bloco sem GARAGEM é ignorado (auto-filtro)', () => {
+  const txt = `        7 SEM GARAGEM 01/07/2026 05/07/2026 Extras
+RESTAURANTE 01/07/26 1 JANTAR 40,00`;
+  eq(E.parsearComandas(txt).length, 0);
+});
+t('parsearComandas: multi-veículo → um ocupante por tipo', () => {
+  const txt = `       50 MULTI CARROS 01/07/2026 05/07/2026 Extras
+GARAGEM 01/07/26 1 ESTACIONAMENTO CARRO DE PASSEIO 40,00
+GARAGEM 01/07/26 1 ESTACIONAMENTO CAMIONETE 60,00`;
+  const h = E.parsearComandas(txt);
+  eq(h.length, 2);
+  ok(h.some(x => x.tipoVeiculo === 'P')); ok(h.some(x => x.tipoVeiculo === 'G'));
+});
+t('parsearComandas: bloco malformado não quebra', () => { ok(Array.isArray(E.parsearComandas('lixo\nsem estrutura\n'))); });
+t('tipoVeiculoDeSegmento reconhece os três + null', () => {
+  eq(E.tipoVeiculoDeSegmento('ESTACIONAMENTO CARRO DE PASSEIO'), 'P');
+  eq(E.tipoVeiculoDeSegmento('ESTACIONAMENTO CAMIONETE - BAIXA'), 'G');
+  eq(E.tipoVeiculoDeSegmento('ESTACIONAMENTO MOTO - ALTA'), 'moto');
+  eq(E.tipoVeiculoDeSegmento('ESTACIONAMENTO'), null);
+});
+
+// ── VALIDAÇÃO POR INFORMAÇÃO ──
+t('validarDocumentoComandas: fixture tem info → ok', () => { ok(E.validarDocumentoComandas(COMANDAS_FIXTURE).ok); });
+t('validarDocumentoComandas: texto sem info → não gera', () => { ok(!E.validarDocumentoComandas('documento qualquer sem comandas').ok); });
+t('validarDocumentoReservas: comanda no slot de reservas → não confere', () => { ok(!E.validarDocumentoReservas(COMANDAS_FIXTURE).ok); });
+t('validarDocumentoComandas: reservas no slot de comandas → não confere', () => {
+  const reservasTxt = '05/06/26 08/06 1 2 201 ABC 30001 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes :\nANA\nANA\nDesbravador Software';
+  ok(!E.validarDocumentoComandas(reservasTxt).ok);
+});
+
+// ── HOSPEDADO → reserva-like + chave estável ──
+t('chaveHospedado estável por apto+entrada+tipo', () => {
+  const k = E.chaveHospedado({ apto: '1', entrada: D('06/07/26'), tipoVeiculo: 'G' });
+  eq(k, '1__2026-07-06__G');
+});
+t('chaveHospedado null tipo → x', () => { eq(E.chaveHospedado({ apto: '9', entrada: D('01/07/26'), tipoVeiculo: null }), '9__2026-07-01__x'); });
+t('garagemDeTipoVeiculo: P/G/moto/null(padrão pequeno)', () => {
+  eq(E.garagemDeTipoVeiculo('P'), 'azul_pequeno');
+  eq(E.garagemDeTipoVeiculo('G'), 'azul_grande');
+  eq(E.garagemDeTipoVeiculo('moto'), 'azul_moto');
+  eq(E.garagemDeTipoVeiculo(null), 'azul_pequeno');
+});
+t('hospedadoParaReserva monta objeto reserva-like com ehHospedado', () => {
+  const r = E.hospedadoParaReserva({ apto: '1', nome: 'FULANO', entrada: D('06/07/26'), saida: D('11/07/26'), canal: 'BOOKING.COM', tipoVeiculo: 'G' });
+  eq(r.ehHospedado, true); eq(r.garagem, 'azul_grande'); eq(r.nro, '1__2026-07-06__G'); eq(r.origem, 'Hospedado');
+});
+
+// ── ALOCAÇÃO: hospedado ocupa primeiro; anti-duplicação ──
+t('hospedado entra como confirmado na alocação (ocupa vaga)', () => {
+  const h = E.hospedadoParaReserva({ apto: '1', nome: 'H', entrada: D('05/06/26'), saida: D('08/06/26'), tipoVeiculo: 'P' });
+  const aloc = E.aplicarAjustes([h], {});
+  ok([].concat(...aloc.linhasP).some(x => x.nro === h.nro), 'hospedado P ocupa uma vaga pequena');
+});
+t('dedupeReservasHospedados: reserva duplicada por hospedado (mesmo apto+período) some', () => {
+  const res = { nro: '30001', apto: '201', entrada: D('06/07/26'), saida: D('10/07/26'), garagem: 'azul_pequeno' };
+  const h = E.hospedadoParaReserva({ apto: '201', nome: 'H', entrada: D('06/07/26'), saida: D('11/07/26'), tipoVeiculo: 'P' });
+  const out = E.dedupeReservasHospedados([res], [h]);
+  eq(out.length, 0);
+});
+t('dedupeReservasHospedados: apto diferente NÃO é removido', () => {
+  const res = { nro: '30001', apto: '999', entrada: D('06/07/26'), saida: D('10/07/26'), garagem: 'azul_pequeno' };
+  const h = E.hospedadoParaReserva({ apto: '201', nome: 'H', entrada: D('06/07/26'), saida: D('11/07/26'), tipoVeiculo: 'P' });
+  eq(E.dedupeReservasHospedados([res], [h]).length, 1);
+});
+t('hospedado editável: sem_garagem tira do mapa (statusEfetivo/semGaragem)', () => {
+  const h = E.hospedadoParaReserva({ apto: '1', nome: 'H', entrada: D('05/06/26'), saida: D('08/06/26'), tipoVeiculo: 'P' });
+  const aloc = E.aplicarAjustes([h], { [h.nro]: { statusManual: 'sem_garagem' } });
+  ok((aloc.semGaragem || []).some(x => x.nro === h.nro));
+  ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === h.nro));
+});
+t('hospedado sem_garagem → divergência (comanda ainda mostra garagem)', () => {
+  const h = E.hospedadoParaReserva({ apto: '1', nome: 'H', entrada: D('05/06/26'), saida: D('08/06/26'), tipoVeiculo: 'P' });
+  ok(E.pmsDivergente(h, { statusManual: 'sem_garagem' }));
+});
 
 /* ── runner (suporta testes async) ── */
 (async () => {
