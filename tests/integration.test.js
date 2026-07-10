@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.1.1', async () => {
+  await T('rodapé mostra v1.5.2', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.1.1');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.2');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -873,6 +873,76 @@ Total Geral`;
     ok(spans.some(s => /HOSPEDE LEITURA/.test(s.textContent)), 'hospedado renderizado');
     // camionete (G) → seção grande
     ok([].concat(...w.aplicarAjustes(w.conjuntoAtivo(), {}).linhasG).some(x => /HOSPEDE LEITURA/.test(x.nomeCompleto)), 'camionete em vaga grande');
+  });
+
+  /* ── v1.5.2 — correções visíveis ── */
+  await T('5.1 nome com cabeçalho "Hóspedes:" (sem espaço) aparece no mapa (não "Hóspede")', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    const txt = `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 701 ABC 41010 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes:\nROBERTA MENEZES\nROBERTA MENEZES\nDesbravador Software`;
+    await w.importarPDF(w.parsear(txt)); await sleep(20);
+    ok([...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /ROBERTA MENEZES/.test(s.textContent)), 'nome extraído');
+    ok(!w.ativasNoPeriodo().some(r => r.nomeCompleto === 'Hóspede'), 'nenhum "Hóspede"');
+  });
+
+  await T('5.2 obs "SEM DISPONIBILIDADE DE GARAGEM" → sai do mapa, vai p/ Sem garagem + aviso', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    const txt = `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 702 ABC 41011 H\nWHATSAPP\nObs do Apto: SEM DISPONIBILIDADE DE GARAGEM\nHóspedes :\nCLEBER SANTOS\nCLEBER SANTOS\nDesbravador Software`;
+    await w.importarPDF(w.parsear(txt)); await sleep(20);
+    ok(![...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /CLEBER SANTOS/.test(s.textContent)), 'saiu do mapa');
+    // aviso de sem-garagem por PDF aparece (com o filtro desligado)
+    const av = w.document.getElementById('avisos');
+    ok(av.style.display !== 'none' && /indisponibilidade/i.test(av.textContent), 'aviso de sem-garagem por PDF');
+    // liga o filtro → aparece na área
+    const chk = w.document.getElementById('chk-semgar'); chk.checked = true; w.toggleSemGaragem(); await sleep(20);
+    ok(/CLEBER SANTOS/.test(w.document.querySelector('.secao-semgar').textContent), 'listado na área Sem garagem');
+  });
+
+  await T('5.2 obs ambígua → reserva PERMANECE no mapa + aviso de conferência (não marca sozinho)', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    const txt = `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 703 ABC 41012 H\nWHATSAPP\nObs do Apto: GARAGEM LOTADA VERIFICAR COM RECEPCAO\nHóspedes :\nMARCOS DIAS\nMARCOS DIAS\nDesbravador Software`;
+    await w.importarPDF(w.parsear(txt)); await sleep(20);
+    ok([...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /MARCOS DIAS/.test(s.textContent)), 'permanece no mapa');
+    const av = w.document.getElementById('avisos');
+    ok(av.style.display !== 'none' && /#41012/.test(av.textContent) && /sem garagem/i.test(av.textContent), 'aviso de conferência presente');
+  });
+
+  await T('5.2 obs com garagem confirmada NÃO vira sem garagem nem aviso', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    const txt = `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 704 ABC 41013 H\nWHATSAPP\nObs do Apto: COM GARAGEM GRANDE R$100\nHóspedes :\nPAULO REGO\nPAULO REGO\nDesbravador Software`;
+    await w.importarPDF(w.parsear(txt)); await sleep(20);
+    ok([...w.document.querySelectorAll('#mapa-container .cell-span')].some(s => /PAULO REGO/.test(s.textContent)), 'no mapa');
+    eq(w.document.getElementById('avisos').style.display, 'none', 'sem aviso');
+  });
+
+  await T('5.3 ícone de grupo (👥) presente no bloco de laranja/múltiplos aptos', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    // mesmo nro em 2 aptos → laranja (grupo)
+    const txt = [
+      `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 705 ABC 41014 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes :\nGRUPO UM\nGRUPO UM\nDesbravador Software`,
+      `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 706 ABC 41014 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes :\nGRUPO DOIS\nGRUPO DOIS\nDesbravador Software`,
+    ].join('\n');
+    await w.importarPDF(w.parsear(txt)); await sleep(20);
+    ok(w.document.querySelector('#mapa-container .cell-span.laranja'), 'bloco laranja existe');
+    ok(w.document.querySelector('#mapa-container .cell-span.laranja .grupo-ico'), 'ícone de grupo presente');
+  });
+
+  await T('5.4 aviso de overbooking informa o PERÍODO/datas', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(2); // 2 dias de ocupação (hoje e hoje+1)
+    // 35 reservas amarelas sobrepostas → 32 vagas ocupadas, resto em overbooking
+    const blocos = [];
+    for (let i = 0; i < 35; i++) blocos.push(`${fmtBloco(ent)} ${fmtSai(sai)} 1 2 ${800 + i} ABC ${42000 + i} H\nWHATSAPP\nObs do Apto: VERIFICAR INTERESSE\nHóspedes :\nHOSPEDE ${i}\nHOSPEDE ${i}\nDesbravador Software`);
+    await w.importarPDF(w.parsear(blocos.join('\n'))); await sleep(30);
+    const alert = w.document.getElementById('alert-over');
+    ok(alert.style.display !== 'none', 'aviso de overbooking visível');
+    ok(/Overbooking em/.test(alert.textContent), 'texto com "Overbooking em"');
+    const dd = String(ent.getDate()).padStart(2, '0'), mm = String(ent.getMonth() + 1).padStart(2, '0');
+    ok(alert.textContent.includes(`${dd}/${mm}`), 'inclui a data do overbooking');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

@@ -262,7 +262,32 @@ Garage Spot** (a chave é o `nro` do PMS).
   mesmo (agora chaveado também por `nro` sintético de hospedado); demais stores intactos; **reimport
   de um slot não afeta o outro**.
 
+## Comportamentos da v1.5.2 a preservar (correções visíveis)
+
+- **Nome de reserva robusto** (`extrairNomes`): tenta o `indexOf('Hóspedes :')` EXATO primeiro
+  (zero-regressão); senão cabeçalho tolerante **plural + ":"** (`/H[óÓoO]spedes\s*:/i` — **nunca** o
+  singular "Hóspede"); senão heurística `nomeHeuristico` (1ª linha que pareça nome próprio). Nunca
+  regride os casos que já funcionavam; reduz os "Hóspede".
+- **Obs de indisponibilidade → "sem garagem"** (`obsIndicaSemGaragem`, pura, aplicada **só na obs**):
+  frases explícitas ("SEM DISPONIBILIDADE DE GARAGEM/VAGA", "INFORMADO/CIENTE QUE NÃO TEM/HÁ …") →
+  `semGaragemPDF` → `statusDerivadoDoPDF` = `sem_garagem` → sai do mapa p/ a relação "Sem garagem".
+  **Nunca** marca quem afirma TER/COM garagem. **Ambíguo** → lança normal + **notifica** (painel
+  `#avisos`). Rede de segurança: na dúvida, lança e avisa — nunca confunde com quem tem vaga.
+- **Cores** amarelo (ouro `--amarelo`) × laranja (`--laranja`) **nitidamente distintas** + **ícone 👥**
+  no bloco de Grupo/Múltiplos aptos (`.grupo-ico`) + legenda. Não trocar os hues sem manter contraste.
+- **Aviso de overbooking com período** (`overbookingPeriodos`, pura): `#alert-over` mostra
+  "⚠ Overbooking em {datas}" (faixas consecutivas viram intervalos "15/07–16/07").
+- **Regra da pasta `amostras/`** (permanente): enquanto **vazia**, imprimir o **caminho absoluto**
+  para o usuário largar os PDFs reais; validar contra eles quando presentes e **parar de imprimir** o
+  caminho. `.pdf` gitignored (dados de hóspedes); hooks Playwright `[real]`.
+
 ## Versão atual
+
+**v1.5.2** — **correções visíveis**: nomes de reservas (menos "Hóspede"), obs de indisponibilidade →
+"sem garagem" (com rede de segurança/notificação), amarelo × laranja distintos + ícone de grupo, aviso
+de overbooking com período. Sem mudança de schema (DB **v5**). Testes **291/291** (198 engine + 63
+jsdom + 30 Playwright) + 2 hooks `[real]` (pendentes de amostras) + exercício com o PDF real. Ver
+`RELATORIO-v1.5.2.md`.
 
 **v1.5.1.1** — **correção do parser do Comandas** (a v1.5.1 quebrava com o PDF real: esperava linha
 única; o PDF.js entrega os campos em linhas separadas / outra ordem → 0 hóspedes → validação recusava).

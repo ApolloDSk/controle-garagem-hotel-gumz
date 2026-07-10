@@ -4,12 +4,17 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.1.1** (09/07/2026) — correção do parser do Comandas para a **ordem de leitura
-  real do PDF.js** (a v1.5.1 esperava linha única → 0 hóspedes no PDF real → recusava). Parser agora é
-  **por regiões/estado** (independente de ordem) + **regra do período explícita** (ocupação =
-  entrada→saida; basta ≥1 comanda de garagem; check-out libera). **Validação com o Comandas real fica
-  PENDENTE das amostras** (pasta `amostras/`, gitignored; hooks Playwright `[real]` prontos). Sem
-  mudança de schema. Testes **265/265** (+2 hooks `[real]` pulados por falta de amostra).
+- **Versão entregue: v1.5.2** (10/07/2026) — **Patch 1 (correções visíveis):** nomes de reservas
+  (menos "Hóspede"; `extrairNomes` exato→tolerante→heurística, zero-regressão), **obs de
+  indisponibilidade → "sem garagem"** (`obsIndicaSemGaragem`; explícito sai do mapa, ambíguo lança +
+  **notifica** no painel `#avisos`), **amarelo × laranja distintos** + **ícone 👥** no grupo, **aviso de
+  overbooking com período** (`overbookingPeriodos`). Sem mudança de schema. Testes **291/291**.
+  ⚠ **Regra permanente `amostras/`:** enquanto vazia, imprimir o caminho absoluto p/ o usuário largar
+  os PDFs reais (`C:\Users\RBMarketing\Documents\GitHub\controle-garagem-hotel-gumz\amostras\`); validar
+  quando presentes. **Validação com o PDF que reproduz "Hóspede" e com o Comandas real: PENDENTE.**
+  **Próximo: v1.5.3 (ferramentas)** — ver `PLANEJAMENTO.md`.
+- **v1.5.1.1** (09/07/2026) — correção do parser do Comandas para a **ordem de leitura real do PDF.js**
+  (parser **por regiões/estado** + **regra do período**). Testes 265/265.
 - **Versão anterior: v1.5.1** (08/07/2026). Repo único: `ApolloDSk/controle-garagem-hotel-gumz`
   (branch `master`). ⚠ **Nunca** tocar nos repos do **Garage Spot** (`garagespot-*`) — outro projeto.
 - App canônico: `garagem-app/index.html`; standalone (Chrome): `garagem-app/controle-garagem-standalone.html`

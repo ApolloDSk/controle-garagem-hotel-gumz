@@ -37,7 +37,9 @@ const EXPORTS = [
   // v1.5.1
   'parsePdfDate','extrairEmissaoImpressa','compararEmissao','parsearComandas','tipoVeiculoDeSegmento',
   'validarDocumentoReservas','validarDocumentoComandas','chaveHospedado','garagemDeTipoVeiculo',
-  'hospedadoParaReserva','dedupeReservasHospedados'
+  'hospedadoParaReserva','dedupeReservasHospedados',
+  // v1.5.2
+  'nomeHeuristico','obsIndicaSemGaragem','overbookingPeriodos'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -627,7 +629,68 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.1.1', () => { eq(E.APP_VERSION, 'v1.5.1.1'); });
+t('APP_VERSION é v1.5.2', () => { eq(E.APP_VERSION, 'v1.5.2'); });
+
+/* ════════════ v1.5.2 — correções visíveis ════════════ */
+// 5.1 — nomes: cabeçalho tolerante + fallback heurístico (menos "Hóspede")
+t('5.1 extrairNomes: cabeçalho "Hóspedes:" sem espaço ainda extrai o nome', () => {
+  const r = E.extrairNomes('Hóspedes:\nMARIA SOUZA\nJOAO PEREIRA\nDesbravador Software');
+  eq(r.nomeCompleto, 'MARIA SOUZA');
+});
+t('5.1 extrairNomes: sem cabeçalho, heurística acha o nome (não cai em "Hóspede")', () => {
+  const bloco = '05/06/26 08/06 1 2 201 ABC 30001 H\nBOOKING 413101ID20\nObs do Apto: GARAGEM PEQUENO\nCARLOS EDUARDO ALVES\nDesbravador Software';
+  const r = E.extrairNomes(bloco);
+  eq(r.nomeCompleto, 'CARLOS EDUARDO ALVES');
+});
+t('5.1 extrairNomes: bloco sem nenhum nome ainda retorna "Hóspede"', () => {
+  eq(E.extrairNomes('bloco qualquer sem nomes').nomeCompleto, 'Hóspede');
+});
+t('5.1 nomeHeuristico pula empresas/cabeçalhos e pega o nome próprio', () => {
+  eq(E.nomeHeuristico('BOOKING\nObs do Apto: GARAGEM\nFERNANDA LIMA COSTA\n123'), 'FERNANDA LIMA COSTA');
+});
+
+// 5.2 — obs de indisponibilidade → sem garagem / ambíguo
+t('5.2 "SEM DISPONIBILIDADE DE GARAGEM" → sem', () => { const r = E.obsIndicaSemGaragem('SEM DISPONIBILIDADE DE GARAGEM'); ok(r.sem); ok(!r.ambiguo); });
+t('5.2 "informado que não tem vaga" (sem acento) → sem', () => { ok(E.obsIndicaSemGaragem('Hospede informado que nao tem vaga').sem); });
+t('5.2 "ciente que não há garagem" → sem', () => { ok(E.obsIndicaSemGaragem('cliente ciente que não há garagem').sem); });
+t('5.2 quem TEM garagem NÃO vira sem garagem', () => { const r = E.obsIndicaSemGaragem('COM GARAGEM PEQUENO'); ok(!r.sem); ok(!r.ambiguo); });
+t('5.2 "GARAGEM CONFIRMADA" não vira sem garagem', () => { ok(!E.obsIndicaSemGaragem('GARAGEM CONFIRMADA R$60').sem); });
+t('5.2 obs ambígua (garagem lotada) → ambiguo (lança + notifica)', () => { const r = E.obsIndicaSemGaragem('garagem lotada verificar'); ok(!r.sem); ok(r.ambiguo); });
+t('5.2 obs normal de garagem não é sem nem ambíguo', () => { const r = E.obsIndicaSemGaragem('GARAGEM GRANDE R$100'); ok(!r.sem); ok(!r.ambiguo); });
+t('5.2 parser marca semGaragemPDF e derivado vira sem_garagem', () => {
+  const txt = '05/06/26 08/06 1 2 201 ABC 30001 H\nWHATSAPP\nObs do Apto: SEM DISPONIBILIDADE DE GARAGEM\nHóspedes :\nANA LIMA\nANA LIMA\nDesbravador Software';
+  const rs = E.parsear(txt);
+  eq(rs.length, 1);
+  ok(rs[0].semGaragemPDF, 'reserva marcada como sem garagem pelo PDF');
+  eq(E.statusDerivadoDoPDF(rs[0]), 'sem_garagem');
+});
+t('5.2 aplicarAjustes: semGaragemPDF sai do mapa (vai p/ semGaragem)', () => {
+  const txt = '05/06/26 08/06 1 2 201 ABC 30002 H\nWHATSAPP\nObs do Apto: SEM DISPONIBILIDADE DE GARAGEM\nHóspedes :\nANA LIMA\nANA LIMA\nDesbravador Software';
+  const rs = E.parsear(txt);
+  const aloc = E.aplicarAjustes(rs, {});
+  ok((aloc.semGaragem || []).some(x => x.nro === '30002'));
+  ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '30002'));
+});
+
+// 5.4 — overbooking com período
+t('5.4 overbookingPeriodos: dia único', () => {
+  const ov = [{ entrada: D('12/07/26'), saida: D('13/07/26') }];
+  const r = E.overbookingPeriodos(ov, D('10/07/26'), D('20/07/26'));
+  eq(r.label, '12/07');
+});
+t('5.4 overbookingPeriodos: faixa consecutiva vira intervalo', () => {
+  const ov = [{ entrada: D('15/07/26'), saida: D('17/07/26') }];
+  const r = E.overbookingPeriodos(ov, D('10/07/26'), D('20/07/26'));
+  eq(r.label, '15/07–16/07');
+});
+t('5.4 overbookingPeriodos: dias separados juntam com "e"', () => {
+  const ov = [{ entrada: D('12/07/26'), saida: D('13/07/26') }, { entrada: D('15/07/26'), saida: D('17/07/26') }];
+  const r = E.overbookingPeriodos(ov, D('10/07/26'), D('20/07/26'));
+  eq(r.label, '12/07 e 15/07–16/07');
+});
+t('5.4 overbookingPeriodos: sem overbooking → label vazio', () => {
+  eq(E.overbookingPeriodos([], D('10/07/26'), D('20/07/26')).label, '');
+});
 
 /* ════════════ v1.5.1.1 — parser do Comandas na ORDEM DE LEITURA REAL do PDF.js ════════════ */
 // Fixture na ordem de leitura real (campos em LINHAS SEPARADAS, não numa linha única) — reproduz

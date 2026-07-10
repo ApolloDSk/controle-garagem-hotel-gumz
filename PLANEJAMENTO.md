@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.1.1** (entregue) · **Roadmap local sem backend CONCLUÍDO.** Próximos passos exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.2** (entregue) · **Próximo: v1.5.3 (ferramentas).** Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -103,6 +103,23 @@
   entrada→saida; basta ≥1 comanda de garagem; check-out libera). Validação aceita ≥1 hospedado.
 - Sem mudança de schema. Testes **265/265** (181 engine + 57 jsdom + 27 Playwright) + 2 hooks `[real]`
   (pendentes das amostras em `amostras/`, gitignored). Ver `RELATORIO-v1.5.1.1.md`.
+
+### v1.5.2 (entregue 10/07/2026) — Patch 1: correções visíveis
+- **Nomes de reservas** (menos "Hóspede"): `extrairNomes` com cabeçalho exato→tolerante→heurística
+  (`nomeHeuristico`), zero-regressão.
+- **Obs de indisponibilidade → "sem garagem"** (`obsIndicaSemGaragem`): explícito sai do mapa p/ a
+  relação "Sem garagem"; **ambíguo** lança normal + **notifica** (painel `#avisos`); nunca confunde
+  com quem tem garagem.
+- **Cores** amarelo (ouro) × laranja **distintas** + **ícone 👥** no grupo + legenda.
+- **Aviso de overbooking com período** (`overbookingPeriodos`): "⚠ Overbooking em {datas}".
+- Sem mudança de schema. Testes **291/291** (198 engine + 63 jsdom + 30 Playwright) + 2 hooks `[real]`.
+  Ver `RELATORIO-v1.5.2.md`.
+
+### 🔜 v1.5.3 (ferramentas) — na fila
+- Editar **moto → vaga de carro** + pareamento 2 motos = 1 vaga (edição manual da moto).
+- **Busca** com destaque (localizar reserva/hóspede no mapa).
+- **Vagas extras** (até 3) + **adicionar reserva manual** com encaixe/oferta de vaga extra.
+- Reservas/ajustes manuais aparecem no **registro de edições manuais**.
 
 ---
 

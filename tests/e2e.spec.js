@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.1.1');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.2');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -517,15 +517,76 @@ test('v1.5.1.1 [real] Reservas de amostras/ → sem regressão (pendente até ha
   expect(n).toBeGreaterThan(0);
 });
 
-test('screenshots do mapa, contato e gestão (v1.5.1)', async ({ page }) => {
+test('v1.5.2 amarelo × laranja com cores distintas + ícone de grupo (👥)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  await boot(page);
+  await page.evaluate(() => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(4);
+    const b = (nro, apto, obs, nome) => `${fb(ent)} ${fs(sai)} 1 2 ${apto} ABC ${nro} H\nWHATSAPP\nObs do Apto: ${obs}\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
+    const txt = [b('50001', '201', 'VERIFICAR INTERESSE', 'ANA AMARELA'), b('50002', '202', 'GARAGEM PEQUENO', 'GRUPO A'), b('50002', '203', 'GARAGEM PEQUENO', 'GRUPO B')].join('\n');
+    return window.importarPDF(window.parsear(txt));
+  });
+  await page.waitForSelector('.cell-span.laranja');
+  const cores = await page.evaluate(() => {
+    const g = el => el ? getComputedStyle(el).borderTopColor : null;
+    return { am: g(document.querySelector('.cell-span.amarelo')), la: g(document.querySelector('.cell-span.laranja')), grupo: !!document.querySelector('.cell-span.laranja .grupo-ico') };
+  });
+  expect(cores.am).not.toBeNull();
+  expect(cores.la).not.toBeNull();
+  expect(cores.am).not.toBe(cores.la); // amarelo e laranja nitidamente diferentes
+  expect(cores.grupo).toBe(true);
+});
+
+test('v1.5.2 aviso de overbooking informa o período', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(2);
+    const blocos = [];
+    for (let i = 0; i < 35; i++) blocos.push(`${fb(ent)} ${fs(sai)} 1 2 ${800 + i} ABC ${43000 + i} H\nWHATSAPP\nObs do Apto: VERIFICAR\nHóspedes :\nH ${i}\nH ${i}\nDesbravador Software`);
+    return window.importarPDF(window.parsear(blocos.join('\n')));
+  });
+  await page.waitForSelector('.cell-span');
+  await expect(page.locator('#alert-over')).toBeVisible();
+  await expect(page.locator('#alert-over')).toContainText('Overbooking em');
+});
+
+test('v1.5.2 obs "SEM DISPONIBILIDADE DE GARAGEM" → fora do mapa + aviso; nomes aparecem', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(4);
+    const b = (nro, apto, obs, nome) => `${fb(ent)} ${fs(sai)} 1 2 ${apto} ABC ${nro} H\nWHATSAPP\nObs do Apto: ${obs}\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
+    const txt = [b('51001', '301', 'GARAGEM PEQUENO', 'JOANA NORMAL'), b('51002', '302', 'SEM DISPONIBILIDADE DE GARAGEM', 'PEDRO SEMVAGA')].join('\n');
+    return window.importarPDF(window.parsear(txt));
+  });
+  await page.waitForSelector('.cell-span');
+  await expect(page.locator('.cell-span', { hasText: 'JOANA NORMAL' })).toHaveCount(1); // nome aparece
+  await expect(page.locator('.cell-span', { hasText: 'PEDRO SEMVAGA' })).toHaveCount(0); // fora do mapa
+  await expect(page.locator('#avisos')).toContainText('indisponibilidade');
+  await page.check('#chk-semgar');
+  await expect(page.locator('.secao-semgar')).toContainText('PEDRO SEMVAGA');
+});
+
+test('screenshots do mapa, contato e gestão (v1.5.2)', async ({ page }) => {
   await boot(page);
   await importar(page);
   await importarComandas(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.1-mapa.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.2-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.1-contato.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.2-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.1-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.2-gestao.png'), fullPage: true });
 });

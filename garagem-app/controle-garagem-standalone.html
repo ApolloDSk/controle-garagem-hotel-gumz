@@ -36,13 +36,13 @@ const __workerBlob=new Blob([atob("LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzI
   --bg:#0f1117;--surface:#181c27;--surface2:#1f2436;--border:#2a3050;
   --text:#e8eaf2;--muted:#6b7494;--cell-livre:#1f2436;
   --azul:#3b82f6;--azul-bg:rgba(59,130,246,.18);
-  --amarelo:#f59e0b;--amarelo-bg:rgba(245,158,11,.18);
-  --laranja:#f97316;--laranja-bg:rgba(249,115,22,.18);
+  --amarelo:#eab308;--amarelo-bg:rgba(234,179,8,.20);
+  --laranja:#f97316;--laranja-bg:rgba(249,115,22,.22);
   --vermelho:#ef4444;--vermelho-bg:rgba(239,68,68,.18);
   --verde:#22c55e;--verde-bg:rgba(34,197,94,.16);--moto:#a855f7;--moto-bg:rgba(168,85,247,.18);
   --semgar:#94a3b8;--semgar-bg:rgba(148,163,184,.18);
   --hosped:#14b8a6;--hosped-bg:rgba(20,184,166,.18);--nome-hosped:#5eead4;
-  --nome-azul:#93c5fd;--nome-amarelo:#fcd34d;--nome-laranja:#fb923c;
+  --nome-azul:#93c5fd;--nome-amarelo:#fde047;--nome-laranja:#fdba74;
   --nome-vermelho:#fca5a5;--nome-moto:#d8b4fe;
   --cw:88px;--rh:44px;--lw:52px;
 }
@@ -50,13 +50,13 @@ body.light {
   --bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;--border:#e2e8f0;
   --text:#1e293b;--muted:#94a3b8;--cell-livre:#ffffff;
   --azul:#2563eb;--azul-bg:rgba(37,99,235,.12);
-  --amarelo:#d97706;--amarelo-bg:rgba(217,119,6,.12);
-  --laranja:#ea580c;--laranja-bg:rgba(234,88,12,.12);
+  --amarelo:#ca8a04;--amarelo-bg:rgba(202,138,4,.16);
+  --laranja:#ea580c;--laranja-bg:rgba(234,88,12,.16);
   --vermelho:#dc2626;--vermelho-bg:rgba(220,38,38,.12);
   --verde:#16a34a;--verde-bg:rgba(22,163,74,.12);--moto:#9333ea;--moto-bg:rgba(147,51,234,.12);
   --semgar:#64748b;--semgar-bg:rgba(100,116,139,.14);
   --hosped:#0d9488;--hosped-bg:rgba(13,148,136,.13);--nome-hosped:#0f766e;
-  --nome-azul:#1d4ed8;--nome-amarelo:#92400e;--nome-laranja:#9a3412;
+  --nome-azul:#1d4ed8;--nome-amarelo:#854d0e;--nome-laranja:#9a3412;
   --nome-vermelho:#991b1b;--nome-moto:#6b21a8;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -291,6 +291,15 @@ body.arrastando .cell-span{cursor:grabbing}
 .cell-span.tem-ajuste{box-shadow:0 0 0 1px var(--verde) inset}
 .ajuste-mao{margin-right:3px}
 /* v1.5.0 — status manual, divergência PMS e área "Sem garagem (manual)" */
+.grupo-ico{margin-right:3px;font-size:9px;filter:grayscale(.15)}
+/* v1.5.2 (5.2) — avisos de obs ambígua (rede de segurança) */
+.avisos{padding:0 20px 6px;display:flex;flex-direction:column;gap:6px}
+.aviso-card{display:flex;align-items:flex-start;gap:8px;background:var(--amarelo-bg);border:1px solid var(--amarelo);
+  border-radius:8px;padding:7px 11px;font-size:11.5px;line-height:1.45;color:var(--text)}
+.aviso-card .aviso-ico{flex-shrink:0}
+.aviso-card b{color:var(--amarelo)}
+.aviso-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+.aviso-toggle{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:'DM Mono',monospace}
 .pms-diverg{color:var(--vermelho);margin-right:3px;font-size:10px;cursor:help}
 .pms-diverg-badge{margin:6px 0;padding:5px 9px;border-radius:6px;background:var(--vermelho-bg);color:var(--vermelho);font-size:11px;line-height:1.4}
 .pms-diverg-badge.sm{display:inline-block;margin:0;padding:2px 7px;font-size:10px}
@@ -428,13 +437,16 @@ body.arrastando .cell-span{cursor:grabbing}
   <div class="leg"><div class="legbox" style="background:var(--azul-bg);border:1px solid var(--azul)"></div>Confirmado</div>
   <div class="leg"><div class="legbox" style="background:var(--hosped-bg);border:1px solid var(--hosped)"></div>🏠 Hospedado (check-in feito)</div>
   <div class="leg"><div class="legbox" style="background:var(--amarelo-bg);border:1px solid var(--amarelo)"></div>Aguardando</div>
-  <div class="leg"><div class="legbox" style="background:var(--laranja-bg);border:1px solid var(--laranja)"></div>Grupo/Múlt. aptos</div>
+  <div class="leg"><div class="legbox" style="background:var(--laranja-bg);border:1px solid var(--laranja)"></div>👥 Grupo/Múlt. aptos</div>
   <div class="leg"><div class="legbox" style="background:var(--vermelho-bg);border:1px solid var(--vermelho)"></div>Overbooking</div>
   <div class="leg"><div class="legbox" style="background:var(--moto-bg);border:1px solid var(--moto)"></div>Moto</div>
   <div class="leg"><div class="legbox" style="border:2px dashed var(--laranja)"></div>Grande em vaga pequena</div>
   <div class="leg"><span style="font-size:13px">✋</span>posição ajustada manualmente</div>
   <div class="leg"><div class="legbox" style="background:var(--cell-livre);border:1px solid var(--border)"></div>Livre</div>
 </div>
+
+<!-- v1.5.2 (5.2) — avisos: obs ambígua de "sem garagem" (rede de segurança) -->
+<div id="avisos" class="avisos" style="display:none"></div>
 
 <div class="loading" id="loading"><div class="spinner"></div><span>Lendo relatório...</span></div>
 <div id="empty-state" class="empty-state">
@@ -444,7 +456,7 @@ body.arrastando .cell-span{cursor:grabbing}
 </div>
 <div class="mapa-wrapper" id="mapa-wrapper" style="display:none">
   <div class="mapa-controls">
-    <label class="chk-semgar"><input type="checkbox" id="chk-semgar" onchange="toggleSemGaragem()"> Mostrar reservas marcadas como <b>Sem garagem</b> (manual)</label>
+    <label class="chk-semgar"><input type="checkbox" id="chk-semgar" onchange="toggleSemGaragem()"> Mostrar reservas <b>Sem garagem</b> (manual ou por indisponibilidade na obs)</label>
   </div>
   <div class="mapa-container" id="mapa-container"></div>
 </div>
@@ -542,7 +554,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.1.1';
+const APP_VERSION='v1.5.2';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -558,10 +570,35 @@ function fmtData(d){return`${String(d.getDate()).padStart(2,'0')}/${String(d.get
 const RE_EMPRESAS=/^(EXPEDIA DO BRASIL|EXPEDIA|BOOKING|OMNIBEES|HOTEL GUMZ|DESBRAVADOR|DL TURISMO|ORINTER|INTERCONECTA|LACADOR|WEST OPERADORA|RESERVIA|ACP TURISMO|LEATTI TURISMO|ZILDO TURISMO|FERMIN ARRUDA|TURISMO AGUA|AGENCIA DE VIAJ|CONSTRUSUL|SC CUSTOM|ARAXA BRASIL|BORGES DO CANTO|EDSON VIAGENS|ISABEL CRISTINA SITTA|MARIA ROSA SILVA|FONTE CRISTALINA|LOS DELFINES|VALLE HERMOSO|TURISMO AGUARA)/i;
 const RE_IGNORAR=/^(ACOMPANHANTE\d*|WHATSAPP|TELEFONE|SITE HOTEL|BOOKING\.COM|EXPEDIA DO BRASIL|EXPEDIA|OMNIBEES|DESBRAVADOR|DL TURISMO|HOTEL GUMZ|Desbravador\s|Titular|Entrada|Sa.da|Qtde|P.gina|Filtro|HOTEL\s)/i;
 
+// v1.5.2 (5.1) — FALLBACK de nome: quando a extração primária falha (cai em "Hóspede"), varre o
+// bloco procurando a 1ª linha que pareça um NOME PRÓPRIO (2+ palavras, começa maiúscula), pulando
+// empresas, cabeçalhos, datas, valores e termos de tarifa/acomodação. Reduz drasticamente os
+// "Hóspede" (o nome existe no documento; só o cabeçalho "Hóspedes :" às vezes não é localizado).
+const RE_NAO_NOME=/@|R\$|GARAGEM|APTO|APARTAMENTO|\bOBS\b|DI[ÁA]RIA|PENS[ÃA]O|RESERV|ENTRADA|SA[IÍ]DA|TARIF|VALOR|TOTAL|EMPRESA|GRUPO|ACOMPANH|PER[ÍI]ODO|C[ÔO]MODO|QUARTO|SOLTEIRO|CASAL|ADULTO|CRIAN[ÇC]A|HOSP\.|CANAL|ORIGEM|LOCALIZAD|CONFIRMAD|CORTESIA/i;
+function nomeHeuristico(blocoRaw){
+  const linhas=String(blocoRaw||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  for(let l of linhas){
+    l=l.replace(/\s*\/\s*DIG\b.*/i,'').replace(/\s+\d+\s*$/,'').trim();
+    if(l.length<5)continue;
+    if(RE_IGNORAR.test(l)||RE_EMPRESAS.test(l)||RE_NAO_NOME.test(l))continue;
+    if(/\d{2}\/\d{2}/.test(l)||/^\d/.test(l))continue;
+    if(!/^[A-ZÁÀÃÂÉÊÍÓÔÕÚÜÇ]/.test(l))continue;
+    const palavras=l.split(/\s+/).filter(Boolean);
+    const alpha=l.replace(/[^A-Za-zÁÀÃÂÉÊÍÓÔÕÚÜÇáàãâéêíóôõúüç]/g,'');
+    if(palavras.length>=2&&alpha.length>=5)return l;
+  }
+  return'';
+}
 function extrairNomes(blocoRaw){
-  const hi=blocoRaw.indexOf('Hóspedes :');
-  if(hi===-1)return{nomeCompleto:'Hóspede',hospedeDetalhe:''};
-  let secao=blocoRaw.substring(hi+10);
+  const raw=String(blocoRaw||'');
+  // 1) formato EXATO original (zero regressão nos casos que já funcionavam).
+  let hi=raw.indexOf('Hóspedes :');let hlen=10;
+  // 2) senão, tolera variações do cabeçalho — exige o PLURAL + ":" (não casa o singular "Hóspede",
+  //    que apareceria em cabeçalhos de coluna e roubaria a seção): "Hóspedes:", "Hospedes :", etc.
+  if(hi===-1){const mh=raw.match(/H[óÓoO]spedes\s*:/i);if(mh){hi=mh.index;hlen=mh[0].length;}}
+  // 3) sem cabeçalho localizável → heurística sobre o bloco (evita cair em "Hóspede").
+  if(hi===-1){const h=nomeHeuristico(raw);return{nomeCompleto:h||'Hóspede',hospedeDetalhe:''};}
+  let secao=raw.substring(hi+hlen);
   secao=secao.split(/Desbravador Software/i)[0];
   secao=secao.split(/\n\d{2}\/\d{2}\/\d{2}\s/)[0];
   const linhas=secao.split('\n').map(l=>l.trim()).filter(Boolean);
@@ -587,6 +624,8 @@ function extrairNomes(blocoRaw){
   }
   nomeCompleto=nomeCompleto.replace(/\s+\d+\s*$/,'').trim();
   if(!nomeCompleto||nomeCompleto.length<2) nomeCompleto='Hóspede';
+  // v1.5.2 (5.1) — se ainda caiu no fallback "Hóspede", tenta a heurística sobre o bloco inteiro.
+  if(nomeCompleto==='Hóspede'){const h=nomeHeuristico(blocoRaw);if(h)nomeCompleto=h;}
   const hospedeDetalhe=(titular&&titular!==nomeCompleto&&!RE_EMPRESAS.test(titular)&&titular.length>3)?titular:'';
   return{nomeCompleto,hospedeDetalhe};
 }
@@ -614,6 +653,59 @@ function classificar(up,entrada,ehGrupo){
     return'azul_pequeno';
   }
   return'amarelo';
+}
+
+// ── v1.5.2 (5.2) — OBS de INDISPONIBILIDADE informada → tratar como "sem garagem" (puro) ──
+// Detecta, na OBS da reserva, que o hóspede foi INFORMADO / está CIENTE de que NÃO há vaga/
+// disponibilidade de garagem → {sem:true}. Nunca marca quando a obs afirma que TEM/COM garagem.
+// Caso ambíguo (menciona garagem + indisponibilidade sem bater exatamente) → {ambiguo:true}:
+// REDE DE SEGURANÇA — o app lança normal (com garagem) e NOTIFICA o usuário p/ conferir no PMS.
+function obsIndicaSemGaragem(obs){
+  const up=String(obs||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  if(!up)return{sem:false,ambiguo:false};
+  // afirma que TEM garagem → nunca é "sem garagem" (não confundir com quem tem vaga)
+  if(/\b(COM|TEM)\s+GARAGEM\b|GARAGEM\s+(CONFIRMAD|OK|GARANTID|RESERVAD|INCLUS)/.test(up))
+    return{sem:false,ambiguo:false};
+  const explicito=[
+    /SEM\s+DISPONIBILIDADE\s+DE\s+(GARAGEM|VAGA)/,
+    /N[A]O\s+HA\s+DISPONIBILIDADE\s+DE\s+(GARAGEM|VAGA)/,
+    /INFORMAD[OA]\s+QUE\s+N[A]O\s+(TEM|HA)\s+(VAGA|GARAGEM|DISPONIBILIDADE)/,
+    /CIENTE\s+(DE\s+)?QUE\s+N[A]O\s+(TEM|HA)\s+(VAGA|GARAGEM|DISPONIBILIDADE)/,
+    /SEM\s+VAGA\s+(DE\s+)?GARAGEM/
+  ];
+  if(explicito.some(re=>re.test(up)))return{sem:true,ambiguo:false};
+  // ambíguo: sinal de indisponibilidade perto de garagem/vaga, sem bater no explícito.
+  const ambiguo=/(INDISPON|LOTAD|ESGOTAD|SEM\s+DISPON|N[A]O\s+TEM|N[A]O\s+HA|SEM\s+VAGA|SEM\s+GARAGEM)/.test(up)
+             && /(GARAGEM|VAGA|DISPONIBIL|ESTACION)/.test(up);
+  return{sem:false,ambiguo:!!ambiguo};
+}
+
+// ── v1.5.2 (5.4) — PERÍODOS em OVERBOOKING (puro) ──
+// Dado o array de reservas em overbooking (overflow) e a janela [ini,fim], retorna os DIAS com ≥1
+// overbooking, agrupados em faixas consecutivas, e um rótulo legível (ex.: "12/07 e 15–16/07").
+function overbookingPeriodos(overflow,ini,fim){
+  const arr=overflow||[];
+  const d=new Date(ini);d.setHours(0,0,0,0);
+  const end=new Date(fim);end.setHours(0,0,0,0);
+  const dias=[];
+  let guard=0;
+  while(d<=end&&guard++<1000){
+    const dt=new Date(d);
+    if(arr.some(r=>r&&r.entrada<=dt&&r.saida>dt))dias.push(new Date(dt));
+    d.setDate(d.getDate()+1);
+  }
+  if(!dias.length)return{dias:[],faixas:[],label:''};
+  const faixas=[];let a=dias[0],prev=dias[0];
+  for(let i=1;i<dias.length;i++){
+    const cur=dias[i];
+    if(Math.round((cur-prev)/86400000)===1){prev=cur;continue;}
+    faixas.push([a,prev]);a=cur;prev=cur;
+  }
+  faixas.push([a,prev]);
+  const f=x=>`${String(x.getDate()).padStart(2,'0')}/${String(x.getMonth()+1).padStart(2,'0')}`;
+  const partes=faixas.map(([x,y])=>x.getTime()===y.getTime()?f(x):`${f(x)}–${f(y)}`);
+  const label=partes.length===1?partes[0]:partes.slice(0,-1).join(', ')+' e '+partes[partes.length-1];
+  return{dias,faixas,label};
 }
 
 // ── PARSER (preservado da v21 + nroOTA + id) ──
@@ -665,6 +757,8 @@ function parsear(textoOriginal){
     if(garagem==='ignorar')return;
 
     const obsResumo=obs.split(/\|\|/)[0].trim().substring(0,130);
+    // v1.5.2 (5.2) — obs de indisponibilidade informada → sem garagem (sai do mapa) ou ambíguo (notifica).
+    const semGar=obsIndicaSemGaragem(obs);
 
     let totalCarros = 1;
     const mGarCarro = obsUp.match(/GARAGEM\s+0*(\d+)\s+CARRO/);
@@ -686,11 +780,12 @@ function parsear(textoOriginal){
           id:`${nro}__${apto}__${v+1}`,
           nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,
           garagem:tipoBase,origem,obs:obsResumo,ehGrupo,ehMultiplo:true,
+          semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo,
           totalCarros,vagaIdx:v+1,_labelExtra:`${totalCarros > 1 ? totalCarros+'x CARROS' : 'GARAGEM'} · Vaga ${v+1}`
         });
       }
     } else {
-      reservas.push({id:`${nro}__${apto}__1`,nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,garagem,origem,obs:obsResumo,ehGrupo,ehMultiplo:false});
+      reservas.push({id:`${nro}__${apto}__1`,nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,garagem,origem,obs:obsResumo,ehGrupo,ehMultiplo:false,semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo});
     }
   });
 
@@ -1195,9 +1290,11 @@ function vagaValida(v){
    em `vagaIdManual`. Registros antigos (só `vagaIdManual`) seguem válidos (campos ausentes = null). */
 
 const STATUS_MANUAIS=['confirmado','aguardando','sem_garagem'];
-// Status derivado do PDF: amarelo → aguardando; qualquer confirmado (azul/laranja/moto) → confirmado.
+// Status derivado do PDF: v1.5.2 — obs de indisponibilidade informada (semGaragemPDF) → sem_garagem;
+// amarelo → aguardando; qualquer confirmado (azul/laranja/moto) → confirmado.
 function statusDerivadoDoPDF(reserva){
   if(!reserva)return'confirmado';
+  if(reserva.semGaragemPDF)return'sem_garagem';
   return reserva.garagem==='amarelo'?'aguardando':'confirmado';
 }
 // Status efetivo (puro): override manual prevalece; senão, o derivado do PDF. Fallback seguro.
@@ -1958,8 +2055,30 @@ function renderMapa(){
   renderSecaoLinhas(container,aloc.linhasG,datas,'G','▸ Camionetes / Grandes — 14 vagas',hoje,false);
   renderSecaoMoto(container,aloc.vagaMoto,datas,hoje);
   if(aloc.overflowLinhas.length)renderSecaoOver(container,aloc.overflowLinhas,datas,hoje);
-  // v1.5.0 (5.5) — área "Sem garagem (manual)" logo abaixo do overbooking (só com o filtro ligado).
+  // v1.5.0 (5.5) — área "Sem garagem" logo abaixo do overbooking (só com o filtro ligado).
   if(mostrarSemGaragem)renderSecaoSemGaragem(container,aloc.semGaragem||[],hoje);
+  renderAvisos(); // v1.5.2 (5.2) — obs ambígua + sem-garagem por PDF
+}
+
+// v1.5.2 (5.2) — rede de segurança: obs ambígua de "sem garagem" → notifica (não marca sozinho);
+// e avisa quando há reservas movidas p/ "Sem garagem" pela obs (com o filtro desligado).
+function renderAvisos(){
+  const el=document.getElementById('avisos');
+  if(!el)return;
+  const rP=ativasNoPeriodo();
+  const ambig={};
+  rP.forEach(r=>{if(r.obsAmbigua&&!ambig[r.nro])ambig[r.nro]={nro:r.nro,apto:r.apto,obs:r.obs};});
+  const semPDF=new Set();rP.forEach(r=>{if(r.semGaragemPDF)semPDF.add(r.nro);});
+  const cards=[];
+  if(semPDF.size&&!mostrarSemGaragem){
+    cards.push(`<div class="aviso-card"><span class="aviso-ico">⛔</span><div><b>${semPDF.size} reserva(s)</b> com indisponibilidade de garagem informada na observação foram tratadas como <b>Sem garagem</b>. Marque "Mostrar reservas… Sem garagem" no mapa para vê-las.</div></div>`);
+  }
+  Object.values(ambig).forEach(a=>{
+    const ap=(a.apto&&a.apto!=='-')?` (apto ${escapeHtml(a.apto)})`:'';
+    cards.push(`<div class="aviso-card"><span class="aviso-ico">⚠️</span><div>Reserva <b>#${escapeHtml(a.nro)}</b>${ap}: a observação sugere possível <b>"sem garagem"</b> — confira no PMS e ajuste manualmente no app se for o caso.<br><span style="color:var(--muted)">Obs: ${escapeHtml((a.obs||'').substring(0,90))}</span></div></div>`);
+  });
+  if(!cards.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='flex';el.innerHTML=cards.join('');
 }
 
 // v1.5.0 (5.5) — checkbox: exibe/oculta a área "Sem garagem (manual)". Os overrides persistem.
@@ -1975,11 +2094,11 @@ function renderSecaoSemGaragem(container,lista,hoje){
   const bloco=document.createElement('div');bloco.className='secao-bloco secao-semgar';
   const hdr=document.createElement('div');hdr.className='secao-header';
   const t=document.createElement('span');t.className='secao-titulo';
-  t.style.color='var(--semgar)';t.textContent=`⛔ Sem garagem (manual) — ${lista.length}`;
+  t.style.color='var(--semgar)';t.textContent=`⛔ Sem garagem — ${lista.length}`;
   hdr.appendChild(t);bloco.appendChild(hdr);
   if(!lista.length){
     const vazio=document.createElement('div');vazio.className='semgar-vazio';
-    vazio.textContent='Nenhuma reserva marcada manualmente como "Sem garagem" no período.';
+    vazio.textContent='Nenhuma reserva marcada como "Sem garagem" no período.';
     bloco.appendChild(vazio);container.appendChild(bloco);return;
   }
   // agrupa por nro (uma reserva pode ter vários blocos/aptos)
@@ -2089,13 +2208,15 @@ function mkRow(label,linha,datas,isOver,isMoto){
       const mao=res.ajusteManual?'<span class="ajuste-mao" title="Posição ajustada manualmente">✋</span>':'';
       // v1.5.0 (5.6) — marcador discreto de divergência com o PMS (alterado manualmente, PMS não atualizado).
       const diverg=res._pmsDivergente?'<span class="pms-diverg" title="Alterado manualmente — PMS ainda não atualizado">◆</span>':'';
+      // v1.5.2 (5.3) — ícone discreto no bloco de Grupo/Múltiplos aptos (ajuda leitura rápida/daltônicos).
+      const grupoIco=cls.includes('laranja')?'<span class="grupo-ico" title="Grupo / Múltiplos apartamentos">👥</span>':'';
       // 5.2 — nº PMS clicável para copiar (com fallback file://); não dispara o arraste.
       const nroSpan=`<span class="copyable" title="Clique para copiar o nº PMS" onclick="event.stopPropagation();copiarTexto('${res.nro}')">#${res.nro}</span>`;
       // v1.5.1 — hospedado (check-in feito): rótulo próprio (a chave sintética não é um nº PMS).
       const infoLabel=res.ehHospedado
         ?`🏠 Hospedado · Ap ${escapeHtml(res.apto)}`
         :(res._labelExtra?`${res._labelExtra} · Ap ${res.apto}`:`${nroSpan} · Ap ${res.apto}`);
-      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
+      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${grupoIco}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
       if(res.ajusteManual)span.classList.add('tem-ajuste');
       // 5.4 — arraste só de vaga (Pointer Events) nas seções de carro; clique abre detalhe.
       if(arrastavel){
@@ -2211,7 +2332,16 @@ function calcContadores(aloc,dtRef,conjunto){
   document.getElementById('cnt-livre').textContent=livre;
   document.getElementById('cnt-over').textContent=over;
   document.getElementById('counters').style.display='flex';
-  document.getElementById('alert-over').style.display=over>0?'inline-flex':'none';
+  // v1.5.2 (5.4) — aviso de overbooking informando os PERÍODOS/datas na janela visível.
+  const alertEl=document.getElementById('alert-over');
+  const per=overbookingPeriodos((aloc&&aloc.overflow)||[],dataInicio,dataFim);
+  if(per.label){
+    alertEl.style.display='inline-flex';
+    alertEl.textContent='⚠ Overbooking em '+per.label;
+    alertEl.title='Datas com reservas sem vaga garantida no período visível';
+  }else{
+    alertEl.style.display='none';alertEl.textContent='⚠ OVERBOOKING';alertEl.removeAttribute('title');
+  }
 }
 
 /* ═══════════ CONTATO (Bloco C) ═══════════ */
