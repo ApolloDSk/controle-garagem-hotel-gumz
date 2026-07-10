@@ -43,13 +43,15 @@ relatório. Mantenha essa estratégia; ela desamarra o produto de qualquer forne
   (parser, classificação, alocação, prioridade, mesclagem, mensagens). É testada em Node
   extraindo esse bloco — **mantenha as funções puras dentro desses marcadores**.
 - Fora do bloco: DOM, IndexedDB, render do mapa e da aba Contato.
-- **IndexedDB** (`garagemGumz`, **v5**): stores **`reservas`** (keyPath `id`, escrito **só** pela
+- **IndexedDB** (`garagemGumz`, **v6**): stores **`reservas`** (keyPath `id`, escrito **só** pela
   importação do PDF de Reservas), **`contatos`** (keyPath `nro`, só a ferramenta de contato),
-  **`gestao`** (singleton `id:"config"`, v1.2.0), **`ajustes`** (keyPath `nro`, edição manual/status,
-  v1.3.0/v1.5.0), **`envios`** (keyPath `id` autoincrement + índice `nro`, histórico de envios,
-  v1.4.0) e **`hospedados`** (keyPath `id`, 2º documento — Comandas em aberto, v1.5.1 — só o comandas
-  escreve, reconstruído a cada import). Essa separação é o que torna a mesclagem **não-destrutiva**
-  trivial: importar um documento nunca toca em telefones/ajustes/envios nem no outro slot.
+  **`gestao`** (singleton `id:"config"`, v1.2.0), **`ajustes`** (keyPath `nro`, edição manual/status +
+  sentinelas `OVERBOOKING`/`EXTRAn`, v1.3.0/v1.5.0/v1.5.3), **`envios`** (keyPath `id` autoincrement +
+  índice `nro`, histórico de envios, v1.4.0), **`hospedados`** (keyPath `id`, 2º documento — Comandas
+  em aberto, v1.5.1 — só o comandas escreve, reconstruído a cada import) e **`reservasManuais`**
+  (keyPath `id`, reservas adicionadas na mão, v1.5.3 — nunca tocado pelo PDF; dedup reconcilia). Essa
+  separação torna a mesclagem **não-destrutiva** trivial: importar um documento nunca toca em
+  telefones/ajustes/envios/manuais nem no outro slot.
 - **Chave estável do hospedado** = `${apto}__${entradaISO}__${tipoVeiculo||'x'}`, usada como `id` do
   store `hospedados` **e** como `nro` sintético do objeto reserva-like — é isso que permite reusar
   `ajustes` (arraste/status), a área "Sem garagem (manual)" e a divergência para hospedados.
@@ -281,7 +283,33 @@ Garage Spot** (a chave é o `nro` do PMS).
   para o usuário largar os PDFs reais; validar contra eles quando presentes e **parar de imprimir** o
   caminho. `.pdf` gitignored (dados de hóspedes); hooks Playwright `[real]`.
 
+## Comportamentos da v1.5.3 a preservar (ferramentas)
+
+- **Motos = slots de vaga de CARRO** (`processarMotos`/`motoSlotPar`/`motoSlotSolo`): **2 motos = 1
+  vaga P** (cross-reserva); ímpar sozinha com "vaga p/ +1 moto"; **sem seção Moto separada**
+  (`vagaMoto` vazio). **Motos arrastáveis** para P/G/overbooking/extra; 2 motos fixadas na mesma vaga
+  **pareiam ali** (`aplicarAjustes` agrupa motos por vaga). Datas nunca mudam.
+- **Busca** (`matchBusca`, pura): nº/nome/apto/modelo, reservas+hospedados, parcial/case-insensitive;
+  escurece o resto (`.busca-ativa`), contorna o atual (`.busca-atual`) + auto-scroll; contagem "N de
+  M" + ‹ ›; limpar remove.
+- **Vagas extras** (até 3, `EXTRA1/2/3`): sentinelas em `ajustes.vagaIdManual` (`placementExtra`,
+  `placementValido`); `aplicarAjustes` → `resultado.extras` (não conta nas normais); seção aparece só
+  com ≥1 em uso (`extrasEmUso`/`proximaExtraLivre`). Overbooking→extra oferecido no diálogo.
+- **Reserva manual** (`reservasManuais`, DB **v5→v6**): form (nome/período/modelo obrigatórios;
+  nº/apto opcionais); `validarReservaManual`/`montarReservaManual` (auditoria); entra na alocação;
+  **não coube → oferece vaga extra**; **persiste ao reimportar**; **dedup "manter uma só"**
+  (`dedupManuaisComPDF`/`manualJaNoPDF`: mesmo nº, ou sem nº apto+período+nome → reconcilia);
+  removível; marcada com ✍️.
+- **Edições manuais** (`montarEdicoesManuais`, pura): painel lista adições manuais + edições de status
+  (funcionário/data/hora). Store `ajustes` só estendido (sentinelas EXTRA); demais stores intactos.
+
 ## Versão atual
+
+**v1.5.3** — **ferramentas**: motos editáveis (2=1 vaga de carro), busca com destaque, vagas extras
+(até 3) + overbooking→extra, adicionar reserva manual (encaixe + oferta de vaga extra + dedup "manter
+uma só"), painel de edições manuais. Migração não-destrutiva **DB v5→v6** (`reservasManuais`). Testes
+**325/325** (217 engine + 73 jsdom + 35 Playwright) + 2 hooks `[real]` + exercício com o PDF real. Ver
+`RELATORIO-v1.5.3.md`.
 
 **v1.5.2** — **correções visíveis**: nomes de reservas (menos "Hóspede"), obs de indisponibilidade →
 "sem garagem" (com rede de segurança/notificação), amarelo × laranja distintos + ícone de grupo, aviso

@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.2');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.3');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -409,7 +409,7 @@ test('D: arrastar bloco de vaga → overbooking (fixa) e overbooking → vaga (r
   // arrasta BRUNO (overbooking) → vaga P5
   await arrastar(page, 'BRUNO', 'P5');
   await expect(page.locator('#mover-modal')).toBeVisible();
-  await expect(page.locator('#mover-texto')).toContainText('do');
+  await expect(page.locator('#mover-texto')).toContainText('vaga P5'); // v1.5.3 — texto focado no destino
   await page.click('#mover-confirmar');
   await expect(page.locator('.row-cells[data-vaga="P5"] .cell-span', { hasText: 'BRUNO' })).toHaveCount(1);
 });
@@ -578,15 +578,103 @@ test('v1.5.2 obs "SEM DISPONIBILIDADE DE GARAGEM" → fora do mapa + aviso; nome
   await expect(page.locator('.secao-semgar')).toContainText('PEDRO SEMVAGA');
 });
 
-test('screenshots do mapa, contato e gestão (v1.5.2)', async ({ page }) => {
+// ════════ v1.5.3 — ferramentas ════════
+function motoPDF() {
+  const ent = dias(0), sai = dias(4);
+  const b = (nro, apto, nome) => `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 ${apto} ABC ${nro} H\nWHATSAPP\nObs do Apto: GARAGEM MOTO\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
+  return [b('60001', '101', 'MOTO UM'), b('60003', '103', 'MOTO SOLO')].join('\n');
+}
+
+test('v1.5.3 moto arrastável para vaga de carro (P6)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  await boot(page);
+  await page.evaluate((txt) => window.importarPDF(window.parsear(txt)), motoPDF());
+  await page.waitForSelector('.cell-span.moto-c');
+  await arrastar(page, 'MOTO SOLO', 'P6');
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await expect(page.locator('#mover-texto')).toContainText('moto');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P6"] .cell-span', { hasText: 'MOTO SOLO' })).toHaveCount(1);
+});
+
+test('v1.5.3 busca destaca, conta e escurece; limpar remove', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.fill('#busca-input', 'CARLA');
+  await expect(page.locator('#mapa-wrapper')).toHaveClass(/busca-ativa/);
+  await expect(page.locator('.cell-span.busca-atual')).toHaveCount(1);
+  await expect(page.locator('#busca-info')).toContainText('1 de');
+  await page.click('#busca-clear');
+  await expect(page.locator('#mapa-wrapper')).not.toHaveClass(/busca-ativa/);
+});
+
+test('v1.5.3 adicionar reserva manual pelo formulário → aparece no mapa (✍️)', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.click('.btn-add');
+  await expect(page.locator('#add-modal')).toBeVisible();
+  const iso = (n) => { const d = dias(n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  await page.fill('#add-nome', 'MANUAL TESTE');
+  await page.fill('#add-entrada', iso(0));
+  await page.fill('#add-saida', iso(3));
+  await page.selectOption('#add-tipo', 'P');
+  await page.fill('#add-apto', '999');
+  await page.click('#add-modal button:has-text("Adicionar")');
+  await expect(page.locator('.cell-span', { hasText: 'MANUAL TESTE' })).toHaveCount(1);
+  await expect(page.locator('.cell-span .manual-ico').first()).toBeVisible();
+});
+
+test('v1.5.3 reserva manual que não cabe → oferece vaga extra; extra aparece', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 2600 });
+  await boot(page);
+  // lota TODAS as vagas (18 P + 14 G = 32) com carros no mesmo período
+  await page.evaluate(() => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(3);
+    const blocos = [];
+    for (let i = 0; i < 32; i++) blocos.push(`${fb(ent)} ${fs(sai)} 1 2 ${200 + i} ABC ${70000 + i} H\nWHATSAPP\nObs do Apto: GARAGEM GRANDE\nHóspedes :\nLOTA ${i}\nLOTA ${i}\nDesbravador Software`);
+    return window.importarPDF(window.parsear(blocos.join('\n')));
+  });
+  await page.waitForSelector('.cell-span');
+  const iso = (n) => { const d = dias(n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  await page.click('.btn-add');
+  await page.fill('#add-nome', 'NAO COUBE');
+  await page.fill('#add-entrada', iso(0));
+  await page.fill('#add-saida', iso(3));
+  await page.selectOption('#add-tipo', 'G');
+  await page.click('#add-modal button:has-text("Adicionar")');
+  await expect(page.locator('#extra-modal')).toBeVisible();
+  await expect(page.locator('#extra-texto')).toContainText('vaga extra');
+  await page.click('#extra-confirmar');
+  await expect(page.locator('.secao-extra')).toContainText('NAO COUBE');
+});
+
+test('v1.5.3 painel de edições manuais lista adições e status', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.evaluate(async () => {
+    await window.salvarStatusManual('30003', 'sem_garagem');
+    const rec = window.montarReservaManual({ nome: 'ADD PANEL', tipo: 'P', entrada: new Date(), saida: new Date(Date.now() + 3 * 864e5) }, { funcionario: 'Doug', dataHora: new Date().toISOString() });
+    await window.salvarReservaManual(rec);
+  });
+  await page.click('text=✍️ Edições');
+  await expect(page.locator('#edicoes-modal')).toBeVisible();
+  await expect(page.locator('#edicoes-corpo')).toContainText('Reserva adicionada');
+  await expect(page.locator('#edicoes-corpo')).toContainText('Sem garagem');
+});
+
+test('screenshots do mapa, contato e gestão (v1.5.3)', async ({ page }) => {
   await boot(page);
   await importar(page);
   await importarComandas(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.2-mapa.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.3-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.2-contato.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.3-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.2-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.3-gestao.png'), fullPage: true });
 });

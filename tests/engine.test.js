@@ -39,7 +39,11 @@ const EXPORTS = [
   'validarDocumentoReservas','validarDocumentoComandas','chaveHospedado','garagemDeTipoVeiculo',
   'hospedadoParaReserva','dedupeReservasHospedados',
   // v1.5.2
-  'nomeHeuristico','obsIndicaSemGaragem','overbookingPeriodos'
+  'nomeHeuristico','obsIndicaSemGaragem','overbookingPeriodos',
+  // v1.5.3
+  'placementExtra','EXTRAS_IDS','extrasEmUso','proximaExtraLivre','motoSlotPar','motoSlotSolo',
+  'matchBusca','tipoVeiculoLabel','validarReservaManual','montarReservaManual','reservaManualParaObj',
+  'manualJaNoPDF','dedupManuaisComPDF','montarEdicoesManuais','normalizaNome'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -451,10 +455,11 @@ t('5.2 aplicarAjustes: nro de ajuste inexistente é ignorado sem quebrar', () =>
   const aloc = E.aplicarAjustes([r1], { '999': { vagaIdManual: 'P2' } });
   ok([].concat(...aloc.linhasP, ...aloc.linhasG).some(x => x.nro === '1'), 'reserva ainda renderiza');
 });
-t('5.2 aplicarAjustes: moto NÃO é fixável (ajuste ignorado)', () => {
+t('v1.5.3 aplicarAjustes: moto AGORA é fixável em vaga de carro (P2)', () => {
   const m = { nro: '1', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'M', apto: '1' };
-  E.aplicarAjustes([m], { '1': { vagaIdManual: 'P2' } });
-  ok(!m.ajusteManual, 'moto não vira fixada');
+  const aloc = E.aplicarAjustes([m], { '1': { vagaIdManual: 'P2' } });
+  ok(m.ajusteManual, 'moto fixada manualmente');
+  ok(aloc.linhasP[1].some(s => s._motoSlot && s.res1 && s.res1.nro === '1'), 'moto ocupa a vaga P2 como slot de moto');
 });
 t('5.2 aplicarAjustes: sem ajustes = idêntico ao automático', () => {
   const mk = () => ([{ nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' }]);
@@ -629,7 +634,98 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.2', () => { eq(E.APP_VERSION, 'v1.5.2'); });
+t('APP_VERSION é v1.5.3', () => { eq(E.APP_VERSION, 'v1.5.3'); });
+
+/* ════════════ v1.5.3 — ferramentas ════════════ */
+// Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
+t('5.1 motos: 2 sobrepostas (reservas diferentes) → 1 slot na vaga P', () => {
+  const m1 = { nro: '10', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('09/06/26'), nomeCompleto: 'Moto A', apto: '1' };
+  const m2 = { nro: '20', garagem: 'azul_moto', entrada: D('06/06/26'), saida: D('10/06/26'), nomeCompleto: 'Moto B', apto: '2' };
+  const aloc = E.aplicarAjustes([m1, m2], {});
+  const slotsP = [].concat(...aloc.linhasP).filter(s => s._motoSlot);
+  eq(slotsP.length, 1, 'um único slot de moto (par)');
+  ok(slotsP[0]._ehParMoto && slotsP[0].res1 && slotsP[0].res2, 'par de motos de reservas diferentes');
+  eq(aloc.vagaMoto.length, 0, 'não há seção Moto separada');
+});
+t('5.1 motos: ímpar ocupa vaga de carro sozinha (slot solo com espaço p/ +1)', () => {
+  const m1 = { nro: '10', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('09/06/26'), nomeCompleto: 'Moto A', apto: '1' };
+  const aloc = E.aplicarAjustes([m1], {});
+  const slotsP = [].concat(...aloc.linhasP).filter(s => s._motoSlot);
+  eq(slotsP.length, 1); ok(slotsP[0]._motoSolo, 'slot solo'); ok(!slotsP[0].res2, 'espaço p/ 2ª moto');
+});
+t('5.1 duas motos fixadas na MESMA vaga → pareiam ali (juntar com outra moto)', () => {
+  const m1 = { nro: '10', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('09/06/26'), nomeCompleto: 'A', apto: '1' };
+  const m2 = { nro: '20', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('09/06/26'), nomeCompleto: 'B', apto: '2' };
+  const aloc = E.aplicarAjustes([m1, m2], { '10': { vagaIdManual: 'P4' }, '20': { vagaIdManual: 'P4' } });
+  const slot = aloc.linhasP[3].find(s => s._motoSlot);
+  ok(slot && slot._ehParMoto, 'as duas motos formam um par na P4');
+});
+
+// Busca
+t('5.2 matchBusca: nome parcial case-insensitive', () => { ok(E.matchBusca({ nomeCompleto: 'MARIA SOUZA' }, 'maria')); });
+t('5.2 matchBusca: nº reserva', () => { ok(E.matchBusca({ nro: '26056' }, '2605')); });
+t('5.2 matchBusca: apto', () => { ok(E.matchBusca({ apto: '381' }, '381')); });
+t('5.2 matchBusca: modelo (moto)', () => { ok(E.matchBusca({ garagem: 'azul_moto' }, 'moto')); });
+t('5.2 matchBusca: não casa quando nada bate', () => { ok(!E.matchBusca({ nomeCompleto: 'ANA', nro: '1', apto: '2' }, 'zzz')); });
+t('5.2 matchBusca: termo vazio → false', () => { ok(!E.matchBusca({ nomeCompleto: 'ANA' }, '')); });
+
+// Vagas extras
+t('5.3 placementExtra reconhece EXTRA1/2/3', () => { ok(E.placementExtra('EXTRA1')); ok(E.placementExtra('EXTRA3')); ok(!E.placementExtra('EXTRA4')); ok(!E.placementExtra('P1')); });
+t('5.3 aplicarAjustes: EXTRA1 ocupa vaga extra e NÃO conta nas vagas normais', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'Ana', apto: '1' };
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'EXTRA1' } });
+  ok(aloc.extras.EXTRA1.some(x => x.nro === '1'), 'ocupa EXTRA1');
+  ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'), 'não ocupa vaga normal');
+  ok(r1._extraManual, 'flag de extra');
+});
+t('5.3 extrasEmUso / proximaExtraLivre', () => {
+  const ex = { EXTRA1: [{}], EXTRA2: [], EXTRA3: [] };
+  eq(E.extrasEmUso(ex), 1); eq(E.proximaExtraLivre(ex), 'EXTRA2');
+  eq(E.proximaExtraLivre({ EXTRA1: [{}], EXTRA2: [{}], EXTRA3: [{}] }), null);
+});
+
+// Reserva manual
+t('5.4 validarReservaManual: obrigatórios', () => {
+  ok(!E.validarReservaManual({ nome: '', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26') }).ok);
+  ok(!E.validarReservaManual({ nome: 'Ana', tipo: 'X', entrada: D('05/06/26'), saida: D('08/06/26') }).ok);
+  ok(!E.validarReservaManual({ nome: 'Ana', tipo: 'P', entrada: D('08/06/26'), saida: D('05/06/26') }).ok, 'saída antes da entrada');
+  ok(E.validarReservaManual({ nome: 'Ana', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26') }).ok);
+});
+t('5.4 montarReservaManual: id/garagem/auditoria', () => {
+  const rec = E.montarReservaManual({ nome: 'Ana Lima', tipo: 'G', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '101' }, { funcionario: 'Doug', dataHora: '2026-07-10T10:00:00.000Z' });
+  eq(rec.garagem, 'azul_grande'); eq(rec.ehManual, true); eq(rec.ultimaAlteracao.funcionario, 'Doug');
+});
+t('5.4 reserva manual entra na alocação e encaixa', () => {
+  const rec = E.montarReservaManual({ nome: 'Ana', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26') }, {});
+  const obj = E.reservaManualParaObj(rec);
+  const aloc = E.aplicarAjustes([obj], {});
+  ok([].concat(...aloc.linhasP).some(x => x.ehManual), 'reserva manual alocada em vaga P');
+});
+t('5.4 dedup "manter uma só": mesmo nº no PDF remove a manual', () => {
+  const rec = E.montarReservaManual({ nome: 'Ana', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26'), nro: '999', apto: '5' }, {});
+  const pdf = [{ nro: '999', apto: '5', nomeCompleto: 'ANA', entrada: D('05/06/26'), saida: D('08/06/26') }];
+  eq(E.dedupManuaisComPDF([rec], pdf).length, 0, 'manual reconciliada (mesmo nº)');
+});
+t('5.4 dedup sem nº: mesmo apto+período+nome no PDF remove a manual', () => {
+  const rec = E.montarReservaManual({ nome: 'Ana Souza', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '5' }, {});
+  const pdf = [{ nro: '30000', apto: '5', nomeCompleto: 'ANA SOUZA', entrada: D('06/06/26'), saida: D('09/06/26') }];
+  eq(E.dedupManuaisComPDF([rec], pdf).length, 0);
+});
+t('5.4 dedup: reserva diferente NÃO é removida', () => {
+  const rec = E.montarReservaManual({ nome: 'Bruno', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '9' }, {});
+  const pdf = [{ nro: '30000', apto: '5', nomeCompleto: 'ANA', entrada: D('05/06/26'), saida: D('08/06/26') }];
+  eq(E.dedupManuaisComPDF([rec], pdf).length, 1);
+});
+
+// Edições manuais
+t('5.5 montarEdicoesManuais: junta status + manuais, mais recente primeiro', () => {
+  const ajustes = { '30003': { statusManual: 'sem_garagem', ultimaAlteracao: { funcionario: 'Doug', dataHora: '2026-07-10T09:00:00.000Z' } } };
+  const manuais = [E.montarReservaManual({ nome: 'Nova', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26') }, { funcionario: 'Ana', dataHora: '2026-07-10T11:00:00.000Z' })];
+  const lista = E.montarEdicoesManuais(ajustes, manuais);
+  eq(lista.length, 2);
+  eq(lista[0].tipo, 'reserva'); eq(lista[0].funcionario, 'Ana'); // mais recente primeiro
+  eq(lista[1].tipo, 'status'); eq(lista[1].status, 'sem_garagem');
+});
 
 /* ════════════ v1.5.2 — correções visíveis ════════════ */
 // 5.1 — nomes: cabeçalho tolerante + fallback heurístico (menos "Hóspede")

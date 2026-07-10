@@ -4,7 +4,14 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.2** (10/07/2026) — **Patch 1 (correções visíveis):** nomes de reservas
+- **Versão entregue: v1.5.3** (10/07/2026) — **Patch 2 (ferramentas):** motos editáveis (**2 = 1 vaga
+  de carro**, cross-reserva; ímpar sozinha; **arrastáveis**; par manual na mesma vaga; sem seção Moto
+  separada), **busca com destaque** (nº/nome/apto/modelo; dim+contorno+auto-scroll+contagem),
+  **vagas extras** (até 3, `EXTRAn`; surgem só quando usadas; overbooking→extra), **adicionar reserva
+  manual** (`reservasManuais`, DB **v5→v6**; encaixe + oferta de vaga extra + **dedup "manter uma só"**
+  + removível + auditoria + ✍️), **painel de edições manuais**. Migração não-destrutiva. Testes
+  **325/325** (+2 hooks `[real]`). Regra `amostras/` mantida (validação com PDF real pendente).
+- **Versão anterior: v1.5.2** (10/07/2026) — **Patch 1 (correções visíveis):** nomes de reservas
   (menos "Hóspede"; `extrairNomes` exato→tolerante→heurística, zero-regressão), **obs de
   indisponibilidade → "sem garagem"** (`obsIndicaSemGaragem`; explícito sai do mapa, ambíguo lança +
   **notifica** no painel `#avisos`), **amarelo × laranja distintos** + **ícone 👥** no grupo, **aviso de

@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.2** (entregue) · **Próximo: v1.5.3 (ferramentas).** Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.3** (entregue) · Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -115,11 +115,15 @@
 - Sem mudança de schema. Testes **291/291** (198 engine + 63 jsdom + 30 Playwright) + 2 hooks `[real]`.
   Ver `RELATORIO-v1.5.2.md`.
 
-### 🔜 v1.5.3 (ferramentas) — na fila
-- Editar **moto → vaga de carro** + pareamento 2 motos = 1 vaga (edição manual da moto).
-- **Busca** com destaque (localizar reserva/hóspede no mapa).
-- **Vagas extras** (até 3) + **adicionar reserva manual** com encaixe/oferta de vaga extra.
-- Reservas/ajustes manuais aparecem no **registro de edições manuais**.
+### v1.5.3 (entregue 10/07/2026) — Patch 2: ferramentas
+- **Motos editáveis:** 2 motos = 1 vaga de carro (cross-reserva); ímpar sozinha; **arrastáveis** para
+  vaga de carro/overbooking/extra; par manual na mesma vaga. Sem seção Moto separada.
+- **Busca** com destaque (nº/nome/apto/modelo; dim + contorno + auto-scroll; contagem + navegação).
+- **Vagas extras** (até 3, `EXTRAn`): surgem só quando usadas; **overbooking → vaga extra**.
+- **Adicionar reserva manual** (`reservasManuais`, DB **v5→v6**): encaixe pelas regras; **não coube →
+  oferece vaga extra**; **persiste** ao reimportar; **dedup "manter uma só"**; removível; auditoria.
+- **Painel de edições manuais** (adições + status, com funcionário/data/hora).
+- Testes **325/325** (217 engine + 73 jsdom + 35 Playwright) + 2 hooks `[real]`. Ver `RELATORIO-v1.5.3.md`.
 
 ---
 

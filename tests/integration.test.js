@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.2', async () => {
+  await T('rodapé mostra v1.5.3', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.2');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.3');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -943,6 +943,115 @@ Total Geral`;
     ok(/Overbooking em/.test(alert.textContent), 'texto com "Overbooking em"');
     const dd = String(ent.getDate()).padStart(2, '0'), mm = String(ent.getMonth() + 1).padStart(2, '0');
     ok(alert.textContent.includes(`${dd}/${mm}`), 'inclui a data do overbooking');
+  });
+
+  /* ── v1.5.3 — ferramentas ── */
+  const motoBloco = (nro, ent, sai, apto, nome) => `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 ${apto} ABC ${nro} H\nWHATSAPP\nObs do Apto: GARAGEM MOTO\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
+
+  await T('v1.5.3 migração v5→v6: store reservasManuais existe; demais intactos', async () => {
+    const { w } = await novoApp();
+    ok(Array.isArray(await w.dbGetAll('reservasManuais')), 'store reservasManuais acessível');
+    ok(Array.isArray(await w.dbGetAll('reservas')) && Array.isArray(await w.dbGetAll('ajustes')) && Array.isArray(await w.dbGetAll('hospedados')), 'demais stores intactos');
+  });
+
+  await T('5.1 duas motos → 1 slot de moto na seção de carros P (sem seção Moto separada)', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    await w.importarPDF(w.parsear([motoBloco('60001', ent, sai, '101', 'MOTO UM'), motoBloco('60002', ent, sai, '102', 'MOTO DOIS')].join('\n'))); await sleep(20);
+    const par = [...w.document.querySelectorAll('.cell-span.moto-c')].filter(s => /MOTO UM/.test(s.textContent) && /MOTO DOIS/.test(s.textContent));
+    ok(par.length === 1, 'as 2 motos num único bloco (par) na vaga de carro');
+    ok(![...w.document.querySelectorAll('.secao-titulo')].some(t => /Moto — 1 vaga/.test(t.textContent)), 'sem seção Moto separada');
+  });
+
+  await T('5.1 moto arrastável: salvarAjuste(moto, P5) fixa a moto na vaga de carro P5', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    await w.importarPDF(w.parsear(motoBloco('60003', ent, sai, '103', 'MOTO SOLO'))); await sleep(20);
+    await w.salvarAjuste('60003', 'P5'); await sleep(20);
+    const p5 = w.document.querySelector('.row-cells[data-vaga="P5"]');
+    ok(p5 && /MOTO SOLO/.test(p5.textContent), 'moto fixada em P5');
+  });
+
+  await T('5.2 busca: destaca resultado, conta e escurece o resto; limpar remove', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    w.onBuscaInput('ANA'); await sleep(20);
+    ok(w.document.getElementById('mapa-wrapper').classList.contains('busca-ativa'), 'mapa em modo busca');
+    ok(w.document.querySelector('.cell-span.busca-hit'), 'há bloco marcado');
+    ok(w.document.querySelector('.cell-span.busca-atual'), 'resultado atual contornado');
+    ok(/1 de/.test(w.document.getElementById('busca-info').textContent), 'contagem exibida');
+    w.limparBusca(); await sleep(10);
+    ok(!w.document.getElementById('mapa-wrapper').classList.contains('busca-ativa'), 'destaque removido');
+  });
+
+  await T('5.2 busca por modelo (moto) casa', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    await w.importarPDF(w.parsear(motoBloco('60005', ent, sai, '105', 'FULANO MOTO'))); await sleep(20);
+    w.onBuscaInput('moto'); await sleep(20);
+    ok(w.document.querySelector('.cell-span.busca-hit'), 'moto casa por modelo');
+  });
+
+  await T('5.3 vaga extra: aparece só quando ocupada; EXTRA1 não conta nas normais', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    ok(!w.document.querySelector('.secao-extra'), 'seção extra oculta por padrão');
+    await w.salvarAjuste('30001', 'EXTRA1'); await sleep(20);
+    const sec = w.document.querySelector('.secao-extra');
+    ok(sec && /ANA PEQUENA/.test(sec.textContent), 'ANA aparece na vaga extra');
+    ok(!w.document.querySelector('.row-cells[data-vaga="P1"] .cell-span') || ![...w.document.querySelectorAll('.secao-bloco')][0].textContent.includes('EXTRA'), 'extra fora das seções normais');
+  });
+
+  await T('5.4 adicionar reserva manual: entra no mapa (✍️), persiste, auditoria; remover', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    w.gestaoAddFuncionario(); const fid = w.getGestaoConfig().funcionarios[0].id; w.gestaoSetFuncNome(fid, 'Doug'); await w.salvarGestao(); await sleep(10);
+    const ent = diasDeHoje(0), sai = diasDeHoje(3);
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    w.document.getElementById('add-nome').value = 'HOSPEDE MANUAL';
+    w.document.getElementById('add-entrada').value = iso(ent);
+    w.document.getElementById('add-saida').value = iso(sai);
+    w.document.getElementById('add-tipo').value = 'P';
+    w.document.getElementById('add-apto').value = '777';
+    await w.submeterAddManual(); await sleep(30);
+    ok([...w.document.querySelectorAll('.cell-span')].some(s => /HOSPEDE MANUAL/.test(s.textContent)), 'reserva manual no mapa');
+    ok(w.document.querySelector('.cell-span .manual-ico'), 'marcador ✍️ presente');
+    const recs = await w.dbGetAll('reservasManuais');
+    eq(recs.length, 1); eq(recs[0].ultimaAlteracao.funcionario, 'Doug', 'auditoria gravada');
+    // remover
+    await w.removerReservaManual(recs[0].id); await sleep(20);
+    ok(![...w.document.querySelectorAll('.cell-span')].some(s => /HOSPEDE MANUAL/.test(s.textContent)), 'removida do mapa');
+  });
+
+  await T('5.4 dedup "manter uma só": manual com mesmo nº do PDF não duplica', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    const rec = w.montarReservaManual({ nome: 'ANA PEQUENA', tipo: 'P', entrada: diasDeHoje(0), saida: diasDeHoje(5), nro: '30001', apto: '201' }, { funcionario: 'x', dataHora: new Date().toISOString() });
+    await w.salvarReservaManual(rec); await sleep(20);
+    // 30001 já existe no PDF → a manual é reconciliada (não aparece 2x)
+    const anas = [...w.document.querySelectorAll('.cell-span')].filter(s => /ANA PEQUENA/.test(s.textContent));
+    eq(anas.length, 1, 'ANA aparece uma só vez');
+  });
+
+  await T('5.4 manual persiste ao reimportar PDF (não vem de PDF)', async () => {
+    const { w } = await novoApp();
+    const rec = w.montarReservaManual({ nome: 'SO MANUAL', tipo: 'G', entrada: diasDeHoje(0), saida: diasDeHoje(4), apto: '888' }, { funcionario: 'x', dataHora: new Date().toISOString() });
+    await w.salvarReservaManual(rec); await sleep(20);
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    ok((await w.dbGetAll('reservasManuais')).length >= 1, 'manual sobrevive ao reimport');
+    ok([...w.document.querySelectorAll('.cell-span')].some(s => /SO MANUAL/.test(s.textContent)), 'ainda no mapa');
+  });
+
+  await T('5.5 painel de edições manuais lista adições + status', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    await w.salvarStatusManual('30003', 'sem_garagem'); await sleep(20);
+    const rec = w.montarReservaManual({ nome: 'ADD X', tipo: 'P', entrada: diasDeHoje(0), saida: diasDeHoje(3) }, { funcionario: 'Doug', dataHora: new Date().toISOString() });
+    await w.salvarReservaManual(rec); await sleep(20);
+    w.abrirEdicoesManuais(); await sleep(10);
+    const corpo = w.document.getElementById('edicoes-corpo');
+    ok(/Reserva adicionada/.test(corpo.textContent), 'lista a adição manual');
+    ok(/Sem garagem/.test(corpo.textContent), 'lista a edição de status');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);
