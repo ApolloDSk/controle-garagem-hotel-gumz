@@ -4,7 +4,20 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.3** (10/07/2026) — **Patch 2 (ferramentas):** motos editáveis (**2 = 1 vaga
+- **Versão entregue: v1.5.4** (18/07/2026) — **apresentação / interação (sem schema, DB v6):** amarelo
+  **derivado da bolinha "Aguardando"** (sem "mostarda"); **laranja de grupo removido por completo**
+  (cor/bolinha/legenda/👥) — a **cor segue o status real** (`laranja_*` só como chave de alocação, cor
+  lida de `garagemOrig`); **"Carro 0N" DENTRO do bloco** (só quando a mesma reserva tem >1 carro);
+  **checkbox "Mostrar reservas editadas manualmente"** + área ampliada (status manual + incluídas ✍️ que
+  seguem no mapa + posição/vaga extra); **"Vaga extra" no menu de status só em overbooking** (**via de
+  acesso garantida**: alcançável sem extra em uso; desabilitada com razão se as 3 estiverem ocupadas;
+  **escolher não altera o status**, grava `EXTRAn`+auditoria); **destaque persistente ao clicar** (sem
+  escurecer; permanece ao fechar o detalhe; pan não limpa). Alocação e dados da v1.5.3 preservados.
+  Testes **348/348** (235 engine + 73 jsdom + 40 Playwright). **✅ Validação com PDF real EXECUTADA** —
+  os PDFs já estão em `amostras/`: **Comandas real → 21 hospedados limpos** (encerra a pendência do
+  parser de Comandas da v1.5.1.1) e **Reservas real sem regressão**; os 2 hooks `[real]` rodam e passam
+  (o do Comandas passou a usar `expect.poll`, não `waitForFunction(async …)`). Ver `RELATORIO-v1.5.4.md`.
+- **Versão anterior: v1.5.3** (10/07/2026) — **Patch 2 (ferramentas):** motos editáveis (**2 = 1 vaga
   de carro**, cross-reserva; ímpar sozinha; **arrastáveis**; par manual na mesma vaga; sem seção Moto
   separada), **busca com destaque** (nº/nome/apto/modelo; dim+contorno+auto-scroll+contagem),
   **vagas extras** (até 3, `EXTRAn`; surgem só quando usadas; overbooking→extra), **adicionar reserva

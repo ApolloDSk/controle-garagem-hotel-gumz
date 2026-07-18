@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.3');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.4');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -499,8 +499,11 @@ test('v1.5.1.1 [real] Comandas de amostras/ → hospedados (pendente até haver 
   page.on('dialog', d => { avisos.push(d.message()); d.accept(); });
   await boot(page);
   await page.setInputFiles('#file-input-hosp', pdfs[0]);
-  // parsing/import independem da janela de datas: confere o store direto
-  await page.waitForFunction(async () => (await window.dbGetAll('hospedados')).length > 0, null, { timeout: 15000 });
+  // parsing/import independem da janela de datas: confere o store direto. O import é assíncrono e
+  // RECONSTRÓI o store (limpa→repopula); usa expect.poll (aguarda o callback async e repete) — um
+  // waitForFunction(async ...) resolveria de imediato no Promise truthy e leria o store ainda vazio.
+  await expect.poll(async () => page.evaluate(async () => (await window.dbGetAll('hospedados')).length),
+    { timeout: 20000, intervals: [200, 300, 500, 500, 1000] }).toBeGreaterThan(0);
   const n = await page.evaluate(async () => (await window.dbGetAll('hospedados')).length);
   console.log(`[amostra real] hospedados extraídos: ${n}`);
   expect(n).toBeGreaterThan(0);
@@ -517,7 +520,7 @@ test('v1.5.1.1 [real] Reservas de amostras/ → sem regressão (pendente até ha
   expect(n).toBeGreaterThan(0);
 });
 
-test('v1.5.2 amarelo × laranja com cores distintas + ícone de grupo (👥)', async ({ page }) => {
+test('v1.5.4 (5.2) fim do laranja: Carro 01/02 no bloco, cores pelo status, sem 👥', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1400 });
   await boot(page);
   await page.evaluate(() => {
@@ -527,18 +530,25 @@ test('v1.5.2 amarelo × laranja com cores distintas + ícone de grupo (👥)', a
     const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
     const ent = d(0), sai = d(4);
     const b = (nro, apto, obs, nome) => `${fb(ent)} ${fs(sai)} 1 2 ${apto} ABC ${nro} H\nWHATSAPP\nObs do Apto: ${obs}\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
-    const txt = [b('50001', '201', 'VERIFICAR INTERESSE', 'ANA AMARELA'), b('50002', '202', 'GARAGEM PEQUENO', 'GRUPO A'), b('50002', '203', 'GARAGEM PEQUENO', 'GRUPO B')].join('\n');
+    // mesma reserva (50002) em 2 aptos: um confirmado (azul), outro aguardando (amarelo).
+    const txt = [b('50001', '201', 'VERIFICAR INTERESSE', 'ANA AMARELA'), b('50002', '202', 'GARAGEM PEQUENO', 'GRUPO A'), b('50002', '203', 'VERIFICAR INTERESSE', 'GRUPO B')].join('\n');
     return window.importarPDF(window.parsear(txt));
   });
-  await page.waitForSelector('.cell-span.laranja');
-  const cores = await page.evaluate(() => {
+  await page.waitForSelector('.cell-span');
+  // NADA laranja sobra
+  await expect(page.locator('.cell-span.laranja')).toHaveCount(0);
+  await expect(page.locator('.grupo-ico')).toHaveCount(0);
+  // "Carro 01" e "Carro 02" DENTRO dos blocos da mesma reserva
+  await expect(page.locator('.cell-span', { hasText: 'Carro 01' })).toHaveCount(1);
+  await expect(page.locator('.cell-span', { hasText: 'Carro 02' })).toHaveCount(1);
+  // status diferentes → cores diferentes: há bloco azul e bloco amarelo
+  const info = await page.evaluate(() => {
     const g = el => el ? getComputedStyle(el).borderTopColor : null;
-    return { am: g(document.querySelector('.cell-span.amarelo')), la: g(document.querySelector('.cell-span.laranja')), grupo: !!document.querySelector('.cell-span.laranja .grupo-ico') };
+    return { az: g(document.querySelector('.cell-span.azul')), am: g(document.querySelector('.cell-span.amarelo')) };
   });
-  expect(cores.am).not.toBeNull();
-  expect(cores.la).not.toBeNull();
-  expect(cores.am).not.toBe(cores.la); // amarelo e laranja nitidamente diferentes
-  expect(cores.grupo).toBe(true);
+  expect(info.az).not.toBeNull();
+  expect(info.am).not.toBeNull();
+  expect(info.az).not.toBe(info.am);
 });
 
 test('v1.5.2 aviso de overbooking informa o período', async ({ page }) => {
@@ -666,15 +676,91 @@ test('v1.5.3 painel de edições manuais lista adições e status', async ({ pag
   await expect(page.locator('#edicoes-corpo')).toContainText('Sem garagem');
 });
 
-test('screenshots do mapa, contato e gestão (v1.5.3)', async ({ page }) => {
+test('screenshots do mapa, contato e gestão (v1.5.4)', async ({ page }) => {
   await boot(page);
   await importar(page);
   await importarComandas(page);
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.3-mapa.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.4-mapa.png'), fullPage: true });
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.3-contato.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.4-contato.png'), fullPage: true });
   await page.click('#tab-gestao');
   await page.waitForSelector('.gestao-wrap');
-  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.3-gestao.png'), fullPage: true });
+  await page.screenshot({ path: path.join(os.homedir(), 'Desktop', 'v1.5.4-gestao.png'), fullPage: true });
+});
+
+// ════════ v1.5.4 — checkbox editadas, vaga extra pelo status, destaque persistente ════════
+
+test('v1.5.4 (5.3) checkbox renomeado; área lista incluída manual (segue no mapa) + status', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await expect(page.locator('.chk-semgar')).toContainText('editadas manualmente');
+  // status manual + reserva incluída manualmente
+  await page.evaluate(async () => {
+    await window.salvarStatusManual('30001', 'confirmado');
+    const rec = window.montarReservaManual({ nome: 'INCLUI MANUAL', tipo: 'P', entrada: new Date(), saida: new Date(Date.now() + 3 * 864e5), apto: '888' }, { funcionario: 'Doug', dataHora: new Date().toISOString() });
+    await window.salvarReservaManual(rec);
+  });
+  await page.check('#chk-semgar');
+  const area = page.locator('.secao-semgar');
+  await expect(area).toContainText('Editadas manualmente');
+  await expect(area).toContainText('INCLUI MANUAL');
+  await expect(area).toContainText('Incluída manualmente');
+  await expect(area).toContainText('no mapa'); // adicionada manualmente CONTINUA no mapa
+  // a incluída manualmente também aparece no mapa
+  await expect(page.locator('.cell-span', { hasText: 'INCLUI MANUAL' })).toHaveCount(1);
+});
+
+test('v1.5.4 (5.4) VIA DE ACESSO: "Vaga extra" no menu de status de reserva em overbooking (sem extra em uso)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 2600 });
+  await boot(page);
+  // lota 32 vagas + 1 excedente → overbooking, com NENHUMA vaga extra em uso
+  await page.evaluate(() => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(3);
+    const blocos = [];
+    for (let i = 0; i < 33; i++) blocos.push(`${fb(ent)} ${fs(sai)} 1 2 ${200 + i} ABC ${71000 + i} H\nWHATSAPP\nObs do Apto: GARAGEM GRANDE\nHóspedes :\nOVER ${i}\nOVER ${i}\nDesbravador Software`);
+    return window.importarPDF(window.parsear(blocos.join('\n')));
+  });
+  await page.waitForSelector('.secao-titulo:has-text("Overbooking")');
+  // nenhuma seção de vaga extra ainda (nenhuma em uso)
+  await expect(page.locator('.secao-extra')).toHaveCount(0);
+  // abre o detalhe de uma reserva em overbooking (na seção de overbooking)
+  const overCell = page.locator('.secao-bloco', { has: page.locator('.secao-titulo:has-text("Overbooking")') }).locator('.cell-span').first();
+  await overCell.click();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  // a opção "Vaga extra" está ALCANÇÁVEL no menu de status mesmo sem nenhuma extra em uso
+  await expect(page.locator('#detalhe-modal .status-sel option', { hasText: 'Vaga extra' })).toHaveCount(1);
+  // escolhê-la coloca a reserva na vaga extra (seção aparece) sem virar "sem garagem"
+  await page.locator('#detalhe-modal .status-sel').selectOption('__extra__');
+  await expect(page.locator('.secao-extra')).toContainText('OVER');
+});
+
+test('v1.5.4 (5.5) destaque persiste após fechar o detalhe; pan NÃO limpa; clique no vazio limpa', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  const alvo = page.locator('.cell-span', { hasText: 'ANA PEQUENA' }).first();
+  await alvo.click();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  // fecha o detalhe → destaque PERMANECE
+  await page.click('#detalhe-modal .btn-primary:has-text("Fechar")');
+  await expect(page.locator('#detalhe-modal')).toBeHidden();
+  await expect(page.locator('.cell-span.destaque-clique')).toHaveCount(1);
+  await expect(page.locator('.cell-span.destaque-clique')).toContainText('ANA PEQUENA');
+  // arrastar o fundo (pan) NÃO limpa o destaque
+  const wrap = page.locator('#mapa-wrapper');
+  const box = await wrap.boundingBox();
+  await page.mouse.move(box.x + box.width - 40, box.y + box.height - 20);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 60, box.y + box.height - 20, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('.cell-span.destaque-clique')).toHaveCount(1);
+  // clicar em OUTRA reserva move o destaque (só uma)
+  await page.locator('.cell-span', { hasText: 'BRUNO GRANDE' }).first().click();
+  await page.click('#detalhe-modal .btn-primary:has-text("Fechar")');
+  await expect(page.locator('.cell-span.destaque-clique')).toHaveCount(1);
+  await expect(page.locator('.cell-span.destaque-clique')).toContainText('BRUNO GRANDE');
 });

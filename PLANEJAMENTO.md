@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.3** (entregue) · Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.4** (entregue) · Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -124,6 +124,21 @@
   oferece vaga extra**; **persiste** ao reimportar; **dedup "manter uma só"**; removível; auditoria.
 - **Painel de edições manuais** (adições + status, com funcionário/data/hora).
 - Testes **325/325** (217 engine + 73 jsdom + 35 Playwright) + 2 hooks `[real]`. Ver `RELATORIO-v1.5.3.md`.
+
+### v1.5.4 (entregue 18/07/2026) — apresentação / interação (sem schema, DB v6)
+- **Amarelo derivado da bolinha "Aguardando"** (mesmo matiz, sem "mostarda").
+- **Laranja de grupo removido por completo** (cor/bolinha/legenda/👥) — a cor segue o **status real**;
+  `laranja_*` permanece só como chave de **alocação** (cor lida de `garagemOrig`).
+- **"Carro 0N" DENTRO do bloco** (só quando a mesma reserva tem >1 carro; 1 carro → sem rótulo).
+- **Checkbox "Mostrar reservas editadas manualmente"** + área ampliada (status manual + incluídas ✍️ que
+  seguem no mapa + posição ajustada / vaga extra).
+- **"Vaga extra" no menu de status só em overbooking** — **via de acesso garantida** (alcançável sem extra
+  em uso; desabilitada com razão se as 3 estiverem ocupadas); **escolher não altera o status**.
+- **Destaque persistente ao clicar** (sem escurecer; permanece após fechar o detalhe; pan não limpa).
+- **Validação com PDF real EXECUTADA** (amostras presentes): Comandas real → **21 hospedados** limpos
+  (encerra a pendência do parser de Comandas da v1.5.1.1); Reservas real sem regressão.
+- Testes **348/348** (235 engine + 73 jsdom + 40 Playwright), **2 hooks `[real]` rodando e verdes**. Ver
+  `RELATORIO-v1.5.4.md`.
 
 ---
 

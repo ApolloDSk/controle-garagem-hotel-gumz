@@ -43,7 +43,9 @@ const EXPORTS = [
   // v1.5.3
   'placementExtra','EXTRAS_IDS','extrasEmUso','proximaExtraLivre','motoSlotPar','motoSlotSolo',
   'matchBusca','tipoVeiculoLabel','validarReservaManual','montarReservaManual','reservaManualParaObj',
-  'manualJaNoPDF','dedupManuaisComPDF','montarEdicoesManuais','normalizaNome'
+  'manualJaNoPDF','dedupManuaisComPDF','montarEdicoesManuais','normalizaNome',
+  // v1.5.4
+  'mapaCarrosPorReserva','extraLivreNoPeriodo','extraSlotLivreParaSelf','montarEditadasManuais','STATUS_EXTRA_SENTINEL'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -634,7 +636,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.3', () => { eq(E.APP_VERSION, 'v1.5.3'); });
+t('APP_VERSION é v1.5.4', () => { eq(E.APP_VERSION, 'v1.5.4'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
@@ -1015,6 +1017,137 @@ t('hospedado editável: sem_garagem tira do mapa (statusEfetivo/semGaragem)', ()
 t('hospedado sem_garagem → divergência (comanda ainda mostra garagem)', () => {
   const h = E.hospedadoParaReserva({ apto: '1', nome: 'H', entrada: D('05/06/26'), saida: D('08/06/26'), tipoVeiculo: 'P' });
   ok(E.pmsDivergente(h, { statusManual: 'sem_garagem' }));
+});
+
+/* ════════════ v1.5.4 — amarelo real, fim do laranja, Carro 0N, vaga extra pelo status ════════════ */
+
+// (5.1) amarelo do bloco DERIVADO da bolinha "Aguardando" (--amarelo): mesmo RGB, não um mostarda arbitrário.
+function rgbDe(str, varName) {
+  // pega o bloco :root {...} ou body.light {...} e extrai a cor da variável
+  const re = new RegExp('--' + varName + ':\\s*([^;]+);');
+  const m = str.match(re);
+  return m ? m[1].trim() : null;
+}
+function hexToRgb(h) { const m = h.replace('#', '').match(/.{2}/g); return m ? m.map(x => parseInt(x, 16)) : null; }
+function rgbaCanais(s) { const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); return m ? [+m[1], +m[2], +m[3]] : null; }
+t('5.1 --amarelo-bg (bloco) deriva do RGB da bolinha --amarelo — tema escuro', () => {
+  const raiz = html.slice(html.indexOf(':root {'), html.indexOf('body.light'));
+  const dot = hexToRgb(rgbDe(raiz, 'amarelo'));
+  const bg = rgbaCanais(rgbDe(raiz, 'amarelo-bg'));
+  ok(dot && bg, 'variáveis presentes');
+  eq(bg.join(','), dot.join(','), 'mesmo RGB da bolinha (não mostarda arbitrário)');
+});
+t('5.1 --amarelo-bg deriva do RGB da bolinha — tema claro', () => {
+  const claro = html.slice(html.indexOf('body.light'), html.indexOf('*{box-sizing'));
+  const dot = hexToRgb(rgbDe(claro, 'amarelo'));
+  const bg = rgbaCanais(rgbDe(claro, 'amarelo-bg'));
+  ok(dot && bg, 'variáveis presentes (claro)');
+  eq(bg.join(','), dot.join(','), 'mesmo RGB da bolinha (claro)');
+});
+
+// (5.2) fim do laranja: nenhuma categoria/bolinha/legenda laranja de GRUPO; cor segue o status real.
+t('5.2 legenda NÃO tem mais "Grupo/Múlt. aptos" nem bolinha laranja de grupo', () => {
+  const leg = html.slice(html.indexOf('<div class="legenda">'), html.indexOf('</div>\n</div>', html.indexOf('<div class="legenda">')));
+  ok(!/Grupo\/M[úu]lt/.test(html.slice(html.indexOf('<div class="legenda">'), html.indexOf('<div class="legenda">') + 1600)), 'sem entrada Grupo na legenda');
+});
+t('5.2 corCls foi ajustado: não existe mais o ramo que retorna "laranja"', () => {
+  const idx = html.indexOf('function corCls(');
+  const corpo = html.slice(idx, html.indexOf('}', idx + 200));
+  ok(!/return'laranja'/.test(corpo) && !/return "laranja"/.test(corpo), 'corCls não retorna laranja');
+});
+t('5.2 statusDerivadoDoPDF usa garagemOrig: laranja com origem amarelo → aguardando', () => {
+  eq(E.statusDerivadoDoPDF({ garagem: 'laranja_pequeno', garagemOrig: 'amarelo' }), 'aguardando');
+  eq(E.statusDerivadoDoPDF({ garagem: 'laranja_pequeno', garagemOrig: 'azul_pequeno' }), 'confirmado');
+  eq(E.statusDerivadoDoPDF({ garagem: 'laranja_grande' }), 'confirmado'); // sem garagemOrig
+});
+t('5.2 parser: mesmo nº em 2 aptos guarda status REAL em garagemOrig (azul e amarelo)', () => {
+  const ent = '05/06/26', ent2 = '05/06', sai = '08/06';
+  const b1 = `05/06/26 08/06 1 2 705 ABC 41014 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes :\nG UM\nG UM\nDesbravador Software`;
+  const b2 = `05/06/26 08/06 1 2 706 ABC 41014 H\nWHATSAPP\nObs do Apto: VERIFICAR INTERESSE\nHóspedes :\nG DOIS\nG DOIS\nDesbravador Software`;
+  const rs = E.parsear(b1 + '\n' + b2).filter(r => r.nro === '41014');
+  eq(rs.length, 2);
+  ok(rs.every(r => r.garagem === 'laranja_pequeno'), 'alocação inalterada: ambos laranja_pequeno (confirmado)');
+  const origs = rs.map(r => r.garagemOrig).sort();
+  eq(origs.join(','), 'amarelo,azul_pequeno', 'garagemOrig preserva o status real de cada bloco');
+});
+t('5.2 mapaCarrosPorReserva: numera Carro 0N por reserva; 1 carro não recebe rótulo', () => {
+  const rs = [
+    { id: 'a1', nro: '10', apto: '5', vagaIdx: 2 },
+    { id: 'a2', nro: '10', apto: '5', vagaIdx: 1 },
+    { id: 'b', nro: '20', apto: '9' },
+  ];
+  const m = E.mapaCarrosPorReserva(rs);
+  eq(m['a2'].carroSeq, 1); eq(m['a1'].carroSeq, 2); eq(m['a1'].carroTotal, 2); // ordena por vagaIdx
+  eq(m['b'].carroTotal, 1, 'reserva com 1 carro → total 1 (sem rótulo)');
+});
+t('5.2 mapaCarrosPorReserva ignora motos e hospedados', () => {
+  const rs = [{ id: 'm', nro: '9', garagem: 'azul_moto' }, { id: 'h', nro: 'H__x', ehHospedado: true }];
+  eq(Object.keys(E.mapaCarrosPorReserva(rs)).length, 0);
+});
+
+// (5.4) vaga extra livre no período + sentinela do editor
+t('5.4 STATUS_EXTRA_SENTINEL definido e distinto dos status', () => {
+  ok(E.STATUS_EXTRA_SENTINEL && !['confirmado', 'aguardando', 'sem_garagem'].includes(E.STATUS_EXTRA_SENTINEL));
+});
+t('5.4 extraLivreNoPeriodo: acha a 1ª extra livre no período (não só a vazia)', () => {
+  const res = { nro: '1', entrada: D('05/06/26'), saida: D('08/06/26') };
+  // EXTRA1 ocupada em período SOBREPOSTO → indisponível; EXTRA2 ocupada mas SEM sobreposição → livre.
+  const extras = {
+    EXTRA1: [{ nro: '9', entrada: D('06/06/26'), saida: D('09/06/26') }],
+    EXTRA2: [{ nro: '8', entrada: D('01/06/26'), saida: D('04/06/26') }],
+    EXTRA3: [],
+  };
+  eq(E.extraLivreNoPeriodo(extras, res), 'EXTRA2', 'pula a ocupada no período, acha a livre no período');
+});
+t('5.4 extraLivreNoPeriodo: 3 ocupadas no período → null (mostra desabilitada com razão)', () => {
+  const res = { nro: '1', entrada: D('05/06/26'), saida: D('08/06/26') };
+  const oc = [{ nro: '9', entrada: D('05/06/26'), saida: D('09/06/26') }];
+  eq(E.extraLivreNoPeriodo({ EXTRA1: oc, EXTRA2: oc, EXTRA3: oc }, res), null);
+});
+t('5.4 extraSlotLivreParaSelf: a própria reserva não conta como ocupante', () => {
+  const res = { nro: '1', entrada: D('05/06/26'), saida: D('08/06/26') };
+  const extras = { EXTRA1: [{ nro: '1', entrada: D('05/06/26'), saida: D('08/06/26') }] };
+  ok(E.extraSlotLivreParaSelf(extras, 'EXTRA1', res), 'ignora ocupante com o mesmo nro (a própria)');
+});
+t('5.4 vaga extra pelo status: grava EXTRAn e NÃO altera o status (aplicarAjustes)', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '1', nomeCompleto: 'A' };
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'EXTRA1' } }); // sem statusManual
+  ok(aloc.extras.EXTRA1.some(x => x.nro === '1'), 'ocupa EXTRA1');
+  eq(E.statusEfetivo(r1, { vagaIdManual: 'EXTRA1' }), 'confirmado', 'status NÃO virou nada — segue o do PDF');
+});
+t('5.4 confirmado mantém a EXTRAn (placement preservado)', () => {
+  const r1 = { nro: '1', garagem: 'amarelo', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '1', nomeCompleto: 'A' };
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'EXTRA1', statusManual: 'confirmado' } });
+  ok(aloc.extras.EXTRA1.some(x => x.nro === '1'), 'confirmado continua na EXTRA1');
+});
+t('5.4 sem garagem libera a EXTRAn (sai do mapa)', () => {
+  const r1 = { nro: '1', garagem: 'azul_pequeno', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '1', nomeCompleto: 'A' };
+  const aloc = E.aplicarAjustes([r1], { '1': { vagaIdManual: 'EXTRA1', statusManual: 'sem_garagem' } });
+  ok(!aloc.extras.EXTRA1.some(x => x.nro === '1'), 'EXTRA1 liberada');
+  ok((aloc.semGaragem || []).some(x => x.nro === '1'), 'foi p/ Sem garagem');
+});
+
+// (5.3) área "editadas manualmente" (pura): status + placement + incluída, com noMapa correto
+t('5.3 montarEditadasManuais: status confirmado fica no mapa; sem_garagem fora', () => {
+  const ajustes = {
+    '10': { statusManual: 'confirmado', ultimaAlteracao: { funcionario: 'D', dataHora: '2026-07-10T09:00:00Z' } },
+    '20': { statusManual: 'sem_garagem', ultimaAlteracao: { funcionario: 'D', dataHora: '2026-07-10T10:00:00Z' } },
+  };
+  const l = E.montarEditadasManuais(ajustes, []);
+  const i10 = l.find(x => x.nro === '10'), i20 = l.find(x => x.nro === '20');
+  ok(i10.noMapa === true, 'confirmado continua no mapa');
+  ok(i20.noMapa === false && i20.semGaragem === true, 'sem_garagem fora do mapa');
+});
+t('5.3 montarEditadasManuais: placement em EXTRAn vira faceta "extra" (fica no mapa)', () => {
+  const l = E.montarEditadasManuais({ '30': { vagaIdManual: 'EXTRA1', ultimaAlteracao: { funcionario: 'D', dataHora: '2026-07-10T09:00:00Z' } } }, []);
+  const it = l.find(x => x.nro === '30');
+  ok(it && it.noMapa === true && it.facetas.some(f => f.tipo === 'extra'), 'faceta extra + no mapa');
+});
+t('5.3 montarEditadasManuais: incluída manualmente aparece marcada e no mapa', () => {
+  const manuais = [E.montarReservaManual({ nome: 'Nova', tipo: 'P', entrada: D('05/06/26'), saida: D('08/06/26'), nro: '77' }, { funcionario: 'Ana', dataHora: '2026-07-10T11:00:00Z' })];
+  const l = E.montarEditadasManuais({}, manuais);
+  const it = l.find(x => String(x.nro) === '77');
+  ok(it && it.incluidaManual === true && it.noMapa === true, 'incluída manual, no mapa');
 });
 
 /* ── runner (suporta testes async) ── */

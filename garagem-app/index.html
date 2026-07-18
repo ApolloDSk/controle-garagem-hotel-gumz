@@ -12,7 +12,10 @@
   --bg:#0f1117;--surface:#181c27;--surface2:#1f2436;--border:#2a3050;
   --text:#e8eaf2;--muted:#6b7494;--cell-livre:#1f2436;
   --azul:#3b82f6;--azul-bg:rgba(59,130,246,.18);
-  --amarelo:#eab308;--amarelo-bg:rgba(234,179,8,.20);
+  /* v1.5.4 (5.1) — amarelo do bloco DERIVADO da bolinha "Aguardando" (--amarelo): mesma matiz
+     (mesmo RGB), alpha maior p/ ler como amarelo de verdade e não "mostarda". NÃO inventar hue. */
+  --amarelo:#eab308;--amarelo-bg:rgba(234,179,8,.30);
+  /* v1.5.4 (5.2) — laranja NÃO é mais status/grupo. Mantido só p/ o alerta "grande em vaga pequena". */
   --laranja:#f97316;--laranja-bg:rgba(249,115,22,.22);
   --vermelho:#ef4444;--vermelho-bg:rgba(239,68,68,.18);
   --verde:#22c55e;--verde-bg:rgba(34,197,94,.16);--moto:#a855f7;--moto-bg:rgba(168,85,247,.18);
@@ -27,7 +30,7 @@ body.light {
   --bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;--border:#e2e8f0;
   --text:#1e293b;--muted:#94a3b8;--cell-livre:#ffffff;
   --azul:#2563eb;--azul-bg:rgba(37,99,235,.12);
-  --amarelo:#ca8a04;--amarelo-bg:rgba(202,138,4,.16);
+  --amarelo:#ca8a04;--amarelo-bg:rgba(202,138,4,.22);
   --laranja:#ea580c;--laranja-bg:rgba(234,88,12,.16);
   --vermelho:#dc2626;--vermelho-bg:rgba(220,38,38,.12);
   --verde:#16a34a;--verde-bg:rgba(22,163,74,.12);--moto:#9333ea;--moto-bg:rgba(147,51,234,.12);
@@ -107,7 +110,7 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-span:hover{transform:scaleY(1.07);z-index:200}
 .cell-span.azul   {background:var(--azul-bg);   border:1.5px solid var(--azul)}
 .cell-span.amarelo{background:var(--amarelo-bg);border:1.5px solid var(--amarelo)}
-.cell-span.laranja{background:var(--laranja-bg);border:1.5px solid var(--laranja)}
+/* v1.5.4 (5.2) — categoria de bloco "laranja" (grupo) REMOVIDA: a bolinha/cor segue o status real. */
 .cell-span.vermelho{background:var(--vermelho-bg);border:1.5px solid var(--vermelho);animation:pulse 1.5s infinite}
 .cell-span.moto-c {background:var(--moto-bg);   border:1.5px solid var(--moto)}
 .cell-span.hospedado{background:var(--hosped-bg);border:1.5px solid var(--hosped)}
@@ -119,7 +122,6 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-info{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;color:var(--muted)}
 .cell-span.azul    .cell-nome,.cell-span.azul    .cell-nome-duplo{color:var(--nome-azul)}
 .cell-span.amarelo .cell-nome,.cell-span.amarelo .cell-nome-duplo{color:var(--nome-amarelo)}
-.cell-span.laranja .cell-nome,.cell-span.laranja .cell-nome-duplo{color:var(--nome-laranja)}
 .cell-span.vermelho .cell-nome,.cell-span.vermelho .cell-nome-duplo{color:var(--nome-vermelho)}
 .cell-span.moto-c  .cell-nome,.cell-span.moto-c  .cell-nome-duplo{color:var(--nome-moto)}
 .cell-span.hospedado .cell-nome,.cell-span.hospedado .cell-nome-duplo{color:var(--nome-hosped)}
@@ -147,7 +149,6 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .ct-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:8px;transition:all .15s}
 .ct-item.amarelo{border-left-color:var(--amarelo)}
 .ct-item.azul{border-left-color:var(--azul)}
-.ct-item.laranja{border-left-color:var(--laranja)}
 .ct-item.over{border-left-color:var(--vermelho)}
 .ct-item.moto{border-left-color:var(--moto)}
 .ct-item.active{box-shadow:0 0 0 2px var(--azul);border-color:var(--azul)}
@@ -269,7 +270,8 @@ body.arrastando .cell-span{cursor:grabbing}
 .cell-span.tem-ajuste{box-shadow:0 0 0 1px var(--verde) inset}
 .ajuste-mao{margin-right:3px}
 /* v1.5.0 — status manual, divergência PMS e área "Sem garagem (manual)" */
-.grupo-ico{margin-right:3px;font-size:9px;filter:grayscale(.15)}
+/* v1.5.4 (5.2) — identificação "Carro 0N" DENTRO do bloco (mesma reserva com >1 carro). Discreto. */
+.cell-carro{font-weight:700;opacity:.9}
 /* v1.5.2 (5.2) — avisos de obs ambígua (rede de segurança) */
 .avisos{padding:0 20px 6px;display:flex;flex-direction:column;gap:6px}
 .aviso-card{display:flex;align-items:flex-start;gap:8px;background:var(--amarelo-bg);border:1px solid var(--amarelo);
@@ -293,6 +295,11 @@ body.arrastando .cell-span{cursor:grabbing}
 .mapa-wrapper.busca-ativa .cell-span:not(.busca-hit){opacity:.16;filter:grayscale(.4)}
 .cell-span.busca-atual{outline:3px solid var(--busca);outline-offset:2px;z-index:160;box-shadow:0 0 0 4px rgba(34,211,238,.25)}
 .cell-span.busca-hit{z-index:120}
+/* v1.5.4 (5.5) — destaque PERSISTENTE ao clicar: contorno como o da busca, porém SEM escurecer o
+   resto do mapa (o usuário continua enxergando a planilha). Cor própria (verde) p/ não se confundir
+   com a busca (ciano). Precedência: um bloco clicado fica visível mesmo com a busca ativa. */
+.cell-span.destaque-clique{outline:3px solid var(--verde);outline-offset:2px;z-index:150;box-shadow:0 0 0 4px rgba(34,197,94,.22)}
+.mapa-wrapper.busca-ativa .cell-span.destaque-clique{opacity:1;filter:none}
 .manual-ico{margin-right:3px;font-size:9px}
 /* vagas extras */
 .secao-extra{border:1px dashed var(--extra);border-radius:8px;padding:6px 8px 8px;background:var(--extra-bg)}
@@ -326,6 +333,10 @@ body.arrastando .cell-span{cursor:grabbing}
 .semgar-nome{font-weight:600;font-size:13px}
 .semgar-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
 .semgar-vazio{font-size:12px;color:var(--muted);padding:8px 4px}
+/* v1.5.4 (5.3) — tags do que foi editado na mão + indicador de presença no mapa */
+.edit-tag{font-family:'DM Mono',monospace;font-size:10px;padding:1px 6px;border-radius:5px;background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.edit-onmap{font-family:'DM Mono',monospace;font-size:9.5px;padding:1px 6px;border-radius:5px;background:var(--verde-bg);color:var(--verde)}
+.edit-offmap{font-family:'DM Mono',monospace;font-size:9.5px;padding:1px 6px;border-radius:5px;background:var(--semgar-bg);color:var(--semgar)}
 /* destaque da LINHA (vaga) alvo sob o cursor — a coluna/data é ignorada */
 .row-cells.vaga-alvo{outline:2px dashed var(--azul);outline-offset:1px;background:var(--azul-bg);border-radius:6px}
 /* ghost que segue o cursor (só vertical) */
@@ -446,13 +457,13 @@ body.arrastando .cell-span{cursor:grabbing}
   <div class="leg"><div class="legbox" style="background:var(--azul-bg);border:1px solid var(--azul)"></div>Confirmado</div>
   <div class="leg"><div class="legbox" style="background:var(--hosped-bg);border:1px solid var(--hosped)"></div>🏠 Hospedado (check-in feito)</div>
   <div class="leg"><div class="legbox" style="background:var(--amarelo-bg);border:1px solid var(--amarelo)"></div>Aguardando</div>
-  <div class="leg"><div class="legbox" style="background:var(--laranja-bg);border:1px solid var(--laranja)"></div>👥 Grupo/Múlt. aptos</div>
   <div class="leg"><div class="legbox" style="background:var(--vermelho-bg);border:1px solid var(--vermelho)"></div>Overbooking</div>
   <div class="leg"><div class="legbox" style="background:var(--moto-bg);border:1px solid var(--moto)"></div>🏍 Moto (2 = 1 vaga de carro)</div>
   <div class="leg"><div class="legbox" style="background:var(--extra-bg);border:1px dashed var(--extra)"></div>➕ Vaga extra (emergência)</div>
   <div class="leg"><div class="legbox" style="border:2px dashed var(--laranja)"></div>Grande em vaga pequena</div>
   <div class="leg"><span style="font-size:13px">✋</span>posição ajustada manualmente</div>
   <div class="leg"><span style="font-size:12px">✍️</span>reserva adicionada manualmente</div>
+  <div class="leg"><span style="font-size:11px;font-weight:700">Carro 01/02</span>&nbsp;mesma reserva com mais de um carro</div>
   <div class="leg"><div class="legbox" style="background:var(--cell-livre);border:1px solid var(--border)"></div>Livre</div>
 </div>
 
@@ -483,7 +494,7 @@ body.arrastando .cell-span{cursor:grabbing}
     <button class="btn btn-primary btn-add" onclick="abrirAddManual()" title="Adicionar reserva manual">＋ Reserva</button>
     <!-- v1.5.3 (5.5) — registro de edições manuais -->
     <button class="btn btn-ghost" onclick="abrirEdicoesManuais()" title="Edições manuais">✍️ Edições</button>
-    <label class="chk-semgar"><input type="checkbox" id="chk-semgar" onchange="toggleSemGaragem()"> Mostrar reservas <b>Sem garagem</b></label>
+    <label class="chk-semgar"><input type="checkbox" id="chk-semgar" onchange="toggleSemGaragem()"> Mostrar reservas <b>editadas manualmente</b></label>
   </div>
   <div class="mapa-container" id="mapa-container"></div>
 </div>
@@ -634,7 +645,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.3';
+const APP_VERSION='v1.5.4';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -854,12 +865,15 @@ function parsear(textoOriginal){
     }
 
     if(totalCarros>1){
+      // v1.5.4 (5.2): a categoria interna segue "laranja_*" (alocação inalterada — tratada como
+      // confirmada), mas `garagemOrig` guarda o STATUS REAL do bloco p/ a COR seguir o próprio status.
       const tipoBase=garagem.includes('grande')?'laranja_grande':'laranja_pequeno';
+      const origBase=garagem.includes('grande')?'azul_grande':'azul_pequeno';
       for(let v=0;v<totalCarros;v++){
         reservas.push({
           id:`${nro}__${apto}__${v+1}`,
           nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,
-          garagem:tipoBase,origem,obs:obsResumo,ehGrupo,ehMultiplo:true,
+          garagem:tipoBase,garagemOrig:origBase,origem,obs:obsResumo,ehGrupo,ehMultiplo:true,
           semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo,
           totalCarros,vagaIdx:v+1,_labelExtra:`${totalCarros > 1 ? totalCarros+'x CARROS' : 'GARAGEM'} · Vaga ${v+1}`
         });
@@ -874,6 +888,10 @@ function parsear(textoOriginal){
   reservas.forEach(r=>{
     if(!r.ehMultiplo&&cnt[r.nro]>1&&r.garagem!=='azul_moto'){
       r.ehMultiplo=true;
+      // v1.5.4 (5.2): preserva o status REAL do bloco (azul_pequeno/azul_grande/amarelo) em garagemOrig
+      // ANTES de mutar p/ "laranja_*". Assim a COR segue o status próprio (ex.: Carro 02 amarelo),
+      // enquanto a alocação continua usando "laranja_*" (confirmada) — comportamento inalterado.
+      r.garagemOrig=r.garagem;
       r.garagem='laranja_'+(r.garagem.includes('grande')?'grande':'pequeno');
     }
   });
@@ -1386,7 +1404,10 @@ const STATUS_MANUAIS=['confirmado','aguardando','sem_garagem'];
 function statusDerivadoDoPDF(reserva){
   if(!reserva)return'confirmado';
   if(reserva.semGaragemPDF)return'sem_garagem';
-  return reserva.garagem==='amarelo'?'aguardando':'confirmado';
+  // v1.5.4 (5.2): usa o status REAL do bloco (garagemOrig quando existir — reservas multi-carro/multi-apto
+  // guardam o status próprio ali) p/ a cor seguir o próprio status. Alocação continua por `garagem`.
+  const base=reserva.garagemOrig||reserva.garagem;
+  return base==='amarelo'?'aguardando':'confirmado';
 }
 // Status efetivo (puro): override manual prevalece; senão, o derivado do PDF. Fallback seguro.
 function statusEfetivo(reserva,ajuste){
@@ -1778,6 +1799,77 @@ function montarEdicoesManuais(ajustes,manuais){
   });
   return itens.sort((a,b)=>String(b.dataHora||'').localeCompare(String(a.dataHora||'')));
 }
+
+/* ═══════════════ v1.5.4 — funções puras ═══════════════ */
+
+// (5.2) Numeração "Carro 0N" por reserva: só conta blocos de CARRO (exclui motos e hospedados).
+// Determinístico: ordena por vagaIdx (multi-carro), depois apto, depois id. Retorna id→{carroSeq,carroTotal}.
+function mapaCarrosPorReserva(reservas){
+  const grupos={};
+  (reservas||[]).forEach(r=>{
+    if(!r||r.ehHospedado||r.garagem==='azul_moto')return;
+    (grupos[r.nro]=grupos[r.nro]||[]).push(r);
+  });
+  const mapa={};
+  Object.keys(grupos).forEach(nro=>{
+    const arr=grupos[nro].slice().sort((a,b)=>
+      ((a.vagaIdx||1)-(b.vagaIdx||1))
+      ||String(a.apto).localeCompare(String(b.apto))
+      ||String(a.id).localeCompare(String(b.id)));
+    arr.forEach((r,i)=>{mapa[r.id]={carroSeq:i+1,carroTotal:arr.length};});
+  });
+  return mapa;
+}
+
+// (5.4) Sentinela de status especial do editor: pedido de "vaga extra" (não é status — vira placement).
+const STATUS_EXTRA_SENTINEL='__extra__';
+// (5.4) Uma EXTRAn está livre no período de `res`? (ignora ocupante com o mesmo nro = a própria reserva)
+function extraSlotLivreParaSelf(extras,k,res){
+  if(!extras||!res)return false;
+  const ocup=extras[k]||[];
+  return !ocup.some(o=>o&&String(o.nro)!==String(res.nro)&&sobrepoe(o,res));
+}
+// (5.4) Primeira EXTRAn livre no período de `res` (ou null). "Livre no período" ≠ apenas "vazia".
+function extraLivreNoPeriodo(extras,res){
+  if(!extras||!res)return null;
+  for(const k of EXTRAS_IDS){if(extraSlotLivreParaSelf(extras,k,res))return k;}
+  return null;
+}
+
+// (5.3) Lista das reservas EDITADAS MANUALMENTE p/ a área do mapa (contexto), agrupada por nro.
+// Junta, por reserva: status manual (confirmado/aguardando/sem_garagem), placement (vaga/overbooking/
+// extra) e "incluída manualmente". Cada item traz o que é manual + funcionário/data/hora. `noMapa`
+// indica se continua no mapa (só "sem_garagem" fica de fora). Mesma fonte de dados do log "Edições".
+function montarEditadasManuais(ajustes,manuais){
+  const idsManuais=new Set((manuais||[]).map(m=>String(m.nro)));
+  const itens=[];
+  Object.keys(ajustes||{}).forEach(nro=>{
+    const a=ajustes[nro];if(!a)return;
+    const facetas=[];
+    const temStatus=STATUS_MANUAIS.includes(a.statusManual);
+    if(temStatus)facetas.push({tipo:'status',status:a.statusManual});
+    if(placementValido(a.vagaIdManual)){
+      const v=a.vagaIdManual;
+      const tipo=placementOverbooking(v)?'overbooking':(placementExtra(v)?'extra':'vaga');
+      facetas.push({tipo,vaga:v});
+    }
+    if(!facetas.length)return;
+    const semGar=temStatus&&a.statusManual==='sem_garagem';
+    itens.push({nro:String(nro),facetas,semGaragem:semGar,noMapa:!semGar,
+      incluidaManual:idsManuais.has(String(nro)),
+      funcionario:(a.ultimaAlteracao&&a.ultimaAlteracao.funcionario)||'—',
+      dataHora:(a.ultimaAlteracao&&a.ultimaAlteracao.dataHora)||''});
+  });
+  (manuais||[]).forEach(rec=>{
+    const nro=String(rec.nro);
+    const ja=itens.find(it=>it.nro===nro);
+    if(ja){ja.incluidaManual=true;return;}
+    itens.push({nro,facetas:[],semGaragem:false,noMapa:true,incluidaManual:true,
+      funcionario:(rec.ultimaAlteracao&&rec.ultimaAlteracao.funcionario)||'—',
+      dataHora:(rec.ultimaAlteracao&&rec.ultimaAlteracao.dataHora)||rec.criadoEm||''});
+  });
+  return itens.sort((a,b)=>String(b.dataHora||'').localeCompare(String(a.dataHora||'')));
+}
 // ===ENGINE END===
 /* ═══════════════════════════════════════════════════════════
    ENGINE END
@@ -1908,19 +2000,26 @@ function trocarAba(aba){
 // reserva) faz pan; pointerdown SOBRE um bloco (.cell-span) segue o fluxo de mover vaga,
 // inalterado (blocos/controles excluídos abaixo). Pan acompanha o cursor nas duas direções.
 (function(){
-  let isDown=false,startX,startY,scrollLeft0,scrollTop0;
+  let isDown=false,startX,startY,scrollLeft0,scrollTop0,moveu=false;
   const el=()=>document.getElementById('mapa-wrapper');
   const scroller=()=>document.scrollingElement||document.documentElement;
   document.addEventListener('mousedown',(e)=>{
     const w=el();if(!w||!w.contains(e.target))return;
-    if(e.target.closest('input,textarea,button,a,.cell-span'))return;
-    isDown=true;startX=e.clientX;startY=e.clientY;
+    if(e.target.closest('input,textarea,button,a,select,.cell-span'))return;
+    isDown=true;moveu=false;startX=e.clientX;startY=e.clientY;
     scrollLeft0=w.scrollLeft;scrollTop0=scroller().scrollTop;
     w.classList.add('grabbing');
   });
-  document.addEventListener('mouseup',()=>{isDown=false;const w=el();if(w)w.classList.remove('grabbing');});
+  document.addEventListener('mouseup',()=>{
+    const w=el();if(w)w.classList.remove('grabbing');
+    // v1.5.4 (5.5) — clique de VERDADE no vazio (abaixo do limiar, sem pan) LIMPA o destaque;
+    // arrastar o fundo (pan) NÃO limpa (moveu=true). Fora do mapa não mexe no destaque.
+    if(isDown&&!moveu)limparDestaque();
+    isDown=false;
+  });
   document.addEventListener('mousemove',(e)=>{
     if(!isDown)return;e.preventDefault();
+    if(!moveu&&Math.hypot(e.clientX-startX,e.clientY-startY)>=DRAG_LIMIAR)moveu=true; // pan iniciado
     const w=el();if(!w)return;
     w.scrollLeft=scrollLeft0-(e.clientX-startX);        // horizontal (no wrapper)
     scroller().scrollTop=scrollTop0-(e.clientY-startY); // vertical (na página)
@@ -2296,6 +2395,9 @@ function renderMapa(){
   if(!datas.length)return;
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const rP=conjuntoAtivo(); // v1.5.1: reservas (sem duplicadas por hospedado) + hospedados
+  // v1.5.4 (5.2) — numeração "Carro 0N" (mesma reserva com >1 carro); anota nos próprios objetos.
+  const carroMap=mapaCarrosPorReserva(rP);
+  rP.forEach(r=>{const c=carroMap[r.id];r._carroSeq=c?c.carroSeq:1;r._carroTotal=c?c.carroTotal:1;});
   const aloc=aplicarAjustes(rP,ajustesMap); // v1.3.0: aplica ajustes manuais sobre o automático
   ultimaAlocacao=aloc;                       // referência p/ resolver ocupantes da vaga no drop
   calcContadores(aloc,dataInicio<=hoje&&hoje<=dataFim?hoje:dataInicio,rP);
@@ -2306,10 +2408,11 @@ function renderMapa(){
   if(aloc.overflowLinhas.length)renderSecaoOver(container,aloc.overflowLinhas,datas,hoje);
   // v1.5.3 — vagas extras (emergência): só aparece quando ≥1 em uso.
   renderSecaoExtras(container,aloc.extras,datas,hoje);
-  // v1.5.0 (5.5) — área "Sem garagem" logo abaixo do overbooking (só com o filtro ligado).
-  if(mostrarSemGaragem)renderSecaoSemGaragem(container,aloc.semGaragem||[],hoje);
+  // v1.5.4 (5.3) — área "Editadas manualmente" logo abaixo do overbooking (só com o filtro ligado).
+  if(mostrarSemGaragem)renderSecaoEditadas(container,aloc,rP,hoje);
   renderAvisos(); // v1.5.2 (5.2) — obs ambígua + sem-garagem por PDF
   aplicarDestaqueBusca(); // v1.5.3 (5.2) — reforça destaque após re-render
+  aplicarDestaqueClique(); // v1.5.4 (5.5) — reforça o destaque de clique após re-render
 }
 // v1.5.3 (5.3) — seção "Vagas extras": aparece só com ≥1 ocupada; mostra as 3 vagas como alvos de drop.
 function renderSecaoExtras(container,extras,datas,hoje){
@@ -2336,7 +2439,7 @@ function renderAvisos(){
   const semPDF=new Set();rP.forEach(r=>{if(r.semGaragemPDF)semPDF.add(r.nro);});
   const cards=[];
   if(semPDF.size&&!mostrarSemGaragem){
-    cards.push(`<div class="aviso-card"><span class="aviso-ico">⛔</span><div><b>${semPDF.size} reserva(s)</b> com indisponibilidade de garagem informada na observação foram tratadas como <b>Sem garagem</b>. Marque "Mostrar reservas… Sem garagem" no mapa para vê-las.</div></div>`);
+    cards.push(`<div class="aviso-card"><span class="aviso-ico">⛔</span><div><b>${semPDF.size} reserva(s)</b> com indisponibilidade de garagem informada na observação foram tratadas como <b>Sem garagem</b>. Marque "Mostrar reservas editadas manualmente" no mapa para vê-las.</div></div>`);
   }
   Object.values(ambig).forEach(a=>{
     const ap=(a.apto&&a.apto!=='-')?` (apto ${escapeHtml(a.apto)})`:'';
@@ -2389,43 +2492,109 @@ function aplicarDestaqueBusca(){
   if(alvos[0]){try{alvos[0].scrollIntoView({behavior:'smooth',block:'center',inline:'center'});}catch(e){}}
 }
 
-// v1.5.0 (5.5) — checkbox: exibe/oculta a área "Sem garagem (manual)". Os overrides persistem.
+/* ═══════════ v1.5.4 (5.5) — DESTAQUE PERSISTENTE AO CLICAR ═══════════
+   Estado só de interface (não persiste no banco). Contorno persistente no bloco, SEM escurecer o
+   resto do mapa (diferente da busca, que escurece). Precedência com a busca: o bloco destacado por
+   clique fica visível mesmo com a busca ativa (regra no CSS). Só UMA reserva destacada por vez. */
+let destaqueNro=null;
+function definirDestaque(nro){destaqueNro=(nro==null?null:String(nro));aplicarDestaqueClique();}
+function limparDestaque(){if(destaqueNro!=null){destaqueNro=null;aplicarDestaqueClique();}}
+function aplicarDestaqueClique(){
+  document.querySelectorAll('.cell-span.destaque-clique').forEach(e=>e.classList.remove('destaque-clique'));
+  if(destaqueNro==null)return;
+  document.querySelectorAll('#mapa-container .cell-span').forEach(s=>{
+    if(s.dataset&&s.dataset.nro===String(destaqueNro))s.classList.add('destaque-clique');
+  });
+}
+
+// v1.5.4 (5.3) — checkbox: exibe/oculta a área "Editadas manualmente". Os overrides persistem.
+// (nome interno preservado p/ compat: `mostrarSemGaragem`/`toggleSemGaragem`.)
 let mostrarSemGaragem=false;
 function toggleSemGaragem(){
   const c=document.getElementById('chk-semgar');
   mostrarSemGaragem=!!(c&&c.checked);
   if(todasReservas.length||todosHospedados.length)renderMapa();
 }
-// Área com cor distinta listando as reservas com statusManual==='sem_garagem'. Cada item tem editor
-// para VOLTAR o status (Confirmado/Aguardando) → a reserva retorna ao mapa. Divergência sinalizada.
-function renderSecaoSemGaragem(container,lista,hoje){
+// v1.5.4 (5.3) — ÁREA "EDITADAS MANUALMENTE" (abaixo do overbooking, só com o checkbox ligado).
+// Lista TUDO que foi mexido na mão, no contexto do mapa: status manual (Confirmado/Aguardando/Sem
+// garagem, inclusive hospedado "saiu"), incluídas manualmente (✍️) e posição ajustada (✋ vaga/
+// overbooking/vaga extra) — cada item com o que é manual + funcionário/data/hora.
+//   • "Sem garagem" → FORA do mapa e RE-EDITÁVEL (editor de status devolve ao mapa).
+//   • Demais → CONTINUAM no mapa; aqui são informativos (clique abre o detalhe, onde já se edita).
+// Papel distinto do painel "Edições" (log cronológico) — mesma fonte de dados (ajustes + manuais).
+function renderSecaoEditadas(container,aloc,rP,hoje){
   const bloco=document.createElement('div');bloco.className='secao-bloco secao-semgar';
   const hdr=document.createElement('div');hdr.className='secao-header';
   const t=document.createElement('span');t.className='secao-titulo';
-  t.style.color='var(--semgar)';t.textContent=`⛔ Sem garagem — ${lista.length}`;
+  t.style.color='var(--semgar)';
   hdr.appendChild(t);bloco.appendChild(hdr);
+  // lookup por nro a partir do conjunto ativo no período (nome/aptos/datas/objeto p/ o detalhe).
+  const porNro={};
+  (rP||[]).forEach(r=>{
+    if(!porNro[r.nro])porNro[r.nro]={nro:r.nro,nome:r.nomeCompleto,entrada:+r.entrada,saida:+r.saida,aptos:new Set(),res:r,ehHospedado:!!r.ehHospedado};
+    porNro[r.nro].aptos.add(r.apto);
+    if(+r.entrada<porNro[r.nro].entrada)porNro[r.nro].entrada=+r.entrada;
+    if(+r.saida>porNro[r.nro].saida)porNro[r.nro].saida=+r.saida;
+  });
+  // (1) TODAS as "Sem garagem" no período (manual + obs do PDF): fora do mapa, re-editável — comporta-
+  //     mento da v1.5.0/1.5.2 preservado. (2) Demais edições manuais (status/posição/incluída): no mapa.
+  const vistos={};const lista=[];
+  (aloc.semGaragem||[]).forEach(r=>{
+    if(vistos[r.nro])return;vistos[r.nro]=true;
+    const a=ajustesMap[r.nro];
+    if(!porNro[r.nro])porNro[r.nro]={nro:r.nro,nome:r.nomeCompleto,entrada:+r.entrada,saida:+r.saida,aptos:new Set([r.apto]),res:r,ehHospedado:!!r.ehHospedado};
+    lista.push({nro:String(r.nro),semGaragem:true,noMapa:false,facetas:[{tipo:'status',status:'sem_garagem'}],
+      incluidaManual:!!r.ehManual,
+      funcionario:(a&&a.ultimaAlteracao&&a.ultimaAlteracao.funcionario)||'—',
+      dataHora:(a&&a.ultimaAlteracao&&a.ultimaAlteracao.dataHora)||''});
+  });
+  montarEditadasManuais(ajustesMap,reservasManuaisAtivas()).forEach(it=>{
+    if(it.semGaragem||vistos[it.nro]||!porNro[it.nro])return;
+    vistos[it.nro]=true;lista.push(it);
+  });
+  lista.sort((a,b)=>String(b.dataHora||'').localeCompare(String(a.dataHora||'')));
+  t.textContent=`✍️ Editadas manualmente — ${lista.length}`;
   if(!lista.length){
     const vazio=document.createElement('div');vazio.className='semgar-vazio';
-    vazio.textContent='Nenhuma reserva marcada como "Sem garagem" no período.';
+    vazio.textContent='Nenhuma reserva editada manualmente no período.';
     bloco.appendChild(vazio);container.appendChild(bloco);return;
   }
-  // agrupa por nro (uma reserva pode ter vários blocos/aptos)
-  const porNro={};
-  lista.forEach(r=>{if(!porNro[r.nro])porNro[r.nro]={nro:r.nro,nome:r.nomeCompleto,entrada:r.entrada,saida:r.saida,aptos:new Set(),res:r,ehHospedado:!!r.ehHospedado};porNro[r.nro].aptos.add(r.apto);});
-  Object.values(porNro).sort((a,b)=>a.entrada-b.entrada).forEach(g=>{
-    const aj=ajustesMap[g.nro];
+  lista.forEach(it=>{
+    const g=porNro[it.nro];const aj=ajustesMap[it.nro];
     const item=document.createElement('div');item.className='semgar-item';
     const aptos=[...g.aptos].filter(x=>x&&x!=='-').join(', ')||'-';
-    // v1.5.1 — hospedado usa o editor "na garagem ↔ saiu"; o meta mostra "🏠 Hospedado" (a chave sintética não é um nº PMS).
-    const meta=g.ehHospedado?`🏠 Hospedado · Ap ${escapeHtml(aptos)} · ${fmtData(g.entrada)}→${fmtData(g.saida)}`:`#${escapeHtml(g.nro)} · Ap ${escapeHtml(aptos)} · ${fmtData(g.entrada)}→${fmtData(g.saida)}`;
-    const editor=g.ehHospedado?statusEditorHospedadoHTML(g.nro,'sem_garagem'):statusEditorHTML(g.nro,'sem_garagem');
+    const idLbl=g.ehHospedado?`🏠 Hospedado · Ap ${escapeHtml(aptos)}`:`#${escapeHtml(String(g.nro))} · Ap ${escapeHtml(aptos)}`;
+    const meta=`${idLbl} · ${fmtData(new Date(g.entrada))}→${fmtData(new Date(g.saida))}`;
+    // tags do que foi manual
+    const tags=[];
+    it.facetas.forEach(f=>{
+      if(f.tipo==='status'){tags.push('✎ '+(STATUS_ROTULOS[f.status]||f.status));}
+      else if(f.tipo==='extra'){tags.push('➕ Vaga extra ('+escapeHtml(f.vaga)+')');}
+      else if(f.tipo==='overbooking'){tags.push('✋ Overbooking');}
+      else if(f.tipo==='vaga'){tags.push('✋ Posição ('+escapeHtml(f.vaga)+')');}
+    });
+    if(it.incluidaManual)tags.push('✍️ Incluída manualmente');
+    const tagsHtml=tags.map(x=>`<span class="edit-tag">${x}</span>`).join(' ');
+    const mapaLbl=it.noMapa?'<span class="edit-onmap">no mapa</span>':'<span class="edit-offmap">fora do mapa</span>';
+    const meta2=(it.funcionario&&it.funcionario!=='—')||it.dataHora
+      ?`<span class="semgar-meta">👤 ${escapeHtml(it.funcionario)}${it.dataHora?' · 🕑 '+fmtDataHoraISO(it.dataHora):''}</span>`:'';
+    const diverg=pmsDivergente(g.res,aj)?'<span class="pms-diverg" title="'+(g.ehHospedado?'Marcado como saiu manualmente — comanda ainda mostra garagem':'Alterado manualmente — PMS ainda não atualizado')+'">◆</span>':'';
+    // "Sem garagem" → editor re-editável; demais → clique abre o detalhe (informativo).
+    let acaoHtml;
+    if(it.semGaragem){
+      acaoHtml=`<div class="semgar-acao">${g.ehHospedado?statusEditorHospedadoHTML(g.nro,'sem_garagem'):statusEditorHTML(g.nro,'sem_garagem')}</div>`;
+    }else{
+      acaoHtml=`<div class="semgar-acao"><button class="btn btn-ghost" onclick="abrirDetalheReserva(reservaPorNro('${escapeAttr(String(g.nro))}'))">Ver detalhe</button></div>`;
+    }
     item.innerHTML=`
       <div class="semgar-info">
         <span class="semgar-nome">${escapeHtml(g.nome)}</span>
+        ${tagsHtml} ${mapaLbl}
         <span class="semgar-meta">${meta}</span>
-        ${pmsDivergente(g.res,aj)?'<span class="pms-diverg" title="'+(g.ehHospedado?'Marcado como saiu manualmente — comanda ainda mostra garagem':'Alterado manualmente — PMS ainda não atualizado')+'">◆</span>':''}
+        ${meta2}
+        ${diverg}
       </div>
-      <div class="semgar-acao">${editor}</div>`;
+      ${acaoHtml}`;
     bloco.appendChild(item);
   });
   container.appendChild(bloco);
@@ -2507,6 +2676,8 @@ function mkRow(label,linha,datas,isOver,isMoto,vagaIdOverride){
     const span=document.createElement('div');
     span.className=`cell-span ${cls}`;
     span.style.left=left+'px';span.style.width=w+'px';
+    // v1.5.4 (5.5) — nº da reserva no bloco p/ reaplicar o destaque de clique após re-render.
+    span.dataset.nro=String(res._motoSlot?((res.res1&&res.res1.nro)||''):res.nro);
     if(ehPar){
       span.innerHTML=`<div class="cell-inner"><span class="cell-nome-duplo">🏍 ${res.res1.nomeCompleto}</span><span class="cell-nome-duplo">🏍 ${res.res2.nomeCompleto}</span></div>`;
       addTTPar(span,res.res1,res.res2);
@@ -2528,15 +2699,15 @@ function mkRow(label,linha,datas,isOver,isMoto,vagaIdOverride){
       const manualIco=res.ehManual?'<span class="manual-ico" title="Reserva adicionada manualmente">✍️</span>':'';
       // v1.5.0 (5.6) — marcador discreto de divergência com o PMS (alterado manualmente, PMS não atualizado).
       const diverg=res._pmsDivergente?'<span class="pms-diverg" title="Alterado manualmente — PMS ainda não atualizado">◆</span>':'';
-      // v1.5.2 (5.3) — ícone discreto no bloco de Grupo/Múltiplos aptos (ajuda leitura rápida/daltônicos).
-      const grupoIco=cls.includes('laranja')?'<span class="grupo-ico" title="Grupo / Múltiplos apartamentos">👥</span>':'';
       // 5.2 — nº PMS clicável para copiar (com fallback file://); não dispara o arraste.
       const nroSpan=res.ehManual?'<span class="copyable" title="Reserva manual">✍️ manual</span>':`<span class="copyable" title="Clique para copiar o nº PMS" onclick="event.stopPropagation();copiarTexto('${res.nro}')">#${res.nro}</span>`;
+      // v1.5.4 (5.2) — "Carro 0N" DENTRO do bloco quando a mesma reserva tem mais de um carro (só então).
+      const carroLbl=(res._carroTotal>1)?` · <span class="cell-carro">Carro ${String(res._carroSeq).padStart(2,'0')}</span>`:'';
       // v1.5.1 — hospedado (check-in feito): rótulo próprio (a chave sintética não é um nº PMS).
       const infoLabel=res.ehHospedado
-        ?`🏠 Hospedado · Ap ${escapeHtml(res.apto)}`
-        :(res._labelExtra?`${res._labelExtra} · Ap ${res.apto}`:`${nroSpan} · Ap ${res.apto}`);
-      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${manualIco}${grupoIco}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
+        ?`🏠 Hospedado · Ap ${escapeHtml(res.apto)}${carroLbl}`
+        :`${nroSpan} · Ap ${res.apto}${carroLbl}`;
+      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${manualIco}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
       if(res.ajusteManual)span.classList.add('tem-ajuste');
       marcarBusca(span,res);
       // 5.4 — arraste (Pointer Events) nas seções arrastáveis; clique abre detalhe.
@@ -2556,11 +2727,12 @@ function corCls(res,over){
   if(over||res._over)return'vermelho';
   // v1.5.1 — hospedado (check-in feito) tem visual próprio, distinto das cores de status de reserva.
   if(res.ehHospedado&&res._statusEfetivo!=='aguardando')return'hospedado';
-  if(res.garagem&&res.garagem.includes('laranja'))return'laranja';
-  // v1.5.0 — a cor segue o STATUS EFETIVO (override manual prevalece sobre o do PDF).
+  // v1.5.4 (5.2) — SEM cor "laranja" de grupo: a cor segue o STATUS REAL do próprio bloco
+  // (override manual prevalece; senão o derivado do PDF via garagemOrig). Status diferentes na mesma
+  // reserva → cores diferentes (ex.: Carro 01 azul confirmado, Carro 02 amarelo aguardando).
   if(res._statusEfetivo==='aguardando')return'amarelo';
   if(res._statusEfetivo==='confirmado')return'azul';
-  if(res.garagem==='amarelo')return'amarelo';
+  if((res.garagemOrig||res.garagem)==='amarelo')return'amarelo';
   return'azul';
 }
 
@@ -2571,11 +2743,15 @@ function ttHtml(res,isOver,isMoto){
   const ok=(res.origem||'direta').toLowerCase();
   const em=oriEmoji[ok]||'📋';
   const tipoHosp=res.tipoVeiculo==='G'?'Camionete/Grande':res.tipoVeiculo==='moto'?'Moto':res.tipoVeiculo==='P'?'Carro pequeno':'Carro (padrão)';
-  const status=res.ehHospedado&&!isOver?`🏠 Hospedado — ${tipoHosp}`:isMoto?'🟣 Moto confirmada':isOver?'🔴 Overbooking — sem vaga garantida':res.garagem==='amarelo'?'🟡 Aguardando':res.garagem&&res.garagem.includes('laranja')?'🟠 Grupo / Múlt. aptos':res.garagem==='azul_grande'?'🔵 Confirmado — Grande':'🔵 Confirmado — Pequeno';
+  // v1.5.4 (5.2) — status segue o STATUS REAL do bloco (sem categoria "grupo/laranja").
+  const stEfTT=res._statusEfetivo||statusDerivadoDoPDF(res);
+  const grande=(res.garagem==='azul_grande'||res.garagem==='laranja_grande'||res.garagemOrig==='azul_grande');
+  const status=res.ehHospedado&&!isOver?`🏠 Hospedado — ${tipoHosp}`:isMoto?'🟣 Moto confirmada':isOver?'🔴 Overbooking — sem vaga garantida':stEfTT==='aguardando'?'🟡 Aguardando':grande?'🔵 Confirmado — Grande':'🔵 Confirmado — Pequeno';
   const canalHospRow=res.ehHospedado&&res.canal?`<div class="tt-row"><span class="tt-key">Canal</span><span class="tt-val">${escapeHtml(res.canal)}</span></div>`:'';
   const hospedeRow=res.hospedeDetalhe?`<div class="tt-row"><span class="tt-key">Hóspede</span><span class="tt-val">${res.hospedeDetalhe}</span></div>`:'';
   const otaRow=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val">${res.nroOTA}</span></div>`:'';
-  const totalInfo=res._labelExtra?`<div class="tt-row"><span class="tt-key">Veículos</span><span class="tt-val" style="color:var(--laranja);font-weight:700">${res._labelExtra} · Vaga ${res.vagaIdx||1}</span></div>`:'';
+  // v1.5.4 (5.2) — "Carro 0N" no tooltip quando a reserva tem mais de um carro (sem cor laranja).
+  const totalInfo=(res._carroTotal>1)?`<div class="tt-row"><span class="tt-key">Veículos</span><span class="tt-val" style="font-weight:700">Carro ${String(res._carroSeq).padStart(2,'0')} de ${res._carroTotal}</span></div>`:'';
   const grandePeqRow=res._grandeEmPequena?`<div class="tt-row"><span class="tt-key tt-warn">⚠ Atenção</span><span class="tt-val tt-warn">Carro grande em vaga pequena</span></div>`:'';
   const overRow=isOver?`<div class="tt-row"><span class="tt-key tt-warn">⚠</span><span class="tt-val tt-warn">Priorizar contato: não há vaga</span></div>`:'';
   const idRow=res.ehHospedado
@@ -2700,10 +2876,10 @@ function reservasContato(){
 
 function grupoTipo(g){
   if(g.over)return'over';
-  if(g.garagem==='amarelo')return'amarelo';
+  // v1.5.4 (5.2) — sem categoria "laranja": o tipo segue o status real (aguardando) e o tamanho.
+  if(g._statusEfetivo==='aguardando'||g.garagem==='amarelo')return'amarelo';
   if(g.garagem==='azul_moto')return'moto';
   if(g.garagem&&g.garagem.includes('grande'))return'grande';
-  if(g.garagem&&g.garagem.includes('laranja'))return'laranja';
   return'pequeno';
 }
 
@@ -2723,7 +2899,7 @@ function renderContato(){
   if(!grupos.length){cont.innerHTML='<div class="ct-empty">Nenhuma reserva neste filtro/período.</div>';return;}
 
   if(contatoFiltro==='confirmados'){
-    const peq=grupos.filter(g=>['pequeno','laranja'].includes(grupoTipo(g)));
+    const peq=grupos.filter(g=>grupoTipo(g)==='pequeno');
     const gra=grupos.filter(g=>grupoTipo(g)==='grande');
     const mot=grupos.filter(g=>grupoTipo(g)==='moto');
     if(peq.length){cont.appendChild(subTitulo('Carro pequeno — '+peq.length));peq.forEach(g=>cont.appendChild(itemContato(g)));}
@@ -2744,8 +2920,7 @@ function itemContato(g){
   if(tipo==='over')corCl='over';
   else if(g._statusEfetivo==='sem_garagem')corCl='semgar';
   else if(tipo==='moto')corCl='moto';
-  else if(g._statusEfetivo==='aguardando')corCl='amarelo';
-  else if(tipo==='laranja')corCl='laranja';
+  else if(g._statusEfetivo==='aguardando'||tipo==='amarelo')corCl='amarelo';
   else corCl='azul';
   // v1.4.0 (5.3) — "enviado" é DERIVADO do histórico de envios (não mais do telefone).
   const enviado=statusEnvioReserva(enviosPorNro[g.nro])==='enviado';
@@ -2779,7 +2954,7 @@ function itemContato(g){
       <span>${oriEmoji[(g.origem||'direta').toLowerCase()]||'📋'} ${g.origem||'Direta'}</span>
     </div>
     <div class="ct-status">
-      <span class="ct-status-lbl">Status:</span>${statusEditorHTML(g.nro,stEf)}
+      <span class="ct-status-lbl">Status:</span>${statusEditorHTML(g.nro,stEf,{overbooking:!!g.over,extraLivre:g.over?extraLivreNoPeriodo((ultimaAlocacao&&ultimaAlocacao.extras)||EXTRAS_VAZIO(),{nro:g.nro,entrada:g.entrada,saida:g.saida}):null})}
       ${diverge?'<span class="pms-diverg-badge sm" title="Alterado manualmente — PMS ainda não atualizado">⚠ PMS não atualizado</span>':''}
     </div>
     <div class="ct-fone">
@@ -3230,10 +3405,16 @@ async function _persistirAjuste(reg){
   if(dbOk){try{await dbPut('ajustes',reg);}catch(e){console.warn('salvar ajuste falhou',e);}}
   rerenderMapaEContato();
 }
-// Placement (arraste de vaga / overbooking). Preserva statusManual/ultimaAlteracao.
+// Placement (arraste de vaga / overbooking / vaga extra). Preserva statusManual.
+// v1.5.4 — grava AUDITORIA (funcionário/data-hora) ao FIXAR uma posição (p/ a área "Editadas
+// manualmente"). Ao LIMPAR (vagaIdManual=null), preserva a auditoria do status, se houver.
 async function salvarAjuste(nro,vagaIdManual){
-  await _persistirAjuste(_montarAjuste(nro,{vagaIdManual}));
+  const patch={vagaIdManual};
+  if(vagaIdManual!=null)patch.ultimaAlteracao={funcionario:funcionarioPadraoNome(),dataHora:new Date().toISOString()};
+  await _persistirAjuste(_montarAjuste(nro,patch));
 }
+// v1.5.4 (5.3) — 1ª reserva (bloco) ativa com o nº informado (p/ abrir o detalhe a partir da área).
+function reservaPorNro(nro){return conjuntoAtivo().find(r=>String(r.nro)===String(nro))||null;}
 // Status manual (Parte A). Registra quem alterou (funcionário padrão, texto) + data/hora ISO.
 async function salvarStatusManual(nro,statusManual){
   const st=(['confirmado','aguardando','sem_garagem'].includes(statusManual))?statusManual:null;
@@ -3317,7 +3498,12 @@ function arrasteUp(ev){
   limparGhost();limparDestaqueVagas();
   document.body.classList.remove('arrastando');
   if(st.span)st.span.classList.remove('arrastando-orig');
-  if(!st.moving){abrirDetalheReserva(st.res._motoSlot?st.res.res1:st.res);return;} // abaixo do limiar → clique = detalhe
+  if(!st.moving){ // abaixo do limiar → clique = detalhe + destaque persistente (v1.5.4/5.5)
+    const alvo=st.res._motoSlot?st.res.res1:st.res;
+    definirDestaque(alvo&&alvo.nro); // move o destaque para esta reserva (sempre só uma)
+    abrirDetalheReserva(alvo);
+    return;
+  }
   const el=document.elementFromPoint(ev.clientX,ev.clientY);
   const wrap=el&&el.closest&&el.closest('[data-vaga]');
   const vagaAlvo=wrap?wrap.dataset.vaga:null;
@@ -3453,7 +3639,10 @@ function abrirDetalheReserva(res){
   const hospRows=ehH?`
     <div class="tt-row"><span class="tt-key">Veículo</span><span class="tt-val">${escapeHtml(tipoHosp)}</span></div>
     ${res.canal?`<div class="tt-row"><span class="tt-key">Canal</span><span class="tt-val">${escapeHtml(res.canal)}</span></div>`:''}`:'';
-  const statusEditor=ehH?statusEditorHospedadoHTML(res.nro,st):statusEditorHTML(res.nro,st);
+  // v1.5.4 (5.4) — só reservas EM OVERBOOKING recebem a opção "➕ Vaga extra" (via de acesso principal).
+  const emOver=!!res._over&&!ehH;
+  const extraLivre=emOver?extraLivreNoPeriodo((ultimaAlocacao&&ultimaAlocacao.extras)||EXTRAS_VAZIO(),res):null;
+  const statusEditor=ehH?statusEditorHospedadoHTML(res.nro,st):statusEditorHTML(res.nro,st,{overbooking:emOver,extraLivre});
   corpo.innerHTML=`
     <div class="tt-nome" style="margin-bottom:8px">${escapeHtml(res.nomeCompleto)}</div>
     ${idRow}
@@ -3492,13 +3681,50 @@ async function voltarAoAutomatico(nro){
 
 /* ═══════════ v1.5.0 — STATUS MANUAL: editor + divergência (Parte A) ═══════════ */
 const STATUS_ROTULOS={confirmado:'Confirmado',aguardando:'Aguardando',sem_garagem:'Sem garagem'};
-// Editor reutilizável (detalhe, Contato, área "Sem garagem"). Grava via salvarStatusManual.
-function statusEditorHTML(nro,statusAtual){
+// Editor reutilizável (detalhe, Contato, área "Editadas manualmente"). Grava via salvarStatusManual.
+// v1.5.4 (5.4) — `ctx` opcional: {overbooking:bool, extraLivre:'EXTRAn'|null}. Só p/ reservas EM
+// OVERBOOKING, oferece "➕ Vaga extra" (VIA DE ACESSO principal). Se as 3 extras estiverem ocupadas
+// no período, a opção aparece DESABILITADA com a razão (não some — o usuário entende o porquê).
+function statusEditorHTML(nro,statusAtual,ctx){
+  ctx=ctx||{};
   const opts=['confirmado','aguardando','sem_garagem']
     .map(v=>`<option value="${v}"${v===statusAtual?' selected':''}>${STATUS_ROTULOS[v]}</option>`).join('');
-  return`<select class="status-sel" title="Alterar status desta reserva" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}</select>`;
+  let extraOpt='';
+  if(ctx.overbooking){
+    extraOpt=ctx.extraLivre
+      ?`<option value="${STATUS_EXTRA_SENTINEL}">➕ Vaga extra (${escapeAttr(ctx.extraLivre)})</option>`
+      :`<option value="__extra_full__" disabled>➕ Vaga extra (sem vaga extra livre no período)</option>`;
+  }
+  return`<select class="status-sel" title="Alterar status desta reserva" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}${extraOpt}</select>`;
 }
-function onStatusChange(nro,val){salvarStatusManual(nro,val);}
+// v1.5.4 (5.4) — "Vaga extra" NÃO é status: grava só o placement EXTRAn (+auditoria), sem tocar no
+// statusManual. Se voltar de "sem_garagem" e a EXTRAn tiver ficado ocupada no período, cai para
+// outra extra livre ou p/ o automático — sempre com aviso, nunca quebra.
+async function onStatusChange(nro,val){
+  if(val==='__extra_full__')return; // opção informativa (desabilitada)
+  if(val===STATUS_EXTRA_SENTINEL){await colocarEmVagaExtra(nro);return;}
+  const aj=ajustesMap[nro];
+  if(val!=='sem_garagem'&&aj&&placementExtra(aj.vagaIdManual)){
+    const res=reservaPorNro(nro);
+    const extras=(ultimaAlocacao&&ultimaAlocacao.extras)||EXTRAS_VAZIO();
+    if(res&&!extraSlotLivreParaSelf(extras,aj.vagaIdManual,res)){
+      const outra=extraLivreNoPeriodo(extras,res);
+      await salvarStatusManual(nro,val);
+      if(outra){await salvarAjuste(nro,outra);mostrarToast(`Vaga ${aj.vagaIdManual} ocupada — movida p/ ${outra}`);}
+      else{await salvarAjuste(nro,null);mostrarToast('Sem vaga extra livre — voltou ao automático');}
+      return;
+    }
+  }
+  await salvarStatusManual(nro,val);
+}
+async function colocarEmVagaExtra(nro){
+  const res=reservaPorNro(nro);
+  const extras=(ultimaAlocacao&&ultimaAlocacao.extras)||EXTRAS_VAZIO();
+  const livre=res?extraLivreNoPeriodo(extras,res):proximaExtraLivre(extras);
+  if(!livre){mostrarToast('Sem vaga extra livre no período');return;}
+  await salvarAjuste(nro,livre); // placement EXTRAn + auditoria; statusManual preservado
+  mostrarToast('Colocada em '+livre);
+}
 // v1.5.1 — editor de HOSPEDADO: "na garagem ↔ saiu (sem garagem)". Reusa salvarStatusManual.
 // "Saiu" = statusManual 'sem_garagem' → some do mapa/libera vaga → vai p/ "Sem garagem (manual)".
 const STATUS_ROTULOS_HOSP={confirmado:'🏠 Na garagem',sem_garagem:'🚗 Saiu (sem garagem)'};

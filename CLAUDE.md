@@ -303,7 +303,50 @@ Garage Spot** (a chave é o `nro` do PMS).
 - **Edições manuais** (`montarEdicoesManuais`, pura): painel lista adições manuais + edições de status
   (funcionário/data/hora). Store `ajustes` só estendido (sentinelas EXTRA); demais stores intactos.
 
+## Comportamentos da v1.5.4 a preservar (apresentação / interação)
+
+> **SEM mudança de schema (segue DB v6).** Versão puramente visual/interativa: **a alocação e todos os
+> dados/stores da v1.5.3 são preservados**. Nenhum store novo.
+
+- **5.1 Amarelo derivado da bolinha "Aguardando":** o fundo do bloco amarelo usa o **mesmo matiz** de
+  `--amarelo` (a cor do contador/legenda "Aguardando"), só com **alpha maior** (`--amarelo-bg`) — **não
+  inventar hue** ("mostarda" é regressão).
+- **5.2 Fim do laranja de grupo + "Carro 0N" no bloco:** a categoria visual **laranja** (cor de bloco,
+  **bolinha/indicador**, **ícone 👥** e **legenda** de "Grupo/Múlt. aptos") foi **removida por completo**
+  — a cor e a bolinha **seguem o STATUS REAL** do bloco. ⚠ **`laranja_*` continua existindo só como chave
+  de ALOCAÇÃO** (confirmada, inalterada); a cor visível vem de **`garagemOrig`** (status real preservado
+  antes da mutação). **NÃO** voltar a colorir bloco/bolinha de laranja. **"Carro 0N" vai DENTRO do bloco**
+  (junto de nome / `#nº · Ap`), **só quando a mesma reserva tem >1 carro** (1 carro → sem rótulo);
+  `mapaCarrosPorReserva` numera só CARROS (exclui motos/hospedados); status diferentes → cores diferentes.
+- **5.3 Checkbox "Mostrar reservas editadas manualmente" + área ampliada** (`montarEditadasManuais`,
+  pura): a área abaixo do overbooking lista, por reserva, **status manual**, **incluídas manualmente**
+  (✍️ — **seguem no mapa**, re-editáveis) e **posição ajustada / vaga extra**. O checkbox só mostra/oculta;
+  os overrides **persistem**.
+- **5.4 "Vaga extra" no menu de status — SÓ em overbooking (via de acesso):** `statusEditorHTML(nro, st,
+  {overbooking, extraLivre})` acrescenta "➕ Vaga extra (EXTRAn)" **apenas** para reserva em overbooking.
+  **Alcançável mesmo sem nenhuma extra em uso** (nasce no menu de status, onde o usuário está); se as **3
+  extras** estiverem ocupadas **no período**, aparece **desabilitada com a razão** (não some).
+  **Escolher NÃO altera o status** — grava só o placement `EXTRAn` (+ auditoria), via `colocarEmVagaExtra`;
+  **Confirmado mantém a mesma extra** (`extraSlotLivreParaSelf`), **"Sem garagem" libera**.
+  `extraLivreNoPeriodo` = 1ª extra livre **no período** (não só a vazia).
+- **5.5 Destaque persistente ao clicar** (`destaqueNro`/`definirDestaque`/`aplicarDestaqueClique`):
+  contorno **sem escurecer** o mapa; **permanece após fechar o detalhe**; clicar outra reserva **move**
+  (sempre uma só); **clique no vazio** (sem pan) **limpa**; **pan do fundo NÃO limpa**. Reaplicado a cada
+  re-render.
+- **Validação com PDF real EXECUTADA:** com os PDFs em `amostras/`, os hooks `[real]` rodam e passam —
+  **Comandas real → 21 hospedados limpos** (encerra a pendência do parser de Comandas aberta na
+  v1.5.1.1); **Reservas real** sem regressão. Hook `[real]` do Comandas usa **`expect.poll`** (não
+  `waitForFunction(async …)`, que resolveria no Promise truthy e leria o store durante o rebuild).
+
 ## Versão atual
+
+**v1.5.4** — **apresentação / interação** (sem schema, DB v6): amarelo derivado da bolinha "Aguardando",
+**laranja de grupo removido por completo** (cor/bolinha/legenda/👥) com a cor seguindo o status real,
+**"Carro 0N" dentro do bloco**, checkbox "Mostrar reservas editadas manualmente" + área ampliada, **"Vaga
+extra" no menu de status só em overbooking** (via de acesso garantida, escolher não muda o status), e
+**destaque persistente ao clicar**. Alocação e dados da v1.5.3 preservados. Testes **348/348** (235 engine
++ 73 jsdom + 40 Playwright) com os **2 hooks `[real]` agora rodando e verdes** (Comandas real → 21
+hospedados; Reservas real sem regressão). Ver `RELATORIO-v1.5.4.md`.
 
 **v1.5.3** — **ferramentas**: motos editáveis (2=1 vaga de carro), busca com destaque, vagas extras
 (até 3) + overbooking→extra, adicionar reserva manual (encaixe + oferta de vaga extra + dedup "manter

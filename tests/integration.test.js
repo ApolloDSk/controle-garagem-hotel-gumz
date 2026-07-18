@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.3', async () => {
+  await T('rodapé mostra v1.5.4', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.3');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.4');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -918,17 +918,24 @@ Total Geral`;
     eq(w.document.getElementById('avisos').style.display, 'none', 'sem aviso');
   });
 
-  await T('5.3 ícone de grupo (👥) presente no bloco de laranja/múltiplos aptos', async () => {
+  await T('v1.5.4 (5.2) mesma reserva (2 aptos) → "Carro 01/02" no bloco, SEM laranja, cor pelo status', async () => {
     const { w } = await novoApp();
     const ent = diasDeHoje(0), sai = diasDeHoje(4);
-    // mesmo nro em 2 aptos → laranja (grupo)
+    // mesmo nro em 2 aptos: um confirmado (azul), outro aguardando (amarelo) → cores DIFERENTES.
     const txt = [
       `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 705 ABC 41014 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes :\nGRUPO UM\nGRUPO UM\nDesbravador Software`,
-      `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 706 ABC 41014 H\nWHATSAPP\nObs do Apto: GARAGEM PEQUENO\nHóspedes :\nGRUPO DOIS\nGRUPO DOIS\nDesbravador Software`,
+      `${fmtBloco(ent)} ${fmtSai(sai)} 1 2 706 ABC 41014 H\nWHATSAPP\nObs do Apto: VERIFICAR INTERESSE\nHóspedes :\nGRUPO DOIS\nGRUPO DOIS\nDesbravador Software`,
     ].join('\n');
     await w.importarPDF(w.parsear(txt)); await sleep(20);
-    ok(w.document.querySelector('#mapa-container .cell-span.laranja'), 'bloco laranja existe');
-    ok(w.document.querySelector('#mapa-container .cell-span.laranja .grupo-ico'), 'ícone de grupo presente');
+    // nada laranja sobra
+    ok(!w.document.querySelector('#mapa-container .cell-span.laranja'), 'nenhum bloco laranja');
+    ok(!w.document.querySelector('#mapa-container .grupo-ico'), 'nenhum ícone de grupo (👥)');
+    // "Carro 01/02" DENTRO do bloco
+    const info = [...w.document.querySelectorAll('#mapa-container .cell-span')].map(s => s.textContent).join(' | ');
+    ok(/Carro 01/.test(info) && /Carro 02/.test(info), '"Carro 01" e "Carro 02" nos blocos');
+    // status diferentes → cores diferentes (um azul, um amarelo)
+    ok(w.document.querySelector('#mapa-container .cell-span.azul'), 'um bloco azul (confirmado)');
+    ok(w.document.querySelector('#mapa-container .cell-span.amarelo'), 'um bloco amarelo (aguardando)');
   });
 
   await T('5.4 aviso de overbooking informa o PERÍODO/datas', async () => {
