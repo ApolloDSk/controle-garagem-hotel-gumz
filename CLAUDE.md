@@ -338,7 +338,52 @@ Garage Spot** (a chave é o `nro` do PMS).
   v1.5.1.1); **Reservas real** sem regressão. Hook `[real]` do Comandas usa **`expect.poll`** (não
   `waitForFunction(async …)`, que resolveria no Promise truthy e leria o store durante o rebuild).
 
+## Comportamentos da v1.5.5 a preservar (amarelo + arraste + modal + fila de contato)
+
+> **SEM mudança de schema (segue DB v6).** Sem backend, sem dependência nova, sem arquivo novo.
+
+- **6.1 Amarelo = a cor da bolinha (fonte única):** `.cell-span.amarelo` usa **`background:var(--amarelo)`
+  sólido** — a MESMA cor da bolinha/legenda "Aguardando" — e **não** mais o fill translúcido `--amarelo-bg`
+  (era o que lia como "mostarda"). Texto do bloco escurecido por **`--sobre-amarelo`** só para contraste
+  (mesma matiz). ⚠ **NÃO** voltar ao fill translúcido nem inventar hue; **nenhum laranja**.
+- **6.2 Arraste manual move SÓ a reserva arrastada — realocação global por arraste é PROIBIDA (regra
+  permanente):** `aplicarAjustes(reservas, ajustes, layoutSeed)` tem um **3º parâmetro** — o **layout
+  congelado** (`congelarLayout(aloc)`, `nro→vagaId`) atua como **soft-pin invisível** que segura cada
+  reserva no lugar. Só o ajuste **manual** (store `ajustes`) marca `ajusteManual`/✋; o congelamento é
+  transparente. `renderMapa` usa uma **assinatura** (`janela + conjunto de nros`): enquanto ela não muda
+  (arraste, status, checkbox) o layout fica estável; **import e mudança de filtro trocam a assinatura →
+  `layoutSeed=null` → a alocação automática roda fresca (importação INTACTA).** Destino livre → só a
+  arrastada muda; destino ocupado → `confirmarMover` remove **só a(s) conflitante(s)** (`nrosConflitantes`)
+  do congelamento p/ reacomodar; "Voltar ao automático" (`removerAjuste`) tira só a própria. ⚠ **Nunca**
+  disparar compactação/otimização/re-encaixe global por causa de um arraste.
+- **6.3 Modal do detalhe rola por dentro (nunca corta):** `.modal-card` é **flex-column com
+  `max-height:92vh`**, `.modal-head` fixo, `.modal-body` com `overflow-y:auto`. O seletor de status aparece
+  inteiro em janela baixa/mobile. Só a apresentação mudou.
+- **6.4/6.8 Contato = FILA DE TRABALHO "Aguardando" (filtra por STATUS, nunca por flag):**
+  `filaAguardando()` lista **exclusivamente** `_statusEfetivo==='aguardando'`. **Overbooking e vaga extra
+  NÃO são status** → não excluem ninguém (viram só marca visual `.ct-flag`). Chips removidos. **Reativa**
+  (muda o status → sai/entra na hora), **ordenada por chegada** (desempate estável por nº), **já contatado**
+  marcado com data/hora via `envios` (sem store novo; reenvio não bloqueado), botão **"Abrir WhatsApp"
+  desabilitado sem telefone**. Copiar nº, campo de telefone, mensagem da Gestão, preview/troca/edição e a
+  janelinha de registro de envios — mantidos.
+- **6.5/6.6 Telefone do documento (por presença) + prioridade do usuário:** `telefoneDoDocumento(texto)`
+  captura por **rótulo com separador** (`Tel:`/`Cel:`/`WhatsApp:`…) **ou** `+DDI` explícito — nunca por
+  formato fixo; **ausência = `''` silencioso** (Desbravador não traz). `semearTelefonesDoDocumento` grava no
+  `contatos` **sem sobrescrever o telefone CONFIRMADO pelo usuário** (`telefoneStatus:'resolvido'` é sagrado);
+  persiste e continua editável (`'documento'`). E-mail **não** implementado (parqueado).
+- **6.7 PROIBIÇÃO PERMANENTE de assumir DDI:** `normalizePhone` **só limpa formatação**
+  (`replace(/\D/g,'')`) — **NUNCA injeta `+55`** nem completa nada. O hotel recebe estrangeiros; o número já
+  vem completo. `telefoneCurto` (< 10 dígitos) só **avisa** ("confira o código do país"), nunca bloqueia/corrige.
+
 ## Versão atual
+
+**v1.5.5** — **amarelo = cor da bolinha + arraste move só a arrastada + seletor de status inteiro + Contato
+como fila de trabalho** (sem schema, DB v6). Amarelo sólido (fim do mostarda); **congelamento de layout** faz
+o arraste manual mover só a reserva arrastada (import automático intacto); modal do detalhe rola sem cortar;
+Contato lista **só Aguardando** (por status, flags não excluem), reativo, ordenado por chegada, com marca de
+já contatado e "Abrir WhatsApp" por linha; telefone capturado do documento por presença, persistente, com
+**prioridade do usuário**; **nenhum DDI assumido**. Testes **372/372** (245 engine + 83 jsdom + 44 Playwright),
+sem `skip`. Ver `RELATORIO-v1.5.5.md`.
 
 **v1.5.4** — **apresentação / interação** (sem schema, DB v6): amarelo derivado da bolinha "Aguardando",
 **laranja de grupo removido por completo** (cor/bolinha/legenda/👥) com a cor seguindo o status real,

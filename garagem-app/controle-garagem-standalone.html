@@ -48,6 +48,7 @@ const __workerBlob=new Blob([atob("LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzI
   --extra:#c084fc;--extra-bg:rgba(192,132,252,.14);--busca:#22d3ee;
   --nome-azul:#93c5fd;--nome-amarelo:#fde047;--nome-laranja:#fdba74;
   --nome-vermelho:#fca5a5;--nome-moto:#d8b4fe;
+  --sobre-amarelo:#1a1205; /* v1.5.5 (6.1) — texto escuro legível sobre o amarelo sólido da bolinha */
   --cw:88px;--rh:44px;--lw:52px;
 }
 body.light {
@@ -63,6 +64,7 @@ body.light {
   --extra:#9333ea;--extra-bg:rgba(147,51,234,.10);--busca:#0891b2;
   --nome-azul:#1d4ed8;--nome-amarelo:#854d0e;--nome-laranja:#9a3412;
   --nome-vermelho:#991b1b;--nome-moto:#6b21a8;
+  --sobre-amarelo:#1a1205; /* v1.5.5 (6.1) — texto escuro sobre o amarelo sólido */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;transition:background .2s,color .2s}
@@ -133,7 +135,10 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-span{position:absolute;top:0;height:var(--rh);border-radius:5px;display:flex;align-items:center;padding:0 6px;overflow:hidden;z-index:5;cursor:default;transition:transform .1s}
 .cell-span:hover{transform:scaleY(1.07);z-index:200}
 .cell-span.azul   {background:var(--azul-bg);   border:1.5px solid var(--azul)}
-.cell-span.amarelo{background:var(--amarelo-bg);border:1.5px solid var(--amarelo)}
+/* v1.5.5 (6.1) — o bloco "Aguardando" usa LITERALMENTE a cor sólida da bolinha (--amarelo),
+   fonte única. Fim do fill translúcido (--amarelo-bg) que lia como "mostarda". Texto escurecido
+   (--sobre-amarelo) só p/ contraste — mesma matiz, sem inventar hue nem reintroduzir laranja. */
+.cell-span.amarelo{background:var(--amarelo);border:1.5px solid var(--amarelo)}
 /* v1.5.4 (5.2) — categoria de bloco "laranja" (grupo) REMOVIDA: a bolinha/cor segue o status real. */
 .cell-span.vermelho{background:var(--vermelho-bg);border:1.5px solid var(--vermelho);animation:pulse 1.5s infinite}
 .cell-span.moto-c {background:var(--moto-bg);   border:1.5px solid var(--moto)}
@@ -145,7 +150,8 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-nome-duplo{font-size:9px;font-weight:700;overflow:hidden;text-overflow:ellipsis;display:block;line-height:1.3;white-space:nowrap}
 .cell-info{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;color:var(--muted)}
 .cell-span.azul    .cell-nome,.cell-span.azul    .cell-nome-duplo{color:var(--nome-azul)}
-.cell-span.amarelo .cell-nome,.cell-span.amarelo .cell-nome-duplo{color:var(--nome-amarelo)}
+.cell-span.amarelo .cell-nome,.cell-span.amarelo .cell-nome-duplo{color:var(--sobre-amarelo)}
+.cell-span.amarelo .cell-info{color:var(--sobre-amarelo);opacity:.8} /* v1.5.5 (6.1) */
 .cell-span.vermelho .cell-nome,.cell-span.vermelho .cell-nome-duplo{color:var(--nome-vermelho)}
 .cell-span.moto-c  .cell-nome,.cell-span.moto-c  .cell-nome-duplo{color:var(--nome-moto)}
 .cell-span.hospedado .cell-nome,.cell-span.hospedado .cell-nome-duplo{color:var(--nome-hosped)}
@@ -192,7 +198,18 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .wa-btn{display:inline-flex;align-items:center;gap:6px;background:#25d366;color:#062e16;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;text-decoration:none}
 .wa-btn.alt{background:var(--vermelho-bg);color:var(--vermelho);border:1px solid var(--vermelho)}
 .wa-btn:hover{opacity:.9}
+/* v1.5.5 (6.8) — botão WhatsApp DESABILITADO enquanto não houver telefone (com dica no title). */
+.wa-btn.disabled{background:var(--surface2);color:var(--muted);border:1px dashed var(--border);cursor:not-allowed;font-weight:600}
+.wa-btn.disabled:hover{opacity:1}
 .ct-empty{color:var(--muted);text-align:center;padding:50px 20px;font-size:13px}
+/* v1.5.5 (6.4/6.8) — cabeçalho da fila + flags visuais + aviso de número curto. */
+.ct-cab{margin-bottom:14px}
+.ct-cab-tit{font-size:15px;font-weight:700;color:var(--text)}
+.ct-cab-sub{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.ct-flag{font-family:'DM Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:5px;font-weight:700;letter-spacing:.3px}
+.ct-flag.over{background:var(--vermelho-bg);color:var(--vermelho)}
+.ct-flag.extra{background:var(--extra-bg);color:var(--extra)}
+.ct-fone-aviso{margin-top:6px;font-size:11px;color:var(--laranja);font-weight:600}
 .tpl-box{margin-top:26px;border:1px solid var(--border);border-radius:9px;background:var(--surface);padding:14px}
 .tpl-box summary{cursor:pointer;font-weight:600;color:var(--text);font-size:13px}
 .tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
@@ -269,12 +286,14 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .ac-item:hover,.ac-item:first-child{background:var(--azul-bg);color:var(--azul)}
 /* modais */
 .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;align-items:center;justify-content:center;padding:18px}
-.modal-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden}
+/* v1.5.5 (6.3) — card como flex-column com teto de altura: cabeçalho fixo, corpo ROLA por dentro.
+   Impede que o conteúdo (ex.: o seletor de status no fim do detalhe) seja CORTADO em janela baixa/mobile. */
+.modal-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;display:flex;flex-direction:column;max-height:92vh}
 .modal-card.modal-wide{max-width:560px}
-.modal-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);font-size:14px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);font-size:14px;flex-shrink:0}
 .modal-x{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1}
 .modal-x:hover{color:var(--text)}
-.modal-body{padding:16px}
+.modal-body{padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .modal-body p{font-size:12.5px;line-height:1.6;margin-bottom:8px;color:var(--text)}
 .modal-body code{font-family:'DM Mono',monospace;color:var(--azul);font-size:12px}
 .envio-modelos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
@@ -526,11 +545,12 @@ body.arrastando .cell-span{cursor:grabbing}
 
 <!-- ══════════ ABA CONTATO ══════════ -->
 <div id="view-contato" style="display:none">
-  <div class="ct-filtros">
-    <button class="ct-fbtn active" data-f="todos" onclick="setContatoFiltro('todos')">Todos</button>
-    <button class="ct-fbtn" data-f="confirmados" onclick="setContatoFiltro('confirmados')">Confirmados</button>
-    <button class="ct-fbtn" data-f="verificando" onclick="setContatoFiltro('verificando')">Verificando</button>
-    <button class="ct-fbtn" data-f="overbooking" onclick="setContatoFiltro('overbooking')">Overbooking</button>
+  <!-- v1.5.5 (6.4/6.8) — o Contato é a FILA DE TRABALHO de quem está "Aguardando" (perguntar se vai
+       usar a garagem). Sem filtros: a lista é EXCLUSIVAMENTE status Aguardando (inclui overbooking e
+       vaga extra como marca visual), ordenada por chegada mais próxima. -->
+  <div class="ct-cab">
+    <div class="ct-cab-tit">📞 Fila de contato — <b>Aguardando</b></div>
+    <div class="ct-cab-sub">Confirme com o hóspede se vai usar a garagem. Mudou o status? Sai da fila na hora.</div>
   </div>
   <div id="ct-lista"></div>
   <div class="ct-tpl-nota">✏️ Os modelos de mensagem agora ficam em <b>Gestão › Modelos de Mensagens</b>.</div>
@@ -669,7 +689,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.4';
+const APP_VERSION='v1.5.5';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -874,6 +894,8 @@ function parsear(textoOriginal){
     const obsResumo=obs.split(/\|\|/)[0].trim().substring(0,130);
     // v1.5.2 (5.2) — obs de indisponibilidade informada → sem garagem (sai do mapa) ou ambíguo (notifica).
     const semGar=obsIndicaSemGaragem(obs);
+    // v1.5.5 (6.5) — telefone do hóspede SE o documento trouxer (Desbravador não traz → ''); por presença.
+    const telefoneDoc=telefoneDoDocumento(bloco);
 
     let totalCarros = 1;
     const mGarCarro = obsUp.match(/GARAGEM\s+0*(\d+)\s+CARRO/);
@@ -898,12 +920,12 @@ function parsear(textoOriginal){
           id:`${nro}__${apto}__${v+1}`,
           nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,
           garagem:tipoBase,garagemOrig:origBase,origem,obs:obsResumo,ehGrupo,ehMultiplo:true,
-          semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo,
+          semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo,telefoneDoc,
           totalCarros,vagaIdx:v+1,_labelExtra:`${totalCarros > 1 ? totalCarros+'x CARROS' : 'GARAGEM'} · Vaga ${v+1}`
         });
       }
     } else {
-      reservas.push({id:`${nro}__${apto}__1`,nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,garagem,origem,obs:obsResumo,ehGrupo,ehMultiplo:false,semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo});
+      reservas.push({id:`${nro}__${apto}__1`,nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,garagem,origem,obs:obsResumo,ehGrupo,ehMultiplo:false,semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo,telefoneDoc});
     }
   });
 
@@ -1092,13 +1114,32 @@ function alocarVagas(rP,seed){
 }
 
 // ── CONTATO: telefone + mensagens (C5) ──
+// v1.5.5 (6.7) — normalização SEM assumir país. O hotel recebe hóspedes ESTRANGEIROS: é
+// PROIBIDO injetar/completar com +55 (ou qualquer DDI). O número já vem COMPLETO (o usuário
+// cola da OTA com o código do país, ou vem pronto do relatório). Aqui só LIMPAMOS a formatação
+// (espaços, traços, pontos, parênteses e o sinal "+"), guardando apenas dígitos p/ o link wa.me.
+// NUNCA adiciona um dígito sequer.
 function normalizePhone(tel){
-  let d=(tel||'').replace(/\D/g,'');
-  if(!d)return'';
-  if(d.startsWith('55')&&d.length>=12)return d;
-  if(d.length===10||d.length===11)return'55'+d;
-  if(d.length>11)return d;
-  return'55'+d;
+  return(tel||'').replace(/\D/g,'');
+}
+// v1.5.5 (6.7) — número "curto demais" p/ ser internacional (< 10 dígitos) → apenas SINALIZA
+// (aviso leve "confira o código do país"). Nunca bloqueia, nunca corrige. Vazio não é curto (é vazio).
+const TEL_MIN_INTL=10;
+function telefoneCurto(tel){const d=normalizePhone(tel);return d.length>0&&d.length<TEL_MIN_INTL;}
+// v1.5.5 (6.5) — captura de telefone POR PRESENÇA (PMS-agnóstico), não por formato fixo. Procura
+// um RÓTULO de telefone com separador (Tel:/Fone:/Cel:/Celular:/WhatsApp:/Contato:) seguido do
+// número, OU um número internacional EXPLÍCITO (+DDI...). Exige separador/‘+’ de propósito, p/ NUNCA
+// confundir com nº de reserva, apto, valores ou o canal "TELEFONE" (que não tem ‘:’). Retorna o
+// número COMO VEIO (só trim); '' quando não há — e '' é o caminho NORMAL do Desbravador (silencioso,
+// sem erro, sem aviso). Nunca assume DDI.
+function telefoneDoDocumento(texto){
+  const s=String(texto==null?'':texto);
+  if(!s)return'';
+  const rot=s.match(/\b(?:tel(?:efone)?|fone|cel(?:ular)?|whats\s*app|contato)\s*[:\-]\s*(\+?[\d][\d\s().\-]{6,})/i);
+  if(rot){const cand=rot[1].trim();if(normalizePhone(cand).length>=8)return cand;}
+  const intl=s.match(/\+\d[\d\s().\-]{6,}/);
+  if(intl&&normalizePhone(intl[0]).length>=8)return intl[0].trim();
+  return'';
 }
 const TPL_DEFAULT_1='Olá {nome}, tudo bem? Aqui é da equipe de reservas do Hotel Gumz. 😊\n\nVi que você tem reserva conosco de {entrada} a {saida}. Gostaria de saber se deseja reservar uma vaga de garagem para a sua estadia — ela é cobrada à parte e temos poucas vagas disponíveis.\n\nPosso reservar uma para você?';
 const TPL_DEFAULT_2='Olá {nome}, tudo bem? Aqui é da equipe de reservas do Hotel Gumz.\n\nSobre a sua reserva de {entrada} a {saida}: infelizmente não temos mais vagas de garagem disponíveis para o período da sua estadia. 🚗\n\nQualquer dúvida, estou à disposição!';
@@ -1473,7 +1514,13 @@ function detectarConflito(reservaOrig,vagaAlvo,ocupantesDaVaga){
 //  3) Roda a alocação automática (inalterada) para as livres no espaço restante.
 // Move para overbooking é VISUAL (organização) — NÃO altera status nem PMS. Fallback total em erro.
 const EXTRAS_VAZIO=()=>({EXTRA1:[],EXTRA2:[],EXTRA3:[]});
-function aplicarAjustes(reservas,ajustes){
+// v1.5.5 (6.2) — parâmetro OPCIONAL `layoutSeed` (nro→vagaId): posição CONGELADA do layout atual.
+// Serve como "soft-pin" (NÃO persistido, invisível) que segura CADA reserva no lugar entre renders
+// do mesmo conjunto, para um arraste manual NÃO reflowar quem o usuário não tocou. Ausente = auto
+// puro (comportamento v1.5.4). O ajuste MANUAL (store `ajustes`) tem prioridade e é o único que
+// marca ajusteManual/✋; o congelamento é transparente. A alocação automática da IMPORTAÇÃO fica
+// intacta (lá o layoutSeed é null — assinatura nova — e roda tudo fresco).
+function aplicarAjustes(reservas,ajustes,layoutSeed){
   const origGaragem=new Map();
   try{
     ajustes=ajustes||{};
@@ -1495,16 +1542,25 @@ function aplicarAjustes(reservas,ajustes){
       }
       ativos.push(r);
     });
-    // ── PLACEMENTS MANUAIS ──
+    // ── PLACEMENT EFETIVO (v1.5.5, 6.2) ── ajuste manual persistido (manual:true, marca ✋) tem
+    // prioridade; senão, a posição congelada do layout (manual:false, invisível) segura no lugar.
+    const seed=layoutSeed||null;
+    const placEf=(r)=>{
+      const aj=ajustes[r.nro];
+      if(aj&&placementValido(aj.vagaIdManual))return{vaga:aj.vagaIdManual,manual:true};
+      if(seed){const v=seed[r.nro];if(placementValido(v))return{vaga:v,manual:false};}
+      return null;
+    };
     // carros: 1 placement por nro (1º bloco). motos (v1.5.3): individuais, fixáveis em vaga de carro.
     const fixadasCarroPorNro={};
     ativos.forEach(r=>{
-      const aj=ajustes[r.nro];
-      if(aj&&ehReservaCarro(r)&&placementValido(aj.vagaIdManual)&&!fixadasCarroPorNro[r.nro])fixadasCarroPorNro[r.nro]=r;
+      if(!ehReservaCarro(r)||fixadasCarroPorNro[r.nro])return;
+      const f=placEf(r);if(f)fixadasCarroPorNro[r.nro]={r,vaga:f.vaga,manual:f.manual};
     });
     const fixadasCarro=Object.values(fixadasCarroPorNro);
-    const motosFixadas=ativos.filter(r=>r.garagem==='azul_moto'&&ajustes[r.nro]&&placementValido(ajustes[r.nro].vagaIdManual));
-    const fixSet=new Set([...fixadasCarro,...motosFixadas]);
+    const motosFixadas=[];
+    ativos.forEach(r=>{if(r.garagem!=='azul_moto')return;const f=placEf(r);if(f)motosFixadas.push({r,vaga:f.vaga,manual:f.manual});});
+    const fixSet=new Set([...fixadasCarro.map(o=>o.r),...motosFixadas.map(o=>o.r)]);
     const livres=ativos.filter(r=>!fixSet.has(r));
     let resultado;
     if(!fixadasCarro.length&&!motosFixadas.length){
@@ -1514,23 +1570,23 @@ function aplicarAjustes(reservas,ajustes){
       const seedP=Array.from({length:18},()=>[]);
       const seedG=Array.from({length:14},()=>[]);
       const overManual=[];const extras=EXTRAS_VAZIO();
-      // carros fixados
-      fixadasCarro.forEach(r=>{
-        const v=ajustes[r.nro].vagaIdManual;
-        if(placementOverbooking(v)){r.ajusteManual=true;r._vagaManual='OVERBOOKING';r._over=true;r._overManual=true;r._aloc='over';overManual.push(r);}
-        else if(placementExtra(v)){r.ajusteManual=true;r._vagaManual=v;r._extraManual=true;r._aloc='extra';extras[v].push(r);}
-        else{const sec=v[0],idx=parseInt(v.slice(1))-1;r.ajusteManual=true;r._vagaManual=v;r._aloc=sec;(sec==='P'?seedP:seedG)[idx].push(r);}
+      // carros fixados (manual ou congelados) — só o MANUAL marca ajusteManual/✋
+      fixadasCarro.forEach(({r,vaga:v,manual})=>{
+        if(placementOverbooking(v)){if(manual){r.ajusteManual=true;r._vagaManual='OVERBOOKING';r._overManual=true;}r._over=true;r._aloc='over';overManual.push(r);}
+        else if(placementExtra(v)){if(manual){r.ajusteManual=true;r._vagaManual=v;r._extraManual=true;}r._aloc='extra';extras[v].push(r);}
+        else{const sec=v[0],idx=parseInt(v.slice(1))-1;if(manual){r.ajusteManual=true;r._vagaManual=v;}r._aloc=sec;(sec==='P'?seedP:seedG)[idx].push(r);}
       });
       // motos fixadas → agrupa por vaga; forma slots de até 2 motos (juntar com outra moto na vaga).
       const motosPorVaga={};
-      motosFixadas.forEach(r=>{const v=ajustes[r.nro].vagaIdManual;(motosPorVaga[v]=motosPorVaga[v]||[]).push(r);});
+      motosFixadas.forEach(({r,vaga:v,manual})=>{(motosPorVaga[v]=motosPorVaga[v]||[]).push({r,manual});});
       Object.keys(motosPorVaga).forEach(v=>{
-        const ord=[...motosPorVaga[v]].sort((a,b)=>a.entrada-b.entrada);
+        const ord=[...motosPorVaga[v]].sort((a,b)=>a.r.entrada-b.r.entrada);
         for(let i=0;i<ord.length;i+=2){
-          const a=ord[i],b=ord[i+1];a.ajusteManual=true;a._vagaManual=v;
-          if(b){b.ajusteManual=true;b._vagaManual=v;}
-          const slot=b?motoSlotPar(a,b):motoSlotSolo(a);
-          if(placementOverbooking(v)){slot._over=true;a._over=true;if(b)b._over=true;overManual.push(slot);}
+          const a=ord[i],b=ord[i+1];
+          if(a.manual){a.r.ajusteManual=true;a.r._vagaManual=v;}
+          if(b&&b.manual){b.r.ajusteManual=true;b.r._vagaManual=v;}
+          const slot=b?motoSlotPar(a.r,b.r):motoSlotSolo(a.r);
+          if(placementOverbooking(v)){slot._over=true;a.r._over=true;if(b)b.r._over=true;overManual.push(slot);}
           else if(placementExtra(v)){extras[v].push(slot);}
           else{const sec=v[0],idx=parseInt(v.slice(1))-1;slot._aloc=sec;(sec==='P'?seedP:seedG)[idx].push(slot);}
         }
@@ -1548,6 +1604,24 @@ function aplicarAjustes(reservas,ajustes){
     // app nunca quebra: cai para o automático puro
     try{const r=alocarVagas(reservas||[]);r.semGaragem=[];r.extras=EXTRAS_VAZIO();return r;}catch(_){return{linhasP:[],linhasG:[],vagaMoto:[],overflowLinhas:[],overflow:[],semGaragem:[],extras:EXTRAS_VAZIO()};}
   }
+}
+// v1.5.5 (6.2) — "fotografa" uma alocação em nro→vagaId ('P#','G#','OVERBOOKING','EXTRAn').
+// É o soft-pin passado como layoutSeed no próximo render p/ manter TODA reserva no lugar (arraste
+// move só a arrastada). As 2 motos de um par (res1/res2) apontam p/ a MESMA vaga. Puro/testável.
+function congelarLayout(aloc){
+  const m={};
+  if(!aloc)return m;
+  const reg=(x,v)=>{
+    if(!x)return;
+    if(x._motoSlot){reg(x.res1,v);reg(x.res2,v);return;}
+    if(x.nro!=null&&m[x.nro]==null)m[x.nro]=v;
+  };
+  (aloc.linhasP||[]).forEach((linha,i)=>{(linha||[]).forEach(x=>reg(x,'P'+(i+1)));});
+  (aloc.linhasG||[]).forEach((linha,i)=>{(linha||[]).forEach(x=>reg(x,'G'+(i+1)));});
+  (aloc.overflow||[]).forEach(x=>reg(x,'OVERBOOKING'));
+  const ex=aloc.extras||{};
+  EXTRAS_IDS.forEach(k=>{(ex[k]||[]).forEach(x=>reg(x,k));});
+  return m;
 }
 // v1.5.3 — nº de vagas extras EM USO (para saber se a seção aparece e se há extra livre).
 function extrasEmUso(extras){let n=0;EXTRAS_IDS.forEach(k=>{if(extras&&extras[k]&&extras[k].length)n++;});return n;}
@@ -2296,6 +2370,24 @@ function conjuntoAtivo(){
   return reservas.concat(hosp);
 }
 
+// v1.5.5 (6.5/6.6) — semeia no store `contatos` o telefone que o documento trouxer (por presença),
+// SEM sobrescrever o telefone CONFIRMADO pelo usuário (prioridade do usuário). Ausência = nada a
+// fazer (caminho normal do Desbravador): silencioso, sem erro. Persiste (sobrevive à reimportação),
+// e continua EDITÁVEL (status 'documento' → campo aberto p/ o usuário corrigir/confirmar).
+async function semearTelefonesDoDocumento(novas){
+  const vistos=new Set();
+  for(const r of (novas||[])){
+    const doc=(r&&r.telefoneDoc)||'';
+    if(!doc||r.nro==null||vistos.has(String(r.nro)))continue;
+    vistos.add(String(r.nro));
+    const cur=contatosMap[r.nro];
+    if(cur&&cur.telefone&&cur.telefoneStatus==='resolvido')continue; // telefone do usuário PREVALECE — nunca sobrescreve
+    if(cur&&cur.telefone===doc)continue;                              // já está igual — nada a fazer
+    contatosMap[r.nro]={telefone:doc,telefoneStatus:'documento'};
+    if(dbOk){try{await dbPut('contatos',{nro:String(r.nro),telefone:doc,telefoneStatus:'documento',atualizadoEm:Date.now()});}catch(e){/* silencioso: o app nunca quebra por telefone */}}
+  }
+}
+
 // ── IMPORTAÇÃO + MESCLAGEM (B2) ──
 async function importarPDF(novas){
   if(dbOk){
@@ -2304,11 +2396,14 @@ async function importarPDF(novas){
     const merged=mesclarRegistros(existentes,novas);
     try{await dbPutMany('reservas',merged);}catch(e){console.warn('put reservas falhou',e);}
     await carregarDoBanco();
+    await semearTelefonesDoDocumento(novas); // v1.5.5 (6.5) — telefone do documento (se houver), respeitando o do usuário
+    anexarTelefones();                        // reata telefones (agora inclui os semeados do documento)
     await reconciliarManuaisComPDF(); // v1.5.3 — "manter uma só": remove manuais que agora vêm no PDF
     atualizarTudo();
   }else{
     // Fallback memória: telefones vivem em contatosMap (preservados na sessão).
     todasReservas=novas.map(r=>({...r}));
+    await semearTelefonesDoDocumento(novas);
     anexarTelefones();
     atualizarTudo();
   }
@@ -2422,8 +2517,15 @@ function renderMapa(){
   // v1.5.4 (5.2) — numeração "Carro 0N" (mesma reserva com >1 carro); anota nos próprios objetos.
   const carroMap=mapaCarrosPorReserva(rP);
   rP.forEach(r=>{const c=carroMap[r.id];r._carroSeq=c?c.carroSeq:1;r._carroTotal=c?c.carroTotal:1;});
-  const aloc=aplicarAjustes(rP,ajustesMap); // v1.3.0: aplica ajustes manuais sobre o automático
+  // v1.5.5 (6.2) — congelamento: enquanto o CONJUNTO e a JANELA não mudam (mesma assinatura),
+  // mantém as posições atuais (um arraste move só a arrastada; nada reflowa sozinho). Import e
+  // mudança de filtro trocam a assinatura → layoutSeed=null → alocação automática roda fresca.
+  const assin=assinaturaLayout(rP,dataInicio,dataFim);
+  const seedLayout=(assin===layoutAssinatura)?layoutCongelado:null;
+  const aloc=aplicarAjustes(rP,ajustesMap,seedLayout); // v1.3.0/1.5.5: ajustes manuais + congelamento sobre o automático
   ultimaAlocacao=aloc;                       // referência p/ resolver ocupantes da vaga no drop
+  layoutCongelado=congelarLayout(aloc);      // v1.5.5 (6.2) — re-congela o arranjo atual p/ o próximo render
+  layoutAssinatura=assin;
   calcContadores(aloc,dataInicio<=hoje&&hoje<=dataFim?hoje:dataInicio,rP);
   renderSecaoLinhas(container,aloc.linhasP,datas,'P','▸ Carros Pequenos — 18 vagas',hoje,false);
   renderSecaoLinhas(container,aloc.linhasG,datas,'G','▸ Camionetes / Grandes — 14 vagas',hoje,false);
@@ -2882,7 +2984,7 @@ function reservasContato(){
     if(!map[r.nro]){
       map[r.nro]={nro:r.nro,nroOTA:r.nroOTA||'',nome:r.nomeCompleto,
         entrada:new Date(r.entrada),saida:new Date(r.saida),origem:r.origem,
-        garagem:r.garagem,aptos:new Set(),over:false,
+        garagem:r.garagem,aptos:new Set(),over:false,extra:false,
         telefone:r.telefone||'',telefoneStatus:r.telefoneStatus||'pendente'};
     }
     const g=map[r.nro];
@@ -2890,6 +2992,7 @@ function reservasContato(){
     if(+r.entrada<+g.entrada)g.entrada=new Date(r.entrada);
     if(+r.saida>+g.saida)g.saida=new Date(r.saida);
     if(r._over)g.over=true;
+    if(r._aloc==='extra'||r._extraManual)g.extra=true; // v1.5.5 (6.8) — flag "vaga extra" (só info visual)
     if(!g.nroOTA&&r.nroOTA)g.nroOTA=r.nroOTA;
     // v1.5.0 — status efetivo + divergência com o PMS (por nro).
     if(r._statusEfetivo)g._statusEfetivo=r._statusEfetivo;
@@ -2907,47 +3010,35 @@ function grupoTipo(g){
   return'pequeno';
 }
 
+// v1.5.5 (6.4/6.8/6.10) — a fila do Contato contém EXCLUSIVAMENTE status "Aguardando" (por STATUS,
+// nunca por flag: overbooking e vaga extra NÃO excluem ninguém). Reativa: mudou o status → sai/entra
+// na hora. Ordenada por CHEGADA mais próxima (mais urgente no topo), com desempate estável por nº.
+function filaAguardando(){
+  return reservasContato()
+    .filter(g=>g._statusEfetivo==='aguardando')
+    .sort((a,b)=>(a.entrada-b.entrada)||(String(a.nro).localeCompare(String(b.nro))));
+}
 function renderContato(){
   const cont=document.getElementById('ct-lista');
   cont.innerHTML='';
-  if(!todasReservas.length){cont.innerHTML='<div class="ct-empty">Importe um relatório PDF para ver as reservas.</div>';return;}
-  let grupos=reservasContato();
+  if(!todasReservas.length&&!todosHospedados.length){cont.innerHTML='<div class="ct-empty">Importe um relatório PDF para ver as reservas.</div>';return;}
+  const grupos=filaAguardando();
   contatoGrupos={};grupos.forEach(g=>{contatoGrupos[g.nro]=g;}); // p/ o fluxo de envio (5.6)
-
-  if(contatoFiltro==='verificando')grupos=grupos.filter(g=>grupoTipo(g)==='amarelo');
-  else if(contatoFiltro==='overbooking')grupos=grupos.filter(g=>g.over);
-  else if(contatoFiltro==='confirmados')grupos=grupos.filter(g=>!g.over&&g.garagem!=='amarelo');
-
-  grupos.sort((a,b)=>a.entrada-b.entrada);
-
-  if(!grupos.length){cont.innerHTML='<div class="ct-empty">Nenhuma reserva neste filtro/período.</div>';return;}
-
-  if(contatoFiltro==='confirmados'){
-    const peq=grupos.filter(g=>grupoTipo(g)==='pequeno');
-    const gra=grupos.filter(g=>grupoTipo(g)==='grande');
-    const mot=grupos.filter(g=>grupoTipo(g)==='moto');
-    if(peq.length){cont.appendChild(subTitulo('Carro pequeno — '+peq.length));peq.forEach(g=>cont.appendChild(itemContato(g)));}
-    if(gra.length){cont.appendChild(subTitulo('Carro grande — '+gra.length));gra.forEach(g=>cont.appendChild(itemContato(g)));}
-    if(mot.length){cont.appendChild(subTitulo('Moto — '+mot.length));mot.forEach(g=>cont.appendChild(itemContato(g)));}
-  }else{
-    grupos.forEach(g=>cont.appendChild(itemContato(g)));
-  }
+  if(!grupos.length){cont.innerHTML='<div class="ct-empty">🎉 Ninguém aguardando garagem neste período — nada a contatar.</div>';renderPranchetaContato();return;}
+  cont.appendChild(subTitulo('Aguardando — '+grupos.length));
+  grupos.forEach(g=>cont.appendChild(itemContato(g)));
   renderPranchetaContato(); // v1.4.0 — mantém a prancheta sincronizada com a seleção
 }
 
 function subTitulo(txt){const d=document.createElement('div');d.className='ct-sub';d.textContent=txt;return d;}
 
 function itemContato(g){
-  const tipo=grupoTipo(g);
-  // v1.5.0 — a cor segue o STATUS EFETIVO (override manual prevalece); over/moto preservados.
-  let corCl;
-  if(tipo==='over')corCl='over';
-  else if(g._statusEfetivo==='sem_garagem')corCl='semgar';
-  else if(tipo==='moto')corCl='moto';
-  else if(g._statusEfetivo==='aguardando'||tipo==='amarelo')corCl='amarelo';
-  else corCl='azul';
-  // v1.4.0 (5.3) — "enviado" é DERIVADO do histórico de envios (não mais do telefone).
-  const enviado=statusEnvioReserva(enviosPorNro[g.nro])==='enviado';
+  // v1.5.5 (6.8) — a fila é toda "Aguardando": cor amarela; over/vaga extra viram só marca visual.
+  const corCl='amarelo';
+  // v1.4.0 (5.3) — "enviado"/"já contatado" DERIVADO do histórico de envios (não do telefone).
+  const envs=enviosOrdenados(enviosPorNro[g.nro])||[];
+  const enviado=envs.length>0;
+  const ultimoEnvioMs=enviado?(new Date(envs[0].dataHora).getTime()||null):null; // v1.5.5 (6.9) — data/hora do último
   const item=document.createElement('div');
   item.className=`ct-item ${corCl}${enviado?' enviado':''}${contatoAtivoNro===g.nro?' active':''}`;
   item.dataset.nro=g.nro;
@@ -2957,18 +3048,23 @@ function itemContato(g){
   const aptos=[...g.aptos].join(', ')||'-';
   // 5.2 — PMS e OTA clicáveis para copiar (stopPropagation p/ não acionar o realce do item).
   const otaBadge=g.nroOTA?`<span class="ct-badge ota copyable" title="Localizador OTA (Booking/Expedia) — clique para copiar" onclick="event.stopPropagation();copiarTexto('${g.nroOTA}')">OTA ${g.nroOTA}</span>`:'';
-  const statusBadge=enviado?'<span class="ct-badge status-env">✓ enviado</span>':'';
+  // v1.5.5 (6.8) — flags (overbooking / vaga extra) só como INFORMAÇÃO visual (não excluem da fila).
+  const flags=`${g.over?'<span class="ct-flag over" title="Em overbooking (sem vaga garantida)">⚠ Overbooking</span>':''}${g.extra?'<span class="ct-flag extra" title="Em vaga extra">➕ Vaga extra</span>':''}`;
+  // v1.5.5 (6.9) — "já contatado" com data/hora do último envio (informação; NÃO bloqueia reenvio).
+  const statusBadge=enviado?`<span class="ct-badge status-env" title="Último contato registrado">✓ contatado${ultimoEnvioMs?' · '+fmtDataHora(ultimoEnvioMs):''}</span>`:'';
   // 5.3 — estado Confirmar↔Editar (bloqueia o campo quando já há telefone confirmado).
   const estTel=estadoTelefoneInicial({telefone:g.telefone,telefoneStatus:g.telefoneStatus});
   // v1.5.0 — status efetivo + divergência (Parte A) para o editor no Contato.
   const stEf=g._statusEfetivo||statusEfetivo(g,ajustesMap[g.nro]);
   const diverge=g._pmsDivergente||pmsDivergente(g,ajustesMap[g.nro]);
+  // v1.5.5 (6.7) — aviso leve p/ número curto demais (sem código de país). Avisa, NÃO bloqueia.
+  const avisoCurto=telefoneCurto(g.telefone)?'<div class="ct-fone-aviso" title="O app não adiciona código de país">⚠ confira se o número inclui o código do país</div>':'';
 
   item.innerHTML=`
     <div class="ct-top">
       <div class="ct-nome">${g.nome}</div>
       <div class="ct-badges">
-        <span class="ct-badge pms copyable" title="Nº PMS — clique para copiar" onclick="event.stopPropagation();copiarTexto('${g.nro}')">PMS #${g.nro}</span>
+        <span class="ct-badge pms copyable" title="Nº PMS — clique para copiar (leve para a OTA)" onclick="event.stopPropagation();copiarTexto('${g.nro}')">PMS #${g.nro} ⧉</span>
         ${otaBadge}${statusBadge}
       </div>
     </div>
@@ -2976,17 +3072,19 @@ function itemContato(g){
       <span>📅 ${fmtDate(g.entrada)} → ${fmtDate(g.saida)}</span>
       <span>🏨 Apto ${aptos}</span>
       <span>${oriEmoji[(g.origem||'direta').toLowerCase()]||'📋'} ${g.origem||'Direta'}</span>
+      ${flags}
     </div>
     <div class="ct-status">
       <span class="ct-status-lbl">Status:</span>${statusEditorHTML(g.nro,stEf,{overbooking:!!g.over,extraLivre:g.over?extraLivreNoPeriodo((ultimaAlocacao&&ultimaAlocacao.extras)||EXTRAS_VAZIO(),{nro:g.nro,entrada:g.entrada,saida:g.saida}):null})}
       ${diverge?'<span class="pms-diverg-badge sm" title="Alterado manualmente — PMS ainda não atualizado">⚠ PMS não atualizado</span>':''}
     </div>
     <div class="ct-fone">
-      <input type="text" placeholder="Colar telefone..." value="${g.telefone||''}"
+      <input type="text" placeholder="Colar telefone (com código do país)..." value="${g.telefone||''}"
         id="fone-${g.nro}" onfocus="ativarContato('${g.nro}')" ${estTel.bloqueado?'readonly':''}>
       <button class="btn btn-primary" id="btn-fone-${g.nro}" onclick="event.stopPropagation();acaoTelefone('${g.nro}')">${estTel.label}</button>
-      ${g.telefone?botoesWhatsapp(g):''}
-    </div>`;
+      ${g.telefone?botoesWhatsapp(g):'<span class="wa-btn disabled" title="Cole o telefone para habilitar o WhatsApp">💬 Abrir WhatsApp</span>'}
+    </div>
+    ${avisoCurto}`;
   return item;
 }
 
@@ -3392,6 +3490,14 @@ function fecharPranchetaContato(){const el=document.getElementById('prancheta-co
 /* ═══════════════════════ v1.3.0 — EDIÇÃO MANUAL (mover de vaga) ═══════════════════════ */
 let ajustesMap={};        // nro → {vagaIdManual, criadoEm, atualizadoEm}
 let ultimaAlocacao=null;  // última alocação renderizada (p/ resolver ocupantes da vaga no drop)
+// v1.5.5 (6.2) — congelamento de layout: nro→vagaId estável entre renders do MESMO conjunto/janela.
+let layoutCongelado=null;
+let layoutAssinatura=null; // assinatura (conjunto+janela) que gerou o congelamento atual
+// Assinatura do que está na tela: janela + conjunto de nros. Muda → alocação automática roda fresca.
+function assinaturaLayout(rP,ini,fim){
+  const nros=(rP||[]).map(r=>String(r.nro)).sort().join('|');
+  return (+ini)+'~'+(+fim)+'~'+nros;
+}
 let dragState=null;       // estado do arraste em curso
 let moverCtx=null;        // contexto do modal "mover de vaga"
 const DRAG_LIMIAR=5;      // px — abaixo disso é clique (abre detalhe), não arraste
@@ -3451,6 +3557,8 @@ function funcionarioPadraoNome(){
 }
 async function removerAjuste(nro){
   delete ajustesMap[nro];
+  // v1.5.5 (6.2) — "voltar ao automático" tira SÓ esta do congelamento p/ re-alocar; o resto fica no lugar.
+  if(layoutCongelado)delete layoutCongelado[String(nro)];
   if(dbOk){try{await dbDelete('ajustes',String(nro));}catch(e){console.warn('remover ajuste falhou',e);}}
   rerenderMapaEContato();
 }
@@ -3534,8 +3642,22 @@ function arrasteUp(ev){
   if(!vagaAlvo||vagaAlvo===st.vagaOrig)return; // sem alvo válido ou mesma vaga → cancela silencioso
   // v1.5.0/1.5.3: conflito só se aplica a CARRO caindo numa vaga real (motos pareiam; extras/over não).
   const ehMoto=st.res._motoSlot===true;
-  const conf=(!ehMoto&&vagaValida(vagaAlvo))?detectarConflito(st.res,vagaAlvo,ocupantesDaVaga(vagaAlvo)):{conflito:false,comQuem:null};
-  abrirModalMover(st.res,st.vagaOrig,vagaAlvo,conf);
+  const ocupantes=(!ehMoto&&vagaValida(vagaAlvo))?ocupantesDaVaga(vagaAlvo):[];
+  const conf=(!ehMoto&&vagaValida(vagaAlvo))?detectarConflito(st.res,vagaAlvo,ocupantes):{conflito:false,comQuem:null};
+  // v1.5.5 (6.2) — nros das reservas DIRETAMENTE conflitantes (período sobreposto na vaga alvo):
+  // só ELAS saem do congelamento p/ reacomodar; o resto do mapa não se move.
+  const conflitantesNros=conf.conflito?nrosConflitantes(st.res,ocupantes):[];
+  abrirModalMover(st.res,st.vagaOrig,vagaAlvo,conf,conflitantesNros);
+}
+// v1.5.5 (6.2) — nros dos ocupantes da vaga alvo que sobrepõem o período da reserva arrastada.
+function nrosConflitantes(res,ocupantes){
+  const out=[];
+  (ocupantes||[]).forEach(o=>{
+    if(!o||o===res||!sobrepoe(o,res))return;
+    if(o._motoSlot){if(o.res1)out.push(String(o.res1.nro));if(o.res2)out.push(String(o.res2.nro));}
+    else if(o.nro!=null&&o.nro!==res.nro)out.push(String(o.nro));
+  });
+  return out;
 }
 
 // ── Modal "mover de vaga" (confirmação obrigatória) ──
@@ -3544,8 +3666,8 @@ function nomeDestino(v){
   if(v==='OVERBOOKING')return 'a área de <b>OVERBOOKING</b>';
   return `a vaga <b>${escapeHtml(v)}</b>`;
 }
-function abrirModalMover(res,vagaOrig,vagaAlvo,conf){
-  moverCtx={res,vagaAlvo};
+function abrirModalMover(res,vagaOrig,vagaAlvo,conf,conflitantesNros){
+  moverCtx={res,vagaAlvo,conflitantesNros:conflitantesNros||[]};
   const ehMoto=res._motoSlot===true;
   const dt=`${fmtData(res.entrada)}–${fmtData(res.saida)}`;
   const nome=ehMoto
@@ -3564,8 +3686,11 @@ function abrirModalMover(res,vagaOrig,vagaAlvo,conf){
 function cancelarMover(){moverCtx=null;document.getElementById('mover-modal').style.display='none';}
 async function confirmarMover(){
   if(!moverCtx)return;
-  const {res,vagaAlvo}=moverCtx;moverCtx=null;
+  const {res,vagaAlvo,conflitantesNros}=moverCtx;moverCtx=null;
   document.getElementById('mover-modal').style.display='none';
+  // v1.5.5 (6.2) — só a(s) reserva(s) diretamente conflitante(s) saem do congelamento p/ reacomodar;
+  // o resto do mapa fica intacto (nenhuma realocação global por causa de um arraste manual).
+  if(layoutCongelado&&conflitantesNros&&conflitantesNros.length)conflitantesNros.forEach(n=>{delete layoutCongelado[n];});
   if(res._motoSlot){await salvarAjuste(res.res1.nro,vagaAlvo);if(res.res2)await salvarAjuste(res.res2.nro,vagaAlvo);}
   else await salvarAjuste(res.nro,vagaAlvo);
 }

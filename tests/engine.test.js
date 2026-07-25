@@ -45,7 +45,9 @@ const EXPORTS = [
   'matchBusca','tipoVeiculoLabel','validarReservaManual','montarReservaManual','reservaManualParaObj',
   'manualJaNoPDF','dedupManuaisComPDF','montarEdicoesManuais','normalizaNome',
   // v1.5.4
-  'mapaCarrosPorReserva','extraLivreNoPeriodo','extraSlotLivreParaSelf','montarEditadasManuais','STATUS_EXTRA_SENTINEL'
+  'mapaCarrosPorReserva','extraLivreNoPeriodo','extraSlotLivreParaSelf','montarEditadasManuais','STATUS_EXTRA_SENTINEL',
+  // v1.5.5
+  'telefoneCurto','telefoneDoDocumento','congelarLayout'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -161,16 +163,37 @@ t('parsear: id único nro__apto__vagaIdx', () => {
 });
 
 /* ════════════ MENSAGENS / TELEFONE (C5) ════════════ */
-t('normalizePhone adiciona 55', () => { eq(E.normalizePhone('(47) 99876-5432'), '5547998765432'); });
-t('normalizePhone mantém 55 existente', () => { eq(E.normalizePhone('5547998765432'), '5547998765432'); });
+// v1.5.5 (6.7) — normalização NÃO assume país: só limpa formatação, NUNCA injeta DDI (+55).
+t('normalizePhone só limpa formatação (+, espaços, traços, parênteses)', () => { eq(E.normalizePhone('+55 (47) 99876-5432'), '5547998765432'); });
+t('normalizePhone preserva número internacional como veio', () => { eq(E.normalizePhone('+1 347-555-1234'), '13475551234'); });
+t('normalizePhone NUNCA injeta 55 em número local (regra estrangeiro)', () => { eq(E.normalizePhone('(47) 99876-5432'), '47998765432'); });
+t('normalizePhone mantém 55 existente sem duplicar', () => { eq(E.normalizePhone('5547998765432'), '5547998765432'); });
 t('normalizePhone vazio', () => { eq(E.normalizePhone(''), ''); });
+t('telefoneCurto sinaliza < 10 dígitos; ignora vazio e internacional válido', () => {
+  ok(E.telefoneCurto('12345')); ok(!E.telefoneCurto('')); ok(!E.telefoneCurto('+1 347-555-1234'));
+});
+// v1.5.5 (6.5) — captura de telefone POR PRESENÇA (não por formato); silenciosa quando não há.
+t('telefoneDoDocumento captura com rótulo (Tel:/Cel:/WhatsApp:)', () => {
+  eq(E.telefoneDoDocumento('Hóspede X\nTel: +55 (47) 99876-5432\nObs'), '+55 (47) 99876-5432');
+  ok(E.telefoneDoDocumento('WhatsApp: 47 99876 5432').length > 0);
+});
+t('telefoneDoDocumento captura número internacional explícito (+DDI)', () => {
+  eq(E.normalizePhone(E.telefoneDoDocumento('Contato do hóspede +1 347 555 1234 conforme OTA')), '13475551234');
+});
+t('telefoneDoDocumento NÃO confunde com nº de reserva/canal "TELEFONE" nem apto', () => {
+  eq(E.telefoneDoDocumento('05/06/26 08/06 1 2 202 ABC 26161 H\nTELEFONE\nObs do Apto: GARAGEM PEQUENO'), '', 'sem rótulo com ":" e sem "+" → nada');
+  eq(E.telefoneDoDocumento('Hotel Gumz 12345'), '', 'não captura "tel" dentro de Hotel');
+});
+t('telefoneDoDocumento vazio/sem info → "" (caminho normal do Desbravador)', () => {
+  eq(E.telefoneDoDocumento(''), ''); eq(E.telefoneDoDocumento('sem telefone aqui'), '');
+});
 t('gerarMensagem substitui variáveis', () => {
   const m = E.gerarMensagem({ nome: 'Ana', entrada: D('05/06/26'), saida: D('08/06/26'), apto: '129' }, 'Oi {nome}, {entrada} a {saida}, ap {apto}');
   eq(m, 'Oi Ana, 05/06/2026 a 08/06/2026, ap 129');
 });
-t('linkWhatsApp monta wa.me', () => {
-  const l = E.linkWhatsApp({ telefone: '47998765432', nome: 'Ana' }, 'oi {nome}');
-  ok(l.startsWith('https://wa.me/5547998765432?text='));
+t('linkWhatsApp monta wa.me com os dígitos como vieram (sem injetar 55)', () => {
+  const l = E.linkWhatsApp({ telefone: '+1 347-555-1234', nome: 'Ana' }, 'oi {nome}');
+  ok(l.startsWith('https://wa.me/13475551234?text='));
 });
 
 /* ════════════ MESCLAGEM (B2) ════════════ */
@@ -457,6 +480,43 @@ t('5.2 aplicarAjustes: nro de ajuste inexistente é ignorado sem quebrar', () =>
   const aloc = E.aplicarAjustes([r1], { '999': { vagaIdManual: 'P2' } });
   ok([].concat(...aloc.linhasP, ...aloc.linhasG).some(x => x.nro === '1'), 'reserva ainda renderiza');
 });
+/* ════════════ v1.5.5 (6.2) — CONGELAMENTO DE LAYOUT (arraste move só a arrastada) ════════════ */
+t('v1.5.5 congelarLayout mapeia nro→vaga (P/G/overbooking)', () => {
+  const rP = [];
+  for (let i = 0; i < 20; i++) rP.push({ nro: 'C' + i, garagem: 'amarelo', entrada: D('05/06/26'), saida: D('20/06/26'), nomeCompleto: 'N' + i, apto: '' + i });
+  const aloc = E.aplicarAjustes(rP, {});
+  const snap = E.congelarLayout(aloc);
+  // toda reserva alocada tem uma vaga registrada
+  let cobertos = 0;
+  rP.forEach(r => { if (snap[r.nro]) cobertos++; });
+  eq(cobertos, rP.length, 'todas as reservas têm posição congelada');
+  ok(Object.values(snap).some(v => /^P\d+$/.test(v)), 'há alguém em vaga P');
+});
+t('v1.5.5 (6.2) CENTRAL: arrastar uma p/ vaga livre NÃO move as outras', () => {
+  // 6 reservas amarelas; congela o layout; "arrasta" a 1ª para uma vaga P livre via ajuste + layoutSeed.
+  const rP = [];
+  for (let i = 0; i < 6; i++) rP.push({ nro: 'R' + i, garagem: 'amarelo', entrada: D('0' + (i + 1) + '/06/26'), saida: D('1' + (i + 1) + '/06/26'), nomeCompleto: 'N' + i, apto: '' + i });
+  const aloc0 = E.aplicarAjustes(rP, {});
+  const snap0 = E.congelarLayout(aloc0);
+  // acha uma vaga P totalmente livre no snapshot
+  const usadas = new Set(Object.values(snap0));
+  let vagaLivre = null;
+  for (let k = 1; k <= 18; k++) { if (!usadas.has('P' + k)) { vagaLivre = 'P' + k; break; } }
+  ok(vagaLivre, 'existe uma vaga P livre');
+  // arrasta R0 para a vaga livre (ajuste manual) COM o layout congelado como seed
+  const aloc1 = E.aplicarAjustes(rP, { 'R0': { vagaIdManual: vagaLivre } }, snap0);
+  const snap1 = E.congelarLayout(aloc1);
+  // a arrastada mudou para a vaga livre
+  eq(snap1['R0'], vagaLivre, 'R0 foi para a vaga livre');
+  // TODAS as outras permanecem BYTE A BYTE na mesma vaga
+  for (let i = 1; i < 6; i++) eq(snap1['R' + i], snap0['R' + i], 'R' + i + ' não se moveu');
+});
+t('v1.5.5 (6.2) sem layoutSeed o comportamento é o automático puro (v1.5.4)', () => {
+  const r1 = { nro: '1', garagem: 'amarelo', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'A', apto: '1' };
+  const semSeed = E.aplicarAjustes([r1], {});           // 2 args → auto puro
+  ok([].concat(...semSeed.linhasP, ...semSeed.linhasG).some(x => x.nro === '1'), 'aloca normalmente sem seed');
+  ok(!r1.ajusteManual, 'congelamento nunca marca ajusteManual/✋');
+});
 t('v1.5.3 aplicarAjustes: moto AGORA é fixável em vaga de carro (P2)', () => {
   const m = { nro: '1', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'M', apto: '1' };
   const aloc = E.aplicarAjustes([m], { '1': { vagaIdManual: 'P2' } });
@@ -636,7 +696,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.4', () => { eq(E.APP_VERSION, 'v1.5.4'); });
+t('APP_VERSION é v1.5.5', () => { eq(E.APP_VERSION, 'v1.5.5'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro

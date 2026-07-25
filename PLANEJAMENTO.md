@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.4** (entregue) · Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.5** (entregue) · Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -139,6 +139,23 @@
   (encerra a pendência do parser de Comandas da v1.5.1.1); Reservas real sem regressão.
 - Testes **348/348** (235 engine + 73 jsdom + 40 Playwright), **2 hooks `[real]` rodando e verdes**. Ver
   `RELATORIO-v1.5.4.md`.
+
+### v1.5.5 (entregue 24/07/2026) — amarelo + arraste + modal + fila de contato (sem schema, DB v6)
+- **Amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; fim do fill translúcido/"mostarda";
+  texto por `--sobre-amarelo`).
+- **Arraste manual move SÓ a reserva arrastada** — **congelamento de layout** (`congelarLayout` +
+  3º parâmetro `layoutSeed` de `aplicarAjustes`, ativado por assinatura `janela+conjunto` no
+  `renderMapa`): destino livre → nada mais se move; destino ocupado → só a(s) conflitante(s) reacomoda(m);
+  **realocação global por arraste PROIBIDA**; **alocação automática na importação intacta**.
+- **Modal do detalhe rola por dentro** (`max-height:92vh` + `overflow-y:auto`) — seletor de status inteiro
+  em janela baixa/mobile.
+- **Contato = fila de trabalho "Aguardando"** (chips removidos): filtra por **status**, flags (overbooking /
+  vaga extra) não excluem; reativa; ordenada por chegada; já contatado via `envios`; "Abrir WhatsApp" por
+  linha (desabilitado sem telefone).
+- **Telefone do documento por presença** (`telefoneDoDocumento`) + persistência + **prioridade do usuário**;
+  **`normalizePhone` nunca injeta DDI** (`+55` proibido); aviso leve p/ número curto.
+- Testes **372/372** (245 engine + 83 jsdom + 44 Playwright), sem `skip`. Ver `RELATORIO-v1.5.5.md`.
+- **Parqueado nesta versão:** captura de **e-mail** (nenhuma função consome e-mail; envio é WhatsApp).
 
 ---
 

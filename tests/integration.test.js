@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.4', async () => {
+  await T('rodapé mostra v1.5.5', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.4');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.5');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -141,11 +141,17 @@ async function aguardarBoot(w) {
     const { w } = await novoApp();
     await w.importarPDF(w.parsear(montarPDF()));
     await sleep(20);
+    // v1.5.5 (6.4): a fila do Contato é só "Aguardando". Coloca a reserva Booking (com OTA) em
+    // Aguardando p/ exercitar os badges PMS+OTA copiáveis na fila.
+    await w.salvarStatusManual('30002', 'aguardando');
+    await sleep(20);
     w.trocarAba('contato');
-    const pms = w.document.querySelector('.ct-badge.pms.copyable');
+    const item = w.document.querySelector('.ct-item[data-nro="30002"]');
+    ok(item, 'reserva Aguardando presente na fila');
+    const pms = item.querySelector('.ct-badge.pms.copyable');
     ok(pms, 'badge PMS deve ser copiável');
     ok(/copiarTexto/.test(pms.getAttribute('onclick') || ''), 'PMS clica em copiarTexto');
-    const ota = w.document.querySelector('.ct-badge.ota.copyable');
+    const ota = item.querySelector('.ct-badge.ota.copyable');
     ok(ota, 'badge OTA (Booking #30002) deve ser copiável');
   });
 
@@ -569,10 +575,12 @@ async function aguardarBoot(w) {
     const { w } = await novoApp();
     await w.importarPDF(w.parsear(montarPDF()));
     await sleep(20);
-    await w.salvarStatusManual('30003', 'confirmado'); // amarelo→confirmado diverge
+    // v1.5.5 (6.4): a fila é só "Aguardando". PDF diz confirmado (30002) → override p/ aguardando:
+    // entra na fila E diverge do PMS (manual ≠ PDF) → o badge de divergência aparece na fila.
+    await w.salvarStatusManual('30002', 'aguardando');
     await sleep(20);
     w.trocarAba('contato'); await sleep(20);
-    const item = w.document.querySelector('.ct-item[data-nro="30003"]');
+    const item = w.document.querySelector('.ct-item[data-nro="30002"]');
     ok(item && item.querySelector('.pms-diverg-badge'), 'badge de divergência presente no Contato');
     ok(item.querySelector('.status-sel'), 'editor de status presente no Contato');
   });
@@ -718,7 +726,8 @@ async function aguardarBoot(w) {
     await w.importarPDF(w.parsear(montarPDF()));
     await sleep(20);
     w.trocarAba('contato');
-    const item = w.document.querySelector('.ct-item[data-nro="30002"]');
+    // v1.5.5 (6.4): a fila é só "Aguardando" — usa a reserva amarela (30003) que está na fila.
+    const item = w.document.querySelector('.ct-item[data-nro="30003"]');
     // clicar na área de meta (não o nome) dispara a seleção via item.onclick
     item.querySelector('.ct-meta').dispatchEvent(new w.Event('click', { bubbles: true }));
     ok(item.classList.contains('active'), 'item selecionado ao clicar fora do nome');
@@ -1059,6 +1068,128 @@ Total Geral`;
     const corpo = w.document.getElementById('edicoes-corpo');
     ok(/Reserva adicionada/.test(corpo.textContent), 'lista a adição manual');
     ok(/Sem garagem/.test(corpo.textContent), 'lista a edição de status');
+  });
+
+  /* ════════════════════════ v1.5.5 ════════════════════════ */
+  // posições atuais no mapa (DOM): nro → vagaId
+  const posMapa = (w) => { const m = {}; w.document.querySelectorAll('#mapa-container .cell-span[data-nro]').forEach(s => { const wr = s.closest('[data-vaga]'); if (wr && s.dataset.nro) m[s.dataset.nro] = wr.dataset.vaga; }); return m; };
+
+  await T('v1.5.5 (6.2) CENTRAL: arraste p/ vaga livre não move NENHUMA outra (mapa DOM)', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    const antes = posMapa(w);
+    const usadas = new Set(Object.values(antes));
+    let livre = null; for (let k = 1; k <= 18; k++) { if (!usadas.has('P' + k)) { livre = 'P' + k; break; } }
+    ok(livre, 'há vaga P livre');
+    await w.salvarAjuste('30001', livre); await sleep(20);
+    const depois = posMapa(w);
+    eq(depois['30001'], livre, '30001 foi para a vaga livre');
+    Object.keys(antes).forEach(nro => { if (nro !== '30001') eq(depois[nro], antes[nro], nro + ' não pode se mover'); });
+  });
+
+  await T('v1.5.5 (6.2) "voltar ao automático" re-aloca só a própria', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    const antes = posMapa(w);
+    const usadas = new Set(Object.values(antes));
+    let livre = null; for (let k = 1; k <= 18; k++) { if (!usadas.has('P' + k)) { livre = 'P' + k; break; } }
+    await w.salvarAjuste('30001', livre); await sleep(20);
+    await w.removerAjuste('30001'); await sleep(20);
+    const depois = posMapa(w);
+    // as outras seguem intactas; 30001 volta ao automático (alguma vaga válida)
+    Object.keys(antes).forEach(nro => { if (nro !== '30001') eq(depois[nro], antes[nro], nro + ' intacta'); });
+    ok(depois['30001'], '30001 re-alocada automaticamente');
+  });
+
+  await T('v1.5.5 (6.4) Contato lista SÓ Aguardando; flag (overbooking) NÃO exclui; Confirmada fica fora', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    await w.salvarStatusManual('30001', 'aguardando'); // confirmada → aguardando
+    await w.salvarAjuste('30001', 'OVERBOOKING');       // + flag overbooking
+    await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    const nros = [...w.document.querySelectorAll('.ct-item')].map(e => e.dataset.nro);
+    ok(nros.includes('30003'), 'amarela (aguardando) na fila');
+    ok(nros.includes('30001'), 'aguardando EM OVERBOOKING entra (flag não exclui)');
+    ok(!nros.includes('30002') && !nros.includes('30004'), 'nenhuma Confirmada na fila');
+    // a flag aparece como marca visual
+    ok(w.document.querySelector('.ct-item[data-nro="30001"] .ct-flag.over'), 'flag overbooking visível');
+  });
+
+  await T('v1.5.5 (6.4) reativo: aguardando→confirmado sai; volta→entra', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    ok(w.document.querySelector('.ct-item[data-nro="30003"]'), '30003 na fila');
+    await w.salvarStatusManual('30003', 'confirmado'); await sleep(20);
+    ok(!w.document.querySelector('.ct-item[data-nro="30003"]'), 'saiu ao confirmar');
+    await w.salvarStatusManual('30003', 'aguardando'); await sleep(20);
+    ok(w.document.querySelector('.ct-item[data-nro="30003"]'), 'voltou ao aguardar');
+  });
+
+  await T('v1.5.5 (6.10) fila ordenada por chegada mais próxima (estável)', async () => {
+    const { w } = await novoApp();
+    const pdf = [
+      bloco('50001', diasDeHoje(3), diasDeHoje(6), '401', 'WHATSAPP', 'VERIFICAR INTERESSE SEM CLASSIF', 'TARDE'),
+      bloco('50002', diasDeHoje(0), diasDeHoje(4), '402', 'WHATSAPP', 'VERIFICAR INTERESSE SEM CLASSIF', 'HOJE'),
+      bloco('50003', diasDeHoje(1), diasDeHoje(5), '403', 'WHATSAPP', 'VERIFICAR INTERESSE SEM CLASSIF', 'AMANHA'),
+    ].join('\n');
+    await w.importarPDF(w.parsear(pdf)); await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    const ordem = [...w.document.querySelectorAll('.ct-item')].map(e => e.dataset.nro);
+    eq(ordem[0], '50002', 'chegada mais próxima no topo');
+    eq(ordem[1], '50003'); eq(ordem[2], '50001');
+  });
+
+  await T('v1.5.5 (6.9) já contatado: marca "contatado" com data/hora (envios); reenvio permitido', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    await w.registrarEnvio('30003', 'verificando', null); await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    const item = w.document.querySelector('.ct-item[data-nro="30003"]');
+    ok(item.classList.contains('enviado'), 'linha marcada como contatada');
+    ok(/contatado/.test((item.querySelector('.status-env') || {}).textContent || ''), 'badge com "contatado" + data/hora');
+    // a mensagem/WhatsApp continua disponível (reenvio permitido — nada bloqueado)
+  });
+
+  await T('v1.5.5 (6.5) telefone do documento é semeado por presença (Tel:/+DDI)', async () => {
+    const { w } = await novoApp();
+    const pdf = [bloco('40001', diasDeHoje(0), diasDeHoje(3), '301', 'WHATSAPP', 'VERIFICAR INTERESSE SEM CLASSIF Tel: +55 47 99999-8888', 'FONE DOC')].join('\n');
+    await w.importarPDF(w.parsear(pdf)); await sleep(30);
+    const c = (await w.dbGetAll('contatos')).find(x => String(x.nro) === '40001');
+    ok(c && c.telefone.replace(/\D/g, '') === '5547999998888', 'telefone do documento capturado e persistido');
+  });
+
+  await T('v1.5.5 (6.5) telefone do USUÁRIO prevalece sobre o do documento (reimport)', async () => {
+    const { w } = await novoApp();
+    const mk = () => [bloco('40002', diasDeHoje(0), diasDeHoje(3), '302', 'WHATSAPP', 'VERIFICAR INTERESSE SEM CLASSIF Tel: +1 111 111 1111', 'FONE')].join('\n');
+    await w.importarPDF(w.parsear(mk())); await sleep(30);
+    w.trocarAba('contato'); await sleep(10);
+    const inp = w.document.getElementById('fone-40002');
+    inp.value = '5547912345678';
+    await w.confirmarTelefone('40002'); await sleep(20);
+    await w.importarPDF(w.parsear(mk())); await sleep(30); // documento traz +1..., mas o do usuário vence
+    const c = (await w.dbGetAll('contatos')).find(x => String(x.nro) === '40002');
+    eq(c.telefone, '5547912345678', 'mantém o número do usuário');
+    eq(c.telefoneStatus, 'resolvido', 'status confirmado pelo usuário preservado');
+  });
+
+  await T('v1.5.5 (6.5) documento SEM telefone → nada semeado, sem erro', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(30);
+    const c = (await w.dbGetAll('contatos')).find(x => String(x.nro) === '30001');
+    ok(!c || !c.telefone, 'sem telefone quando o documento não traz (caminho normal do Desbravador)');
+  });
+
+  await T('v1.5.5 (6.8) sem telefone → botão "Abrir WhatsApp" desabilitado; com telefone → habilitado', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(montarPDF())); await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    ok(w.document.querySelector('.ct-item[data-nro="30003"] .wa-btn.disabled'), 'desabilitado sem telefone');
+    const inp = w.document.getElementById('fone-30003'); inp.value = '5547912345678';
+    await w.confirmarTelefone('30003'); await sleep(20);
+    const item = w.document.querySelector('.ct-item[data-nro="30003"]');
+    ok(!item.querySelector('.wa-btn.disabled') && item.querySelector('.wa-btn'), 'habilitado com telefone');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

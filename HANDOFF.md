@@ -4,7 +4,21 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.4** (18/07/2026) — **apresentação / interação (sem schema, DB v6):** amarelo
+- **Versão entregue: v1.5.5** (24/07/2026) — **amarelo + arraste + modal + fila de contato (sem schema,
+  DB v6):** **amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; fim do "mostarda"; texto por
+  `--sobre-amarelo`); **arraste manual move SÓ a reserva arrastada** — **congelamento de layout**
+  (`congelarLayout` + 3º parâmetro `layoutSeed` de `aplicarAjustes`, ativado por assinatura
+  `janela+conjunto` no `renderMapa`): destino livre → nenhuma outra se move; destino ocupado → só a(s)
+  conflitante(s) reacomoda(m); **realocação global por arraste PROIBIDA**; **alocação automática na
+  importação intacta**; **modal do detalhe rola por dentro** (`max-height:92vh`+`overflow-y:auto`, seletor
+  de status inteiro em janela baixa/mobile); **Contato = fila de trabalho "Aguardando"** (chips removidos;
+  filtra por **status**, flags overbooking/vaga-extra não excluem; reativa; ordenada por chegada; já
+  contatado via `envios`; "Abrir WhatsApp" desabilitado sem telefone; copiar nº/telefone/mensagem da
+  Gestão/prancheta mantidos); **telefone do documento por presença** (`telefoneDoDocumento`) + persistência
+  + **prioridade do usuário**; **`normalizePhone` nunca injeta DDI** (`+55` proibido), aviso p/ número curto
+  (`telefoneCurto`). Testes **372/372** (245 engine + 83 jsdom + 44 Playwright), sem `skip`. Parqueado:
+  captura de **e-mail**. Ver `RELATORIO-v1.5.5.md`. Tags `pre-v1.5.5` e `v1.5.5`.
+- **Versão anterior: v1.5.4** (18/07/2026) — **apresentação / interação (sem schema, DB v6):** amarelo
   **derivado da bolinha "Aguardando"** (sem "mostarda"); **laranja de grupo removido por completo**
   (cor/bolinha/legenda/👥) — a **cor segue o status real** (`laranja_*` só como chave de alocação, cor
   lida de `garagemOrig`); **"Carro 0N" DENTRO do bloco** (só quando a mesma reserva tem >1 carro);
@@ -115,8 +129,10 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 - `npm run test:engine` (141) · `npm run test:integration` (47) · `npx playwright test` (24).
 - **Regra:** tudo verde antes de commitar; **sem `test.skip`** mascarando; corrigir causa raiz.
 - Funções puras testáveis ficam **dentro** dos marcadores `// ===ENGINE START/END===`.
-- ⚠ Estado (`gestaoConfig`, `contatoGrupos`, `db`, `ajustesMap`, `ultimaAlocacao`, **`enviosPorNro`**,
-  `todasReservas`) é **escopo de módulo** (não em `window`). Para testar use handlers/accessors globais
+- ⚠ Estado (`gestaoConfig`, `contatoGrupos`, `db`, `ajustesMap`, `ultimaAlocacao`, **`layoutCongelado`**,
+  **`enviosPorNro`**, `todasReservas`) é **escopo de módulo** (não em `window`). Para testar posições use o
+  **DOM** (`.cell-span[data-nro]` → `closest('[data-vaga]')`) ou o puro `congelarLayout(aloc)`; para o resto,
+  use handlers/accessors globais
   (`salvarAjuste`, `removerAjuste`, `aplicarAjustes`, `registrarEnvio`, `getGestaoConfig()`,
   `dbGetAll(store)`, `ativasNoPeriodo()` etc.).
 - **Boot determinístico:** `init()` expõe `window.__appReady`; o harness aguarda o boot COMPLETO

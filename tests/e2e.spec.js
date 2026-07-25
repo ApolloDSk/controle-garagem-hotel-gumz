@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.4');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.5');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -154,6 +154,8 @@ test('clicar no nº PMS dispara feedback de cópia (toast)', async ({ page }) =>
 test('clicar no nº OTA dispara feedback de cópia (toast)', async ({ page }) => {
   await boot(page);
   await importar(page);
+  // v1.5.5 (6.4): a fila do Contato é só "Aguardando" — põe a Booking (OTA) em Aguardando p/ ver o badge OTA.
+  await page.evaluate(() => window.salvarStatusManual('30002', 'aguardando'));
   await page.click('#tab-contato');
   await page.locator('.ct-badge.ota.copyable').first().click();
   await expect(page.locator('#copy-toast')).toContainText('Copiado');
@@ -267,6 +269,8 @@ test('voltar ao automático remove o ajuste', async ({ page }) => {
 test('5.2 Contato: clicar fora do nome seleciona; copiar nº não quebra a seleção', async ({ page }) => {
   await boot(page);
   await importar(page);
+  // v1.5.5 (6.4): a fila é só "Aguardando" — coloca a 30002 (Booking) em Aguardando p/ ela aparecer.
+  await page.evaluate(() => window.salvarStatusManual('30002', 'aguardando'));
   await page.click('#tab-contato');
   const item = page.locator('.ct-item[data-nro="30002"]');
   await item.locator('.ct-meta').click(); // área que não é o nome
@@ -351,20 +355,20 @@ test('A: status no Contato → "Sem garagem" tira do mapa; checkbox mostra a ár
   await importar(page);
   await page.click('#tab-contato');
   await page.waitForSelector('.ct-item');
-  // editor de status presente no Contato
-  const sel = page.locator('.ct-item[data-nro="30001"] .status-sel');
+  // v1.5.5 (6.4): a fila é só "Aguardando" — usa a CARLA (30003, amarela), que está na fila.
+  const sel = page.locator('.ct-item[data-nro="30003"] .status-sel');
   await expect(sel).toHaveCount(1);
   await sel.selectOption('sem_garagem');
   // some do mapa
-  await expect(page.locator('#mapa-container .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(0);
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'CARLA AMARELA' })).toHaveCount(0);
   // área "Sem garagem (manual)" oculta até ligar o checkbox
   await page.click('#tab-mapa');
   await expect(page.locator('.secao-semgar')).toHaveCount(0);
   await page.check('#chk-semgar');
-  await expect(page.locator('.secao-semgar')).toContainText('ANA PEQUENA');
+  await expect(page.locator('.secao-semgar')).toContainText('CARLA AMARELA');
   // voltar status (confirmado) → reserva retorna ao mapa
   await page.locator('.secao-semgar .status-sel').selectOption('confirmado');
-  await expect(page.locator('#mapa-container .cell-span', { hasText: 'ANA PEQUENA' })).toHaveCount(1);
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'CARLA AMARELA' })).toHaveCount(1);
 });
 
 test('A: editar status no detalhe e divergência com o PMS sinalizada', async ({ page }) => {
@@ -763,4 +767,83 @@ test('v1.5.4 (5.5) destaque persiste após fechar o detalhe; pan NÃO limpa; cli
   await page.click('#detalhe-modal .btn-primary:has-text("Fechar")');
   await expect(page.locator('.cell-span.destaque-clique')).toHaveCount(1);
   await expect(page.locator('.cell-span.destaque-clique')).toContainText('BRUNO GRANDE');
+});
+
+/* ════════════════════════ v1.5.5 ════════════════════════ */
+const snapMapa = (page) => page.evaluate(() => { const m = {}; document.querySelectorAll('#mapa-container .cell-span[data-nro]').forEach(s => { const wr = s.closest('[data-vaga]'); if (wr && s.dataset.nro) m[s.dataset.nro] = wr.dataset.vaga; }); return m; });
+
+test('v1.5.5 (6.2) CENTRAL: arrastar 1 p/ vaga livre não move NENHUMA outra (snapshot antes×depois)', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  const antes = await snapMapa(page);
+  const usadas = new Set(Object.values(antes));
+  let livre = null; for (let k = 1; k <= 18; k++) { if (!usadas.has('P' + k)) { livre = 'P' + k; break; } }
+  expect(livre).toBeTruthy();
+  await arrastar(page, 'ANA PEQUENA', livre);
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-confirmar');
+  await expect(page.locator(`.row-cells[data-vaga="${livre}"] .cell-span`, { hasText: 'ANA PEQUENA' })).toHaveCount(1);
+  const depois = await snapMapa(page);
+  expect(depois['30001']).toBe(livre); // ANA moveu
+  for (const nro of Object.keys(antes)) { if (nro !== '30001') expect(depois[nro], nro + ' não pode se mover').toBe(antes[nro]); }
+});
+
+test('v1.5.5 (6.2) soltar EM CIMA de outra: só a conflitante reacomoda; as demais ficam', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  const antes = await snapMapa(page);
+  const vagaCarla = antes['30003']; // vaga da CARLA (amarela, P), que sobrepõe o período da ANA
+  expect(vagaCarla && /^P\d+$/.test(vagaCarla)).toBeTruthy();
+  await arrastar(page, 'ANA PEQUENA', vagaCarla); // solta ANA em cima da CARLA
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await expect(page.locator('#mover-conflito')).toBeVisible(); // avisa o conflito
+  await page.click('#mover-confirmar');
+  // aguarda o re-render (o handler é assíncrono) — ANA assume a vaga da CARLA
+  await expect(page.locator(`.row-cells[data-vaga="${vagaCarla}"] .cell-span`, { hasText: 'ANA PEQUENA' })).toHaveCount(1);
+  const depois = await snapMapa(page);
+  expect(depois['30001']).toBe(vagaCarla);            // ANA assume a vaga
+  expect(depois['30003']).not.toBe(vagaCarla);        // CARLA (conflitante) reacomodou
+  expect(depois['30002']).toBe(antes['30002']);       // BRUNO (não envolvido) intacto
+  expect(depois['30004']).toBe(antes['30004']);       // DAVI (não envolvido) intacto
+});
+
+test('v1.5.5 (6.3) seletor de status do detalhe visível por inteiro (janela baixa / mobile)', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 560 });
+  await boot(page);
+  await importar(page);
+  await page.locator('.cell-span', { hasText: 'CARLA AMARELA' }).first().click();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  const card = page.locator('#detalhe-modal .modal-card');
+  const cb = await card.boundingBox();
+  expect(cb.height).toBeLessThanOrEqual(page.viewportSize().height); // card cabe na viewport (não estoura)
+  const sel = page.locator('#detalhe-corpo .status-sel');
+  await expect(sel).toHaveCount(1);
+  await sel.scrollIntoViewIfNeeded();
+  await expect(sel).toBeInViewport();                 // rolou por dentro e ficou visível (não cortado)
+  await sel.selectOption('confirmado');               // e é utilizável
+});
+
+test('v1.5.5 (6.8) fila do Contato: só Aguardando → colar telefone → WhatsApp SEM 55 → contatado', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => { window.gestaoSetEmpresa('Hotel Gumz'); window.gestaoAddFuncionario(); const f = window.getGestaoConfig().funcionarios[0].id; window.gestaoSetFuncNome(f, 'Doug'); });
+  await importar(page);
+  await page.click('#tab-contato');
+  // só Aguardando na fila: CARLA (amarela) presente; confirmadas fora
+  await expect(page.locator('.ct-item[data-nro="30003"]')).toHaveCount(1);
+  await expect(page.locator('.ct-item[data-nro="30001"]')).toHaveCount(0);
+  // sem telefone → botão "Abrir WhatsApp" desabilitado
+  await expect(page.locator('.ct-item[data-nro="30003"] .wa-btn.disabled')).toHaveCount(1);
+  // cola número internacional (com +) e confirma
+  await page.fill('#fone-30003', '+1 347 555 1234');
+  await page.click('#btn-fone-30003');
+  // mensagem montada pela Gestão + link wa.me com os dígitos como vieram (NUNCA injeta 55)
+  await page.locator('.ct-item[data-nro="30003"] .wa-btn', { hasText: 'Mensagem' }).click();
+  await expect(page.locator('#envio-modal')).toBeVisible();
+  const href = await page.locator('#envio-enviar').getAttribute('href');
+  expect(href).toContain('wa.me/13475551234');
+  expect(href).not.toContain('5513475551234');
+  // dispara → registra envio → linha marcada "contatado" (reenvio segue permitido)
+  await page.click('#envio-enviar');
+  await expect(page.locator('.ct-item[data-nro="30003"]')).toHaveClass(/enviado/);
+  await expect(page.locator('.ct-item[data-nro="30003"] .status-env')).toContainText('contatado');
 });
