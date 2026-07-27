@@ -375,7 +375,37 @@ Garage Spot** (a chave é o `nro` do PMS).
   (`replace(/\D/g,'')`) — **NUNCA injeta `+55`** nem completa nada. O hotel recebe estrangeiros; o número já
   vem completo. `telefoneCurto` (< 10 dígitos) só **avisa** ("confira o código do país"), nunca bloqueia/corrige.
 
+## Comportamentos da v1.5.6 a preservar (vaga extra hospedado + numeração fixa + anti-duplicata)
+
+> **SEM mudança de schema (segue DB v6). Sem store novo.** Migração não-destrutiva.
+
+- **6.1 Vaga extra é POSIÇÃO, não status — vale para overbooking HOSPEDADO ou a chegar:**
+  `statusEditorHospedadoHTML(nro, st, ctx)` oferece "➕ Vaga extra (EXTRAn)" quando `ctx.overbooking`
+  (mantendo "Na garagem"/"Saiu"). No detalhe, `emOver=!!res._over` (⚠ **sem** `!ehH`). Mover para a extra
+  usa `colocarEmVagaExtra` (por `nro`) e **NÃO altera o status** (hospedado segue "Na garagem"). **Fora de
+  overbooking a opção não existe.**
+- **6.2 Numeração das vagas é FIXA de cima para baixo; o filtro só reordena as reservas:** o RÓTULO segue
+  a **posição visual** (`P1` sempre no topo); `aplicarOrdemLinhas` só reordena o conteúdo. O `data-vaga`
+  (alvo de drop / id de alocação / congelamento) **permanece o id da vaga** — drag/persistência/freeze
+  intactos. `mapaVagaLabel` (id de alocação → rótulo visível) alimenta o tooltip ✋ e o modal "mover".
+  ⚠ **NÃO** voltar a amarrar o número à ordem de renderização.
+- **6.3 Conferência anti-duplicata: SINALIZA, NUNCA apaga.** `detectarDuplicatas` (puro): gatilho =
+  **`nro`+`apto`+`vagaIdx` repetido** (a mesma reserva/carro) **ou** **`nroOTA` sob ≥2 `nros` distintos**.
+  **Multi-carro, multi-apto e homônimos NÃO alertam**; hospedados e `nro` `AUTO*` ficam de fora. Selo `⧉`
+  nos **dois** blocos; clicar **isola** o par (reusa o padrão da busca: `dup-isolando`/`dup-foco`); clicar
+  no fundo volta ao normal; `✕` **dispensa nos dois**. A **dispensa NÃO é permanente**
+  (`duplicatasDispensadas` = Set limpo a cada importação): se o relatório reproduzir o par, o alerta
+  **reaparece** — esconder de vez mascararia erro do PMS/app. **O app nunca exclui uma reserva sozinho.**
+- **Princípio permanente:** na dúvida, **sinalizar e devolver a decisão ao usuário** — nunca "resolver
+  sozinho" o ambíguo (vale p/ documento antigo recusado, garagem duvidosa sinalizada, PMS desconhecido
+  recusado e, agora, a conferência de duplicata).
+
 ## Versão atual
+
+**v1.5.6** — **vaga extra p/ hospedado em overbooking + numeração de vagas fixa + conferência
+anti-duplicata (sinaliza, não apaga)** (sem schema, DB v6; sem store novo). Testes **387/387** (253 engine
++ 88 jsdom + 46 Playwright), sem `skip`; hooks `[real]` verdes (0 falso-positivo de duplicata no relatório
+real). Ver `RELATORIO-v1.5.6.md`.
 
 **v1.5.5** — **amarelo = cor da bolinha + arraste move só a arrastada + seletor de status inteiro + Contato
 como fila de trabalho** (sem schema, DB v6). Amarelo sólido (fim do mostarda); **congelamento de layout** faz

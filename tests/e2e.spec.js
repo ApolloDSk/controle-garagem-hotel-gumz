@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.5');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.6');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -161,13 +161,18 @@ test('clicar no nº OTA dispara feedback de cópia (toast)', async ({ page }) =>
   await expect(page.locator('#copy-toast')).toContainText('Copiado');
 });
 
-test('filtro de ordenação inverte a ordem visível das vagas', async ({ page }) => {
+// v1.5.6 (6.2) — numeração FIXA de cima p/ baixo: o filtro só reordena o conteúdo, NÃO os números.
+test('filtro de ordenação NÃO muda os números das vagas (só reordena o conteúdo)', async ({ page }) => {
   await boot(page);
   await importar(page);
-  const antes = await page.locator('.row-label').allTextContents();
+  const labelsAntes = await page.locator('.row-label').allTextContents();
+  const vagasAntes = await page.locator('.row-cells[data-vaga]').evaluateAll(els => els.map(e => e.dataset.vaga));
   await page.click('#btn-ordem');
-  const depois = await page.locator('.row-label').allTextContents();
-  expect(JSON.stringify(antes)).not.toBe(JSON.stringify(depois));
+  const labelsDepois = await page.locator('.row-label').allTextContents();
+  const vagasDepois = await page.locator('.row-cells[data-vaga]').evaluateAll(els => els.map(e => e.dataset.vaga));
+  expect(JSON.stringify(labelsAntes)).toBe(JSON.stringify(labelsDepois)); // números fixos
+  expect(JSON.stringify(vagasAntes)).not.toBe(JSON.stringify(vagasDepois)); // conteúdo reordenado
+  expect(labelsAntes[0]).toBe('P1'); // P1 sempre no topo
   await expect(page.locator('#ordem-label')).toContainText('baixo→cima');
 });
 
@@ -522,6 +527,9 @@ test('v1.5.1.1 [real] Reservas de amostras/ → sem regressão (pendente até ha
   await page.waitForSelector('.cell-span', { timeout: 15000 });
   const n = await page.evaluate(() => document.querySelectorAll('#mapa-container .cell-span').length);
   expect(n).toBeGreaterThan(0);
+  // v1.5.6 (6.3) — nenhuma reserva legítima do relatório real vira "duplicata" (multi-apto/homônimos ok).
+  const dups = await page.evaluate(() => document.querySelectorAll('#mapa-container .dup-badge').length);
+  expect(dups).toBe(0);
 });
 
 test('v1.5.4 (5.2) fim do laranja: Carro 01/02 no bloco, cores pelo status, sem 👥', async ({ page }) => {
@@ -846,4 +854,56 @@ test('v1.5.5 (6.8) fila do Contato: só Aguardando → colar telefone → WhatsA
   await page.click('#envio-enviar');
   await expect(page.locator('.ct-item[data-nro="30003"]')).toHaveClass(/enviado/);
   await expect(page.locator('.ct-item[data-nro="30003"] .status-env')).toContainText('contatado');
+});
+
+/* ════════════════════════ v1.5.6 ════════════════════════ */
+test('v1.5.6 (6.1) hospedado em overbooking → detalhe oferece vaga extra; mover mantém hospedado', async ({ page }) => {
+  await boot(page);
+  await importarComandas(page);
+  // força o hospedado para overbooking (mesma via de um auto-overbooking)
+  const nro = await page.evaluate(() => {
+    const h = window.conjuntoAtivo().find(r => r.ehHospedado);
+    return h ? String(h.nro) : null;
+  });
+  expect(nro).toBeTruthy();
+  await page.evaluate(async (n) => { await window.salvarAjuste(n, 'OVERBOOKING'); }, nro);
+  // abre o detalhe do hospedado em overbooking
+  await page.evaluate((n) => { window.abrirDetalheReserva(window.conjuntoAtivo().find(r => String(r.nro) === n)); }, nro);
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  const sel = page.locator('#detalhe-corpo .status-sel');
+  await expect(sel).toContainText('Vaga extra');
+  await expect(sel).toContainText('Na garagem');
+  // escolhe a vaga extra → posição muda, status permanece hospedado
+  const valExtra = await sel.locator('option', { hasText: 'Vaga extra' }).getAttribute('value');
+  await sel.selectOption(valExtra);
+  const aj = await page.evaluate(async (n) => (await window.dbGetAll('ajustes')).find(a => String(a.nro) === n), nro);
+  expect(aj.vagaIdManual).toMatch(/^EXTRA/);
+  expect(aj.statusManual == null || aj.statusManual === 'confirmado').toBeTruthy();
+});
+
+function mkDupPDF() {
+  const hoje = dias(0), maisTarde = dias(4);
+  return [
+    bloco('90001', hoje, maisTarde, '701', 'WHATSAPP', 'GARAGEM PEQUENO', 'DUP UM'),
+    bloco('90001', hoje, maisTarde, '701', 'WHATSAPP', 'GARAGEM PEQUENO', 'DUP UM'),
+  ].join('\n');
+}
+test('v1.5.6 (6.3) duplicata: selo nos 2 → clicar isola o par → x dispensa os 2 → reimport reproduz', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async (txt) => { await window.importarPDF(window.parsear(txt)); }, mkDupPDF());
+  await page.waitForSelector('#mapa-container .dup-badge');
+  await expect(page.locator('#mapa-container .dup-badge')).toHaveCount(2); // selo nos dois blocos
+  // clicar no selo isola o par (escurece o resto)
+  await page.locator('#mapa-container .dup-badge').first().click();
+  await expect(page.locator('#mapa-wrapper.dup-isolando')).toHaveCount(1);
+  await expect(page.locator('.cell-span.dup-foco')).toHaveCount(2);
+  // clicar no fundo (rótulo de vaga — não é bloco) volta à visão normal
+  await page.locator('#mapa-container .row-label').first().click();
+  await expect(page.locator('#mapa-wrapper.dup-isolando')).toHaveCount(0);
+  // "x" dispensa nos dois
+  await page.locator('#mapa-container .dup-badge .dup-x').first().click();
+  await expect(page.locator('#mapa-container .dup-badge')).toHaveCount(0);
+  // dispensa NÃO é permanente: reimportar reproduz o par → alerta volta
+  await page.evaluate(async (txt) => { await window.importarPDF(window.parsear(txt)); }, mkDupPDF());
+  await expect(page.locator('#mapa-container .dup-badge')).toHaveCount(2);
 });

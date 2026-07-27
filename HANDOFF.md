@@ -4,7 +4,20 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.5** (24/07/2026) — **amarelo + arraste + modal + fila de contato (sem schema,
+- **Versão entregue: v1.5.6** (27/07/2026) — **vaga extra p/ hospedado em overbooking + numeração de vagas
+  FIXA (cima→baixo) + conferência anti-duplicata (sinaliza, NUNCA apaga)** (sem schema, DB v6; **sem store
+  novo**). (6.1) `statusEditorHospedadoHTML(nro,st,ctx)` oferece "➕ Vaga extra (EXTRAn)" em overbooking
+  (detalhe: `emOver=!!res._over`, sem `!ehH`); mover via `colocarEmVagaExtra` **mantém o status hospedado**;
+  fora de overbooking não aparece. (6.2) rótulo das vagas por **posição visual** (P1 sempre no topo); o
+  filtro cima↔baixo só reordena o conteúdo; `data-vaga`/drop/congelamento (v1.5.5) **intactos**;
+  `mapaVagaLabel` (id de alocação→rótulo) no tooltip ✋ e no modal "mover". (6.3) `detectarDuplicatas` puro
+  (nº+apto+vagaIdx repetido **ou** nº OTA sob ≥2 nºs) — **multi-carro/multi-apto/homônimos NÃO alertam**,
+  hospedados e `AUTO*` fora; selo `⧉` nos **dois** blocos, clicar **isola** o par (`dup-isolando`/`dup-foco`,
+  reusa a busca), `✕` **dispensa nos dois**; **dispensa não-permanente** (`duplicatasDispensadas` = Set limpo
+  a cada import → reaparece se o relatório reproduzir o par); **nunca exclui sozinho**. Testes **387/387**
+  (253 engine + 88 jsdom + 46 Playwright), sem `skip`; hooks `[real]` verdes (**0 duplicata falsa** no
+  relatório real). Ver `RELATORIO-v1.5.6.md`. Tags `pre-v1.5.6` e `v1.5.6`.
+- **Versão anterior: v1.5.5** (24/07/2026) — **amarelo + arraste + modal + fila de contato (sem schema,
   DB v6):** **amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; fim do "mostarda"; texto por
   `--sobre-amarelo`); **arraste manual move SÓ a reserva arrastada** — **congelamento de layout**
   (`congelarLayout` + 3º parâmetro `layoutSeed` de `aplicarAjustes`, ativado por assinatura

@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.5** (entregue) · Roadmap local sem backend concluído; próximos passos exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.6** (entregue) · Roadmap local sem backend concluído; próximo passo próprio: empacotar como executável desktop. Demais exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -156,6 +156,20 @@
   **`normalizePhone` nunca injeta DDI** (`+55` proibido); aviso leve p/ número curto.
 - Testes **372/372** (245 engine + 83 jsdom + 44 Playwright), sem `skip`. Ver `RELATORIO-v1.5.5.md`.
 - **Parqueado nesta versão:** captura de **e-mail** (nenhuma função consome e-mail; envio é WhatsApp).
+
+### v1.5.6 (entregue 27/07/2026) — vaga extra hospedado + numeração fixa + anti-duplicata (sem schema, DB v6)
+- **Vaga extra p/ hospedado em overbooking** (`statusEditorHospedadoHTML` com ctx; detalhe `emOver=!!res._over`,
+  sem `!ehH`): posição muda via `colocarEmVagaExtra`, **status permanece hospedado**; fora de overbooking não aparece.
+- **Numeração das vagas FIXA de cima p/ baixo** (rótulo por posição visual; `data-vaga`/drop/congelamento
+  intactos; `mapaVagaLabel` p/ tooltip e modal). O filtro cima↔baixo só reordena o conteúdo.
+- **Conferência anti-duplicata (sinaliza, NUNCA apaga):** `detectarDuplicatas` puro (nº+apto+vagaIdx repetido
+  ou nº OTA sob ≥2 nºs); **multi-carro/multi-apto/homônimos preservados**; selo `⧉` nos dois blocos, clicar
+  **isola** o par, `✕` **dispensa nos dois**; **dispensa não-permanente** (Set limpo no import → reaparece se o
+  relatório reproduzir o par). Nenhum store novo.
+- Testes **387/387** (253 engine + 88 jsdom + 46 Playwright), sem `skip`; hooks `[real]` verdes (0 duplicata
+  falsa no relatório real). Ver `RELATORIO-v1.5.6.md`.
+- **PRÓXIMO (patch próprio):** **empacotar como executável desktop** (Electron/Tauri a escolher; precisa do
+  ícone; sem separação por empresa; dados não migram — reimportar o relatório reconstrói).
 
 ---
 

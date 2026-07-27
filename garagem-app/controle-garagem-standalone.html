@@ -343,6 +343,14 @@ body.arrastando .cell-span{cursor:grabbing}
    com a busca (ciano). Precedência: um bloco clicado fica visível mesmo com a busca ativa. */
 .cell-span.destaque-clique{outline:3px solid var(--verde);outline-offset:2px;z-index:150;box-shadow:0 0 0 4px rgba(34,197,94,.22)}
 .mapa-wrapper.busca-ativa .cell-span.destaque-clique{opacity:1;filter:none}
+/* v1.5.6 (6.3) — selo de possível duplicata + isolamento do par (reusa o padrão da busca) */
+.dup-badge{position:absolute;top:1px;right:1px;z-index:170;display:inline-flex;align-items:center;gap:2px;background:var(--vermelho);color:#fff;border-radius:8px;padding:0 4px;height:14px;font-size:9px;font-weight:800;line-height:14px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.dup-badge:hover{filter:brightness(1.08)}
+.dup-x{cursor:pointer;font-size:9px;opacity:.85;padding-left:1px}
+.dup-x:hover{opacity:1}
+.mapa-wrapper.dup-isolando .cell-span:not(.dup-foco){opacity:.14;filter:grayscale(.5)}
+.cell-span.dup-foco{outline:3px solid var(--vermelho);outline-offset:2px;z-index:165;box-shadow:0 0 0 4px rgba(239,68,68,.28)}
+.mapa-wrapper.dup-isolando .cell-span.dup-foco{opacity:1;filter:none}
 .manual-ico{margin-right:3px;font-size:9px}
 /* vagas extras */
 .secao-extra{border:1px dashed var(--extra);border-radius:8px;padding:6px 8px 8px;background:var(--extra-bg)}
@@ -689,7 +697,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.5';
+const APP_VERSION='v1.5.6';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -1503,6 +1511,38 @@ function detectarConflito(reservaOrig,vagaAlvo,ocupantesDaVaga){
   return{conflito:!!c,comQuem:c?(c.nomeCompleto||c.nome||null):null};
 }
 
+// v1.5.6 (6.3) — CONFERÊNCIA ANTI-DUPLICATA (pura): SINALIZA possível duplicidade, NUNCA apaga.
+// Gatilho = IDENTIDADE repetida (nunca só nome+período):
+//   • mesmo nº PMS + mesmo apto + mesma vagaIdx = a MESMA reserva/carro repetida — multi-CARRO
+//     (vagaIdx diferente) e multi-APTO (apto diferente) NÃO caem no mesmo grupo;
+//   • mesmo nº OTA sob ≥2 nºs PMS distintos.
+// HOMÔNIMOS (nomes iguais, nºs diferentes) NÃO alertam. HOSPEDADOS (sem nº PMS/OTA) ficam de fora.
+// Retorna array de grupos (cada grupo = array de reservas do cluster; tamanho ≥ 2). Union-find junta
+// clusters que se sobrepõem (ex.: mesmo par pego por PMS e por OTA).
+function detectarDuplicatas(reservas){
+  const rP=(reservas||[]).filter(r=>r&&!r.ehHospedado);
+  const parent=new Map();
+  rP.forEach(r=>parent.set(r,r));
+  const find=(x)=>{while(parent.get(x)!==x){parent.set(x,parent.get(parent.get(x)));x=parent.get(x);}return x;};
+  const union=(a,b)=>{const ra=find(a),rb=find(b);if(ra!==rb)parent.set(ra,rb);};
+  const temNro=(r)=>r.nro!=null&&String(r.nro).trim()!==''&&!/^AUTO/.test(String(r.nro));
+  const porId={};
+  rP.forEach(r=>{if(!temNro(r))return;const k='I|'+String(r.nro)+'|'+String(r.apto==null?'':r.apto)+'|'+(r.vagaIdx||1);(porId[k]=porId[k]||[]).push(r);});
+  Object.keys(porId).forEach(k=>{const g=porId[k];for(let i=1;i<g.length;i++)union(g[0],g[i]);});
+  const porOTA={};
+  rP.forEach(r=>{const o=r.nroOTA?String(r.nroOTA).trim():'';if(o)(porOTA[o]=porOTA[o]||[]).push(r);});
+  Object.keys(porOTA).forEach(k=>{const g=porOTA[k];const nros=new Set(g.map(r=>String(r.nro)));if(nros.size>=2)for(let i=1;i<g.length;i++)union(g[0],g[i]);});
+  const byRoot=new Map();
+  rP.forEach(r=>{const root=find(r);if(!byRoot.has(root))byRoot.set(root,[]);byRoot.get(root).push(r);});
+  const grupos=[];
+  byRoot.forEach(g=>{if(g.length>=2)grupos.push(g);});
+  return grupos;
+}
+// Assinatura ESTÁVEL de um cluster (p/ a dispensa valer só na importação atual): ids ordenados.
+function assinaturaCluster(grupo){
+  return(grupo||[]).map(r=>String(r&&r.id!=null?r.id:(String(r&&r.nro)+'__'+String(r&&r.apto)+'__'+((r&&r.vagaIdx)||1)))).sort().join('~');
+}
+
 // aplicarAjustes (pura): v1.5.0.
 //  1) Aplica o STATUS EFETIVO (override manual do store `ajustes` sobre o status do PDF):
 //     - "sem_garagem" → reserva SAI do mapa/alocação (roteada para resultado.semGaragem).
@@ -1980,6 +2020,10 @@ let abaAtual='mapa';
 let contatoFiltro='todos';
 let contatoAtivoNro=null;
 let ordemVagas='cima';          // 'cima' (P1 no topo) | 'baixo' (invertido) — v1.1.0 (5.4)
+// v1.5.6 (6.2) — id de ALOCAÇÃO ('P3') → RÓTULO VISÍVEL ('P1' no topo). O filtro cima↔baixo só
+// reordena o conteúdo; a numeração é SEMPRE de cima para baixo. Reconstruído a cada render.
+let mapaVagaLabel={};
+function labelVagaVisivel(v){return(v&&mapaVagaLabel[v])?mapaVagaLabel[v]:v;}
 let uploadInfo=null;            // {nomeArquivo,dataHoraUpload,caminho} — v1.1.0 (5.5)
 let uploadInfoDetalhe=false;    // alterna entre data/hora e nome do arquivo no clique
 const CW=88,GAP=3;
@@ -2112,7 +2156,7 @@ function trocarAba(aba){
     const w=el();if(w)w.classList.remove('grabbing');
     // v1.5.4 (5.5) — clique de VERDADE no vazio (abaixo do limiar, sem pan) LIMPA o destaque;
     // arrastar o fundo (pan) NÃO limpa (moveu=true). Fora do mapa não mexe no destaque.
-    if(isDown&&!moveu)limparDestaque();
+    if(isDown&&!moveu){limparDestaque();limparIsolamentoDup();} // v1.5.6 (6.3) — clicar fora volta à visão normal
     isDown=false;
   });
   document.addEventListener('mousemove',(e)=>{
@@ -2311,6 +2355,7 @@ async function carregarHospedados(){
 // escreve neste store; nunca toca em reservas/contatos/ajustes/envios (o ajuste manual sobrevive
 // pela chave estável do hospedado). Fallback em memória quando não há DB.
 async function importarComandas(hospedadosParsed){
+  duplicatasDispensadas=new Set(); // v1.5.6 (6.3) — nova importação reavalia as duplicatas do zero
   const recs=(hospedadosParsed||[]).map(h=>({
     id:chaveHospedado(h),apto:h.apto,nome:h.nome,
     entrada:(h.entrada instanceof Date?h.entrada:new Date(h.entrada)),
@@ -2390,6 +2435,7 @@ async function semearTelefonesDoDocumento(novas){
 
 // ── IMPORTAÇÃO + MESCLAGEM (B2) ──
 async function importarPDF(novas){
+  duplicatasDispensadas=new Set(); // v1.5.6 (6.3) — nova importação reavalia as duplicatas do zero
   if(dbOk){
     let existentes={};
     try{(await dbGetAll('reservas')).forEach(r=>existentes[r.id]=r);}catch(e){}
@@ -2517,6 +2563,8 @@ function renderMapa(){
   // v1.5.4 (5.2) — numeração "Carro 0N" (mesma reserva com >1 carro); anota nos próprios objetos.
   const carroMap=mapaCarrosPorReserva(rP);
   rP.forEach(r=>{const c=carroMap[r.id];r._carroSeq=c?c.carroSeq:1;r._carroTotal=c?c.carroTotal:1;});
+  mapaVagaLabel={}; // v1.5.6 (6.2) — refeito a cada render (id de alocação → rótulo visível)
+  tagDuplicatas(rP); // v1.5.6 (6.3) — marca possíveis duplicatas (_dupCluster) p/ os selos
   // v1.5.5 (6.2) — congelamento: enquanto o CONJUNTO e a JANELA não mudam (mesma assinatura),
   // mantém as posições atuais (um arraste move só a arrastada; nada reflowa sozinho). Import e
   // mudança de filtro trocam a assinatura → layoutSeed=null → alocação automática roda fresca.
@@ -2539,6 +2587,7 @@ function renderMapa(){
   renderAvisos(); // v1.5.2 (5.2) — obs ambígua + sem-garagem por PDF
   aplicarDestaqueBusca(); // v1.5.3 (5.2) — reforça destaque após re-render
   aplicarDestaqueClique(); // v1.5.4 (5.5) — reforça o destaque de clique após re-render
+  aplicarIsolamentoDup();  // v1.5.6 (6.3) — reforça o isolamento do par duplicado após re-render
 }
 // v1.5.3 (5.3) — seção "Vagas extras": aparece só com ≥1 ocupada; mostra as 3 vagas como alvos de drop.
 function renderSecaoExtras(container,extras,datas,hoje){
@@ -2631,6 +2680,46 @@ function aplicarDestaqueClique(){
   document.querySelectorAll('#mapa-container .cell-span').forEach(s=>{
     if(s.dataset&&s.dataset.nro===String(destaqueNro))s.classList.add('destaque-clique');
   });
+}
+
+/* ═══════════ v1.5.6 (6.3) — CONFERÊNCIA ANTI-DUPLICATA (sinaliza, NUNCA apaga) ═══════════
+   A DISPENSA é só de INTERFACE e vale para a IMPORTAÇÃO ATUAL (Set em memória, limpo a cada
+   import e a cada reabertura). Se o relatório reproduzir o par, o alerta REAPARECE — esconder de
+   vez seria mascarar erro do PMS/app. Nada é persistido no banco (nenhum store novo). */
+let duplicatasDispensadas=new Set(); // assinaturas de cluster dispensadas na importação atual
+let dupClusters=[];                  // [{id, sig, nros:Set}] do último render
+let dupIsolarId=null;                // cluster isolado no momento (ou null)
+// Marca `_dupCluster` nas reservas do render atual (pula clusters dispensados nesta importação).
+function tagDuplicatas(rP){
+  (rP||[]).forEach(r=>{delete r._dupCluster;});
+  dupClusters=[];
+  detectarDuplicatas(rP).forEach((g,i)=>{
+    const sig=assinaturaCluster(g);
+    if(duplicatasDispensadas.has(sig))return; // dispensado nesta importação → não sinaliza
+    const id='dup'+i;const nros=new Set();
+    g.forEach(r=>{r._dupCluster=id;if(r.nro!=null)nros.add(String(r.nro));});
+    dupClusters.push({id,sig,nros});
+  });
+}
+// Botão de alerta: isola no mapa APENAS o par suspeito (escurece o resto, contorna, scroll).
+function isolarDuplicata(id){dupIsolarId=id;aplicarIsolamentoDup();}
+function aplicarIsolamentoDup(){
+  const wrap=document.getElementById('mapa-wrapper');if(!wrap)return;
+  document.querySelectorAll('.cell-span.dup-foco').forEach(e=>e.classList.remove('dup-foco'));
+  if(dupIsolarId==null){wrap.classList.remove('dup-isolando');return;}
+  const alvos=[...document.querySelectorAll('#mapa-container .cell-span[data-dupcluster="'+dupIsolarId+'"]')];
+  if(!alvos.length){wrap.classList.remove('dup-isolando');dupIsolarId=null;return;}
+  wrap.classList.add('dup-isolando');
+  alvos.forEach(s=>s.classList.add('dup-foco'));
+  try{alvos[0].scrollIntoView({behavior:'smooth',block:'center',inline:'center'});}catch(e){}
+}
+function limparIsolamentoDup(){if(dupIsolarId!=null){dupIsolarId=null;aplicarIsolamentoDup();}}
+// "x": dispensa o alerta (revisei, não é duplicata) — vale nos DOIS do par, só nesta importação.
+function dispensarDuplicata(id){
+  const c=dupClusters.find(x=>x.id===id);
+  if(c)duplicatasDispensadas.add(c.sig);
+  if(dupIsolarId===id)dupIsolarId=null;
+  rerenderMapaEContato();
 }
 
 // v1.5.4 (5.3) — checkbox: exibe/oculta a área "Editadas manualmente". Os overrides persistem.
@@ -2732,10 +2821,16 @@ function renderSecaoLinhas(container,linhas,datas,pre,titulo,hoje,isOver){
   const t=document.createElement('span');t.className='secao-titulo';t.textContent=titulo;
   hdr.appendChild(t);bloco.appendChild(hdr);
   bloco.appendChild(mkDatesRow(datas,hoje));
-  // 5.4 — a ordem só inverte a EXIBIÇÃO das linhas (rótulo segue a vaga); alocação intacta.
+  // v1.5.6 (6.2) — o RÓTULO segue a POSIÇÃO VISUAL (P1 SEMPRE no topo), fixo; o filtro cima↔baixo só
+  // reordena o conteúdo. O `data-vaga` (alvo de drop / id de alocação / congelamento) permanece o id
+  // da vaga (`${pre}${i+1}` do índice de alocação) — drag e persistência intactos.
   const rows=[];
-  for(let i=0;i<linhas.length;i++)rows.push({label:`${pre}${i+1}`,linha:linhas[i]||[]});
-  aplicarOrdemLinhas(rows,ordemVagas).forEach(r=>bloco.appendChild(mkRow(r.label,r.linha,datas,isOver,false)));
+  for(let i=0;i<linhas.length;i++)rows.push({vagaId:`${pre}${i+1}`,linha:linhas[i]||[]});
+  aplicarOrdemLinhas(rows,ordemVagas).forEach((r,visualIdx)=>{
+    const labelVisivel=`${pre}${visualIdx+1}`;
+    mapaVagaLabel[r.vagaId]=labelVisivel; // id de alocação → rótulo visível (tooltip ✋ / modal "mover")
+    bloco.appendChild(mkRow(labelVisivel,r.linha,datas,isOver,false,r.vagaId));
+  });
   container.appendChild(bloco);
 }
 
@@ -2833,7 +2928,11 @@ function mkRow(label,linha,datas,isOver,isMoto,vagaIdOverride){
       const infoLabel=res.ehHospedado
         ?`🏠 Hospedado · Ap ${escapeHtml(res.apto)}${carroLbl}`
         :`${nroSpan} · Ap ${res.apto}${carroLbl}`;
-      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${manualIco}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>`;
+      // v1.5.6 (6.3) — selo de POSSÍVEL DUPLICATA nos DOIS blocos do par: ⧉ isola o par; ✕ dispensa.
+      // stopPropagation no pointerdown p/ o selo NÃO iniciar arraste nem abrir o detalhe.
+      const dupBadge=res._dupCluster?`<span class="dup-badge" title="Possível duplicata — clique para isolar o par (confira e decida)" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();isolarDuplicata('${res._dupCluster}')">⧉<span class="dup-x" title="Dispensar (revisei, não é duplicata)" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();dispensarDuplicata('${res._dupCluster}')">✕</span></span>`:'';
+      if(res._dupCluster){span.dataset.dupcluster=res._dupCluster;span.classList.add('tem-dup');}
+      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${manualIco}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>${dupBadge}`;
       if(res.ajusteManual)span.classList.add('tem-ajuste');
       marcarBusca(span,res);
       // 5.4 — arraste (Pointer Events) nas seções arrastáveis; clique abre detalhe.
@@ -3664,7 +3763,8 @@ function nrosConflitantes(res,ocupantes){
 function nomeDestino(v){
   if(placementExtra(v))return `a <b>vaga extra</b> (${escapeHtml(v)})`;
   if(v==='OVERBOOKING')return 'a área de <b>OVERBOOKING</b>';
-  return `a vaga <b>${escapeHtml(v)}</b>`;
+  // v1.5.6 (6.2) — mostra o RÓTULO VISÍVEL (numeração fixa de cima p/ baixo), não o id interno.
+  return `a vaga <b>${escapeHtml(labelVagaVisivel(v))}</b>`;
 }
 function abrirModalMover(res,vagaOrig,vagaAlvo,conf,conflitantesNros){
   moverCtx={res,vagaAlvo,conflitantesNros:conflitantesNros||[]};
@@ -3778,7 +3878,7 @@ function abrirDetalheReserva(res){
   // 5.5 (v1.4.0) — nº PMS e localizador OTA clicáveis para copiar (mesmo feedback/fallback do Contato).
   const nroCopy=`<span class="tt-val copyable" title="Clique para copiar o nº PMS" onclick="copiarTexto('${escapeAttr(res.nro)}')">#${escapeHtml(res.nro)}</span>`;
   const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val copyable" title="Clique para copiar o localizador OTA" onclick="copiarTexto('${escapeAttr(res.nroOTA)}')">${escapeHtml(res.nroOTA)}</span></div>`:'';
-  const mao=(res.ajusteManual)?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual==='OVERBOOKING'?'Overbooking':res._vagaManual)+')':''}</span></div>`:'';
+  const mao=(res.ajusteManual)?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual==='OVERBOOKING'?'Overbooking':labelVagaVisivel(res._vagaManual))+')':''}</span></div>`:'';
   // v1.5.1 — hospedado: identificação, editor "na garagem ↔ saiu", canal e tipo de veículo.
   const ehH=!!res.ehHospedado;
   const idRow=ehH
@@ -3788,10 +3888,11 @@ function abrirDetalheReserva(res){
   const hospRows=ehH?`
     <div class="tt-row"><span class="tt-key">Veículo</span><span class="tt-val">${escapeHtml(tipoHosp)}</span></div>
     ${res.canal?`<div class="tt-row"><span class="tt-key">Canal</span><span class="tt-val">${escapeHtml(res.canal)}</span></div>`:''}`:'';
-  // v1.5.4 (5.4) — só reservas EM OVERBOOKING recebem a opção "➕ Vaga extra" (via de acesso principal).
-  const emOver=!!res._over&&!ehH;
+  // v1.5.4 (5.4)/v1.5.6 (6.1) — reservas EM OVERBOOKING recebem "➕ Vaga extra" — HOSPEDADO OU NÃO
+  // (vaga extra é posição de emergência do overbooking, não status).
+  const emOver=!!res._over;
   const extraLivre=emOver?extraLivreNoPeriodo((ultimaAlocacao&&ultimaAlocacao.extras)||EXTRAS_VAZIO(),res):null;
-  const statusEditor=ehH?statusEditorHospedadoHTML(res.nro,st):statusEditorHTML(res.nro,st,{overbooking:emOver,extraLivre});
+  const statusEditor=ehH?statusEditorHospedadoHTML(res.nro,st,{overbooking:emOver,extraLivre}):statusEditorHTML(res.nro,st,{overbooking:emOver,extraLivre});
   corpo.innerHTML=`
     <div class="tt-nome" style="margin-bottom:8px">${escapeHtml(res.nomeCompleto)}</div>
     ${idRow}
@@ -3877,11 +3978,21 @@ async function colocarEmVagaExtra(nro){
 // v1.5.1 — editor de HOSPEDADO: "na garagem ↔ saiu (sem garagem)". Reusa salvarStatusManual.
 // "Saiu" = statusManual 'sem_garagem' → some do mapa/libera vaga → vai p/ "Sem garagem (manual)".
 const STATUS_ROTULOS_HOSP={confirmado:'🏠 Na garagem',sem_garagem:'🚗 Saiu (sem garagem)'};
-function statusEditorHospedadoHTML(nro,statusAtual){
+// v1.5.6 (6.1) — `ctx` opcional {overbooking, extraLivre}: estando o HOSPEDADO em overbooking, oferece
+// "➕ Vaga extra (EXTRAn)" (mesma mecânica da reserva a chegar). Escolher NÃO altera o status do
+// hospedado (continua "Na garagem") — só a posição muda (via `colocarEmVagaExtra` em onStatusChange).
+function statusEditorHospedadoHTML(nro,statusAtual,ctx){
+  ctx=ctx||{};
   const st=(statusAtual==='sem_garagem')?'sem_garagem':'confirmado';
   const opts=['confirmado','sem_garagem']
     .map(v=>`<option value="${v}"${v===st?' selected':''}>${STATUS_ROTULOS_HOSP[v]}</option>`).join('');
-  return`<select class="status-sel" title="Marcar saída / voltar para a garagem" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}</select>`;
+  let extraOpt='';
+  if(ctx.overbooking){
+    extraOpt=ctx.extraLivre
+      ?`<option value="${STATUS_EXTRA_SENTINEL}">➕ Vaga extra (${escapeAttr(ctx.extraLivre)})</option>`
+      :`<option value="__extra_full__" disabled>➕ Vaga extra (sem vaga extra livre no período)</option>`;
+  }
+  return`<select class="status-sel" title="Marcar saída / voltar para a garagem" onclick="event.stopPropagation()" onchange="event.stopPropagation();onStatusChange('${escapeAttr(nro)}',this.value)">${opts}${extraOpt}</select>`;
 }
 // Badge/nota de divergência com o PMS (quem/quando).
 function divergenciaHTML(res,aj){

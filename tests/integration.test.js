@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.5', async () => {
+  await T('rodapé mostra v1.5.6', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.5');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.6');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -190,18 +190,21 @@ async function aguardarBoot(w) {
   });
 
   /* ── 7. ordenação inverte a EXIBIÇÃO (5.4) ── */
-  await T('toggleOrdemVagas inverte a ordem visível das linhas e persiste', async () => {
+  // v1.5.6 (6.2) — os NÚMEROS das vagas são FIXOS de cima p/ baixo; o filtro só reordena o conteúdo.
+  await T('toggleOrdemVagas mantém os números fixos (cima→baixo) e só reordena o conteúdo', async () => {
     const { w } = await novoApp();
     await w.importarPDF(w.parsear(montarPDF()));
     await sleep(20);
     const labelsAntes = [...w.document.querySelectorAll('.row-label')].map(e => e.textContent);
+    const vagasAntes = [...w.document.querySelectorAll('.row-cells[data-vaga]')].map(e => e.dataset.vaga);
     w.toggleOrdemVagas();
     await sleep(10);
     const labelsDepois = [...w.document.querySelectorAll('.row-label')].map(e => e.textContent);
-    ok(JSON.stringify(labelsAntes) !== JSON.stringify(labelsDepois), 'a ordem visível deve mudar');
+    const vagasDepois = [...w.document.querySelectorAll('.row-cells[data-vaga]')].map(e => e.dataset.vaga);
+    eq(JSON.stringify(labelsAntes), JSON.stringify(labelsDepois), 'os NÚMEROS das vagas NÃO mudam (fixos de cima para baixo)');
+    ok(JSON.stringify(vagasAntes) !== JSON.stringify(vagasDepois), 'o CONTEÚDO (id de alocação por posição) reordena');
     eq(w.localStorage.getItem('garagem_ordem_vagas'), 'baixo', 'preferência persistida');
-    // primeira seção: o primeiro rótulo de antes deve aparecer por último depois (dentro da seção)
-    eq(labelsDepois[0], 'P18', 'com baixo→cima, P18 aparece no topo da seção pequena');
+    eq(labelsDepois[0], 'P1', 'P1 sempre no topo, independente do filtro');
   });
 
   await T('preferência de ordenação é relida ao reabrir', async () => {
@@ -1190,6 +1193,74 @@ Total Geral`;
     await w.confirmarTelefone('30003'); await sleep(20);
     const item = w.document.querySelector('.ct-item[data-nro="30003"]');
     ok(!item.querySelector('.wa-btn.disabled') && item.querySelector('.wa-btn'), 'habilitado com telefone');
+  });
+
+  /* ════════════════════════ v1.5.6 ════════════════════════ */
+  await T('v1.5.6 (6.1) editor do hospedado: oferece vaga extra SÓ em overbooking; mantém Na garagem/Saiu', async () => {
+    const { w } = await novoApp();
+    const comOver = w.statusEditorHospedadoHTML('K', 'confirmado', { overbooking: true, extraLivre: 'EXTRA1' });
+    ok(/Vaga extra/.test(comOver) && /EXTRA1/.test(comOver), 'em overbooking oferece EXTRA1');
+    ok(/Na garagem/.test(comOver) && /Saiu/.test(comOver), 'mantém as opções do hospedado');
+    const semOver = w.statusEditorHospedadoHTML('K', 'confirmado', {});
+    ok(!/Vaga extra/.test(semOver), 'fora de overbooking NÃO oferece vaga extra');
+  });
+
+  await T('v1.5.6 (6.1) hospedado forçado a overbooking → detalhe mostra vaga extra; mover mantém hospedado', async () => {
+    const { w } = await novoApp();
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(30);
+    const hosp = w.conjuntoAtivo().find(r => r.ehHospedado);
+    ok(hosp, 'há hospedado');
+    await w.salvarAjuste(hosp.nro, 'OVERBOOKING'); await sleep(20);
+    const hospOver = w.conjuntoAtivo().find(r => String(r.nro) === String(hosp.nro));
+    w.abrirDetalheReserva(hospOver); await sleep(10);
+    const sel = w.document.querySelector('#detalhe-corpo .status-sel');
+    ok(sel && /Vaga extra/.test(sel.innerHTML), 'detalhe do hospedado em overbooking oferece vaga extra');
+    // mover para a vaga extra NÃO altera o status (segue hospedado/na garagem)
+    await w.colocarEmVagaExtra(hosp.nro); await sleep(20);
+    const aj = (await w.dbGetAll('ajustes')).find(a => String(a.nro) === String(hosp.nro));
+    ok(aj && /^EXTRA/.test(aj.vagaIdManual), 'posicionado numa vaga extra');
+    ok(!aj.statusManual || aj.statusManual === 'confirmado', 'status do hospedado preservado (não virou outro status)');
+  });
+
+  const mkDupPDF = () => [
+    bloco('90001', diasDeHoje(0), diasDeHoje(4), '701', 'WHATSAPP', 'GARAGEM PEQUENO', 'DUP UM'),
+    bloco('90001', diasDeHoje(0), diasDeHoje(4), '701', 'WHATSAPP', 'GARAGEM PEQUENO', 'DUP UM'),
+  ].join('\n');
+
+  await T('v1.5.6 (6.3) duplicata real: selo nos DOIS blocos; dispensar remove dos dois; reimport reproduz; nunca apaga', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(mkDupPDF())); await sleep(30);
+    eq(w.document.querySelectorAll('#mapa-container .dup-badge').length, 2, 'selo nos dois blocos do par');
+    const cluster = w.document.querySelector('#mapa-container .cell-span[data-dupcluster]').dataset.dupcluster;
+    w.dispensarDuplicata(cluster); await sleep(20);
+    eq(w.document.querySelectorAll('#mapa-container .dup-badge').length, 0, 'dispensar remove o alerta dos DOIS');
+    await w.importarPDF(w.parsear(mkDupPDF())); await sleep(30); // dispensa NÃO é permanente
+    eq(w.document.querySelectorAll('#mapa-container .dup-badge').length, 2, 'reimport reproduz o par → alerta REAPARECE');
+    const regs = (await w.dbGetAll('reservas')).filter(r => String(r.nro) === '90001' && r.ativo !== false);
+    ok(regs.length >= 2, 'o app NUNCA apaga — as duas reservas seguem no banco');
+  });
+
+  await T('v1.5.6 (6.3) clicar no selo ISOLA o par (escurece o resto); limpar volta ao normal', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(mkDupPDF())); await sleep(30);
+    const cluster = w.document.querySelector('#mapa-container .cell-span[data-dupcluster]').dataset.dupcluster;
+    w.isolarDuplicata(cluster); await sleep(10);
+    ok(w.document.getElementById('mapa-wrapper').classList.contains('dup-isolando'), 'modo isolamento ativo');
+    eq(w.document.querySelectorAll('.cell-span.dup-foco').length, 2, 'só o par em foco');
+    w.limparIsolamentoDup(); await sleep(10);
+    ok(!w.document.getElementById('mapa-wrapper').classList.contains('dup-isolando'), 'clicar fora volta à visão normal');
+  });
+
+  await T('v1.5.6 (6.3) homônimos e multi-apto NÃO recebem selo (sem regressão)', async () => {
+    const { w } = await novoApp();
+    const pdf = [
+      bloco('91001', diasDeHoje(0), diasDeHoje(4), '801', 'WHATSAPP', 'GARAGEM PEQUENO', 'JOAO SILVA'),
+      bloco('91002', diasDeHoje(0), diasDeHoje(4), '802', 'WHATSAPP', 'GARAGEM PEQUENO', 'JOAO SILVA'), // homônimo
+      bloco('91003', diasDeHoje(0), diasDeHoje(4), '803', 'WHATSAPP', 'GARAGEM PEQUENO', 'MULTI APTO'),
+      bloco('91003', diasDeHoje(0), diasDeHoje(4), '804', 'WHATSAPP', 'GARAGEM PEQUENO', 'MULTI APTO'), // mesmo nº, apto diferente
+    ].join('\n');
+    await w.importarPDF(w.parsear(pdf)); await sleep(30);
+    eq(w.document.querySelectorAll('#mapa-container .dup-badge').length, 0, 'nenhum selo (homônimos e multi-apto são legítimos)');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

@@ -47,7 +47,9 @@ const EXPORTS = [
   // v1.5.4
   'mapaCarrosPorReserva','extraLivreNoPeriodo','extraSlotLivreParaSelf','montarEditadasManuais','STATUS_EXTRA_SENTINEL',
   // v1.5.5
-  'telefoneCurto','telefoneDoDocumento','congelarLayout'
+  'telefoneCurto','telefoneDoDocumento','congelarLayout',
+  // v1.5.6
+  'detectarDuplicatas','assinaturaCluster'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -517,6 +519,43 @@ t('v1.5.5 (6.2) sem layoutSeed o comportamento é o automático puro (v1.5.4)', 
   ok([].concat(...semSeed.linhasP, ...semSeed.linhasG).some(x => x.nro === '1'), 'aloca normalmente sem seed');
   ok(!r1.ajusteManual, 'congelamento nunca marca ajusteManual/✋');
 });
+
+/* ════════════ v1.5.6 (6.3) — CONFERÊNCIA ANTI-DUPLICATA (sinaliza, nunca apaga) ════════════ */
+const rDup = (nro, apto, extra) => Object.assign({ nro, apto, id: nro + '__' + apto + '__1', nomeCompleto: 'X', entrada: D('05/06/26'), saida: D('08/06/26') }, extra || {});
+t('v1.5.6 duplicata REAL: mesmo nº PMS no mesmo apto → cluster com os dois', () => {
+  const grupos = E.detectarDuplicatas([rDup('26161', '129'), rDup('26161', '129')]);
+  eq(grupos.length, 1, 'um cluster');
+  eq(grupos[0].length, 2, 'os dois blocos no cluster');
+});
+t('v1.5.6 duplicata por nº OTA sob 2 nºs PMS distintos', () => {
+  const grupos = E.detectarDuplicatas([rDup('1', '10', { nroOTA: 'BK-XYZ' }), rDup('2', '11', { nroOTA: 'BK-XYZ' })]);
+  eq(grupos.length, 1); eq(grupos[0].length, 2);
+});
+t('v1.5.6 HOMÔNIMOS (mesmo nome/período, nºs diferentes) NÃO alertam', () => {
+  const a = rDup('100', '10', { nomeCompleto: 'JOAO SILVA' });
+  const b = rDup('200', '11', { nomeCompleto: 'JOAO SILVA' });
+  eq(E.detectarDuplicatas([a, b]).length, 0, 'nenhum cluster');
+});
+t('v1.5.6 MULTI-APTO (mesmo nº, aptos diferentes) NÃO alerta', () => {
+  eq(E.detectarDuplicatas([rDup('26161', '129'), rDup('26161', '130')]).length, 0);
+});
+t('v1.5.6 MULTI-CARRO (mesmo nº+apto, vagaIdx diferentes) NÃO alerta', () => {
+  const c1 = rDup('777', '50', { vagaIdx: 1, id: '777__50__1' });
+  const c2 = rDup('777', '50', { vagaIdx: 2, id: '777__50__2' });
+  eq(E.detectarDuplicatas([c1, c2]).length, 0);
+});
+t('v1.5.6 hospedados (sem nº PMS/OTA) ficam fora da detecção', () => {
+  const h1 = { ehHospedado: true, nro: 'x', apto: '1', entrada: D('05/06/26'), saida: D('08/06/26') };
+  const h2 = { ehHospedado: true, nro: 'x', apto: '1', entrada: D('05/06/26'), saida: D('08/06/26') };
+  eq(E.detectarDuplicatas([h1, h2]).length, 0);
+});
+t('v1.5.6 nº AUTO (placeholder do parser) não é identidade → não alerta', () => {
+  eq(E.detectarDuplicatas([rDup('AUTO0', '9'), rDup('AUTO1', '9')]).length, 0);
+});
+t('v1.5.6 assinaturaCluster é estável (independe da ordem)', () => {
+  const a = rDup('1', '10'), b = rDup('2', '10');
+  eq(E.assinaturaCluster([a, b]), E.assinaturaCluster([b, a]));
+});
 t('v1.5.3 aplicarAjustes: moto AGORA é fixável em vaga de carro (P2)', () => {
   const m = { nro: '1', garagem: 'azul_moto', entrada: D('05/06/26'), saida: D('08/06/26'), nomeCompleto: 'M', apto: '1' };
   const aloc = E.aplicarAjustes([m], { '1': { vagaIdManual: 'P2' } });
@@ -696,7 +735,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.5', () => { eq(E.APP_VERSION, 'v1.5.5'); });
+t('APP_VERSION é v1.5.6', () => { eq(E.APP_VERSION, 'v1.5.6'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
