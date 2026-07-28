@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.6.1');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.7');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -1044,4 +1044,180 @@ test('v1.5.6.1 (7.5) blocos pequenos e "Carro 01/02" aguardando recebem a mesma 
   expect(todos.length).toBeGreaterThanOrEqual(2);
   expect(new Set(todos).size, 'todas as variações do bloco amarelo com a MESMA receita').toBe(1);
   todos.forEach(t => expect(_rgba(t.split('|')[0]).a).toBeLessThan(1));
+});
+
+/* ════════════════════════ v1.5.7 ════════════════════════ */
+// snapshot POR CARRO (data-chave) — `data-nro` repete entre os carros da mesma reserva.
+const snapCarros = (page) => page.evaluate(() => {
+  const m = {};
+  document.querySelectorAll('#mapa-container .cell-span[data-chave]').forEach(s => {
+    const wr = s.closest('[data-vaga]'); if (wr) m[s.dataset.chave] = wr.dataset.vaga;
+  });
+  return m;
+});
+const OBS_TOTAL4 = 'GARAGEM TOTAL 04 CARROS (03 PEQUENOS E 01 GRANDE)';
+async function importarMultiApto(page, nro, obs) {
+  await page.evaluate(async ({ nro, obs }) => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(4);
+    const b = apto => `${fb(ent)} ${fs(sai)} 1 2 ${apto} ABC ${nro} H\nBOOKING 413101ID20542561\nObs do Apto: ${obs}\nHóspedes :\nFAMILIA HENRICHSEN\nFAMILIA HENRICHSEN\nDesbravador Software`;
+    await window.importarPDF(window.parsear(['352', '354', '355', '387', '390'].map(b).join('\n')));
+  }, { nro, obs });
+  await page.waitForSelector('.cell-span');
+}
+
+test('v1.5.7 (7.1) CENTRAL: reserva multi-apto com TOTAL 04 mostra 4 carros no mapa — não 20', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1400 });
+  await boot(page);
+  await importarMultiApto(page, '26389', OBS_TOTAL4);
+  await expect(page.locator('.cell-span', { hasText: 'FAMILIA HENRICHSEN' })).toHaveCount(4);
+  await expect(page.locator('.cell-span .cell-carro', { hasText: 'Carro 04' })).toHaveCount(1);
+  await expect(page.locator('.cell-span .cell-carro', { hasText: 'Carro 05' })).toHaveCount(0);
+  // 4 aptos com carro (1 fica sem — decidido no check-in, não pelo app)
+  const aptos = await page.evaluate(() => [...document.querySelectorAll('.cell-span')]
+    .filter(s => /FAMILIA HENRICHSEN/.test(s.textContent))
+    .map(s => (s.textContent.match(/Ap (\d+)/) || [])[1]));
+  expect(new Set(aptos).size).toBe(4);
+  expect(aptos).not.toContain('390');
+  // multi-apto NÃO é duplicata (regra da v1.5.6 preservada)
+  await expect(page.locator('#mapa-container .dup-badge')).toHaveCount(0);
+});
+
+test('v1.5.7 (7.2) CENTRAL: arrastar UM carro da reserva multi-carro move só ele', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1400 });
+  await boot(page);
+  await importarMultiApto(page, '26389', OBS_TOTAL4);
+  const antes = await snapCarros(page);
+  const usadas = new Set(Object.values(antes));
+  let livre = null; for (let k = 1; k <= 18; k++) { if (!usadas.has('P' + k)) { livre = 'P' + k; break; } }
+  expect(livre).toBeTruthy();
+  const alvoChave = Object.keys(antes).find(k => k.includes('__354__'));
+  expect(alvoChave).toBeTruthy();
+  const src = page.locator(`.cell-span[data-chave="${alvoChave}"]`);
+  await src.scrollIntoViewIfNeeded();
+  const sb = await src.boundingBox();
+  const tb = await page.locator(`.row-cells[data-vaga="${livre}"]`).boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tb.x + 60, tb.y + tb.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator('#mover-modal')).toBeVisible();
+  await page.click('#mover-confirmar');
+  await expect(page.locator(`.row-cells[data-vaga="${livre}"] .cell-span[data-chave="${alvoChave}"]`)).toHaveCount(1);
+  const depois = await snapCarros(page);
+  expect(depois[alvoChave]).toBe(livre);
+  for (const k of Object.keys(antes)) {
+    if (k !== alvoChave) expect(depois[k], `carro ${k} não pode se mover junto`).toBe(antes[k]);
+  }
+  // um único ✋ e um único registro de ajuste, gravado pela chave do CARRO
+  await expect(page.locator('.cell-span.tem-ajuste')).toHaveCount(1);
+  const ajustes = await page.evaluate(() => window.dbGetAll('ajustes'));
+  expect(ajustes.length).toBe(1);
+  expect(ajustes[0].nro).toBe(alvoChave);
+});
+
+test('v1.5.7 (7.3) dar baixa em carros recomputa "Carro X de N" na hora', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1400 });
+  await boot(page);
+  await importarMultiApto(page, '26390', 'GARAGEM TOTAL 05 CARROS');
+  const rotulos = () => page.evaluate(() => [...document.querySelectorAll('#mapa-container .cell-carro')].map(e => e.textContent).sort());
+  expect(await rotulos()).toEqual(['Carro 01', 'Carro 02', 'Carro 03', 'Carro 04', 'Carro 05']);
+  await page.evaluate(async () => {
+    const cs = window.conjuntoAtivo().filter(r => String(r.nro) === '26390');
+    await window.salvarStatusManual(window.chaveCarro(cs[1]), 'sem_garagem');
+    await window.salvarStatusManual(window.chaveCarro(cs[3]), 'sem_garagem');
+  });
+  await expect(page.locator('.cell-span', { hasText: 'FAMILIA HENRICHSEN' })).toHaveCount(3);
+  expect(await rotulos()).toEqual(['Carro 01', 'Carro 02', 'Carro 03']);
+});
+
+test('v1.5.7 (7.4) botão Limpar: confirma → mapa zera e a Gestão permanece', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await expect(page.locator('#mapa-container .cell-span').first()).toBeVisible();
+  await page.click('#tab-gestao');
+  await page.evaluate(() => window.gestaoAddFuncionario('Douglas'));
+  await page.waitForTimeout(200);
+  const gestaoAntes = await page.evaluate(async () => JSON.stringify(await window.dbGetAll('gestao')));
+  // SEM confirmar, nada é apagado
+  await page.click('text=🧹 Limpar informações');
+  await expect(page.locator('#limpar-modal')).toBeVisible();
+  await expect(page.locator('#limpar-modal')).toContainText('IRREVERSÍVEL');
+  await expect(page.locator('#limpar-modal')).toContainText('Telefones cadastrados');
+  await expect(page.locator('#limpar-modal')).toContainText('Histórico de envios');
+  await expect(page.locator('#limpar-modal')).toContainText('Gestão é preservada');
+  await page.click('#limpar-modal >> text=Cancelar');
+  await expect(page.locator('#limpar-modal')).toBeHidden();
+  expect(await page.evaluate(async () => (await window.dbGetAll('reservas')).length)).toBeGreaterThan(0);
+  // agora confirmando
+  await page.click('text=🧹 Limpar informações');
+  await page.click('#limpar-confirmar');
+  await expect(page.locator('#limpar-modal')).toBeHidden();
+  await page.waitForTimeout(400);
+  const vazios = await page.evaluate(async () => {
+    const out = {};
+    for (const s of ['reservas', 'hospedados', 'ajustes', 'reservasManuais', 'contatos', 'envios']) out[s] = (await window.dbGetAll(s)).length;
+    return out;
+  });
+  Object.entries(vazios).forEach(([s, n]) => expect(n, `store ${s}`).toBe(0));
+  expect(await page.evaluate(async () => JSON.stringify(await window.dbGetAll('gestao')))).toBe(gestaoAntes);
+  await page.click('#tab-mapa');
+  await expect(page.locator('#mapa-container .cell-span')).toHaveCount(0);
+  // e volta a funcionar
+  await importar(page);
+  await expect(page.locator('#mapa-container .cell-span').first()).toBeVisible();
+});
+
+test('v1.5.7 (7.6) fim de semana e feriado realçados pela DATA; aguardando segue legível por cima', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await boot(page);
+  // uma reserva "Aguardando" em setembro (o mapa só desenha a régua de datas quando há reservas)
+  await page.evaluate(async () => {
+    const ano = String(new Date().getFullYear()).slice(2);
+    await window.importarPDF(window.parsear(
+      `01/09/${ano} 10/09 1 2 301 ABC 71001 H\nWHATSAPP\nObs do Apto: VERIFICAR INTERESSE\nHóspedes :\nAMARELO SOBRE FDS\nAMARELO SOBRE FDS\nDesbravador Software`));
+  });
+  // janela de setembro: contém o dia 7 (feriado calculado) e vários fins de semana
+  await page.evaluate(() => {
+    const ano = new Date().getFullYear();
+    window.setRange(new Date(ano, 8, 1), new Date(ano, 8, 14));
+  });
+  await page.waitForSelector('#mapa-container .dates-row');
+  await page.waitForTimeout(150);
+  const conf = await page.evaluate(() => {
+    const ano = new Date().getFullYear();
+    const heads = [...document.querySelectorAll('#mapa-container .dates-row')[0].querySelectorAll('.date-cell')];
+    return heads.map((h, i) => {
+      const dt = new Date(ano, 8, 1 + i);
+      const cls = h.classList.contains('feriado') ? 'feriado' : (h.classList.contains('fds') ? 'fds' : '');
+      return { dia: 1 + i, dow: dt.getDay(), cls, esperado: window.realceDoDia(dt), titulo: h.title || '' };
+    });
+  });
+  conf.forEach(c => expect(c.cls, `dia ${c.dia}/09`).toBe(c.esperado));
+  const sete = conf.find(c => c.dia === 7);
+  expect(sete.cls, '07/09 é feriado calculado pelo app').toBe('feriado');
+  expect(sete.titulo).toBe('Independência');
+  expect(conf.filter(c => c.dow === 0 || c.dow === 6).every(c => c.cls === 'fds' || c.cls === 'feriado')).toBeTruthy();
+  expect(conf.some(c => c.cls === '')).toBeTruthy(); // dias úteis comuns ficam sem realce
+
+  // bloco "Aguardando" por cima de coluna realçada: cor do bloco INALTERADA e borda sólida por cima
+  await page.waitForSelector('.cell-span.amarelo');
+  const vis = await page.evaluate(() => {
+    const bl = document.querySelector('#mapa-container .cell-span.amarelo');
+    const cel = document.querySelector('#mapa-container .cell.fds');
+    const cs = getComputedStyle(bl);
+    return { bg: cs.backgroundColor, blocoBg: cs.backgroundImage, borda: cs.borderTopColor,
+      bordaW: cs.borderTopWidth, bordaS: cs.borderTopStyle,
+      celBg: cel ? getComputedStyle(cel).backgroundImage : null };
+  });
+  const a = (vis.bg.match(/rgba?\([\d.]+,\s*[\d.]+,\s*[\d.]+,\s*([\d.]+)\)/) || [])[1];
+  expect(parseFloat(a), 'amarelo NÃO foi mexido nesta versão').toBeCloseTo(0.18, 2);
+  expect(vis.borda).toMatch(/rgb\(/);                       // borda sólida do bloco, por cima do realce
+  expect(vis.bordaS).toBe('solid');
+  expect(parseFloat(vis.bordaW)).toBeGreaterThan(0);
+  expect(vis.celBg).toContain('gradient');                  // o realce vive na célula, atrás do bloco
+  expect(vis.blocoBg).not.toContain('gradient');            // e NÃO entra no bloco
 });

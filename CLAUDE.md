@@ -109,9 +109,10 @@ Garage Spot** (a chave é o `nro` do PMS).
   272, 351, 355, 357…
 - **Motos pareadas** (`processarMotos`): 2 motos sobrepostas = 1 vaga de carro (célula roxa,
   2 nomes); moto ímpar em M1.
-- **Múltiplos carros / TOTAL CARROS**: "GARAGEM 0X CARROS" e "TOTAL X CARROS" geram N vagas;
-  "TOTAL X APARTAMENTOS E Y CARROS" é **ignorado**. Validado (#26161 Henrides: apto 129=1 +
-  apto 130=2 = 3 vagas).
+- **Múltiplos carros / TOTAL CARROS** (⚠ **precisado na v1.5.7 — ver 7.1**): "GARAGEM 0X CARROS" é
+  **por apartamento** (soma entre os blocos) e "TOTAL X CARROS" é o **total da RESERVA** (não multiplica
+  por apartamento); "TOTAL X APARTAMENTOS E Y CARROS" é **ignorado**. Validado (#26161 Henrides:
+  apto 129=1 + apto 130=2 = 3 vagas; #26389: 5 aptos com total 04 → 4 carros).
 - **Classificação** (`classificar`): GARAGEM confirma; SEM GARAGEM ignora; GRANDE/R$100 grande;
   PEQUENO/FREE/R$40/R$20 pequeno; R$60 = grande baixa temporada / pequeno alta; MOTO+GARAGEM.
 - **Filtros de data**, **tema claro/escuro**, **tooltips**, **scroll horizontal (drag)**,
@@ -435,7 +436,75 @@ Garage Spot** (a chave é o `nro` do PMS).
   na v1.5.5 ela discordava do bloco real. Agora legenda e mapa mostram a mesma coisa — se um dia
   divergirem de novo, é sinal de regressão.
 
+## Comportamentos da v1.5.7 a preservar (carros, arraste, limpar, feriados)
+
+> **SEM mudança de schema (segue DB v6), sem store novo, sem dependência nova, sem arquivo novo.**
+
+- **7.1 CARROS DE UMA RESERVA = O TOTAL DA RESERVA — nunca multiplicado por apartamento (regra
+  permanente).** O PMS escreve de duas formas e elas **significam coisas diferentes**:
+  - `GARAGEM 0N CARRO(S)` = declaração **POR APARTAMENTO** → **soma** entre os blocos
+    (#26161 Henrides: apto 129 = 1 + apto 130 = 2 = **3 vagas** — não pode regredir);
+  - `TOTAL 0N CARROS` = **TOTAL DA RESERVA** → **NUNCA** multiplica pelo nº de apartamentos;
+  - `TOTAL X APARTAMENTOS E Y CARROS` segue **ignorado** (v1.0.0).
+  ⚠ O bug da v1.5.6.1 e anteriores era decidir a quantidade **dentro do laço por bloco** do parser: a
+  #26389 (5 aptos, "GARAGEM TOTAL 04 CARROS") virava **5 × 4 = 20 carros**. A expansão agora acontece
+  **uma vez por reserva** (`expandirCarrosDaReserva`), depois do laço. **NÃO** voltar a expandir por bloco.
+  Com 5 aptos e total 04, **4 apartamentos ficam com carro e 1 fica sem** (`distribuirCarrosPorApto`,
+  round-robin) — **o app NÃO decide qual apartamento fica sem**; isso é resolvido no check-in.
+  `repartirTiposCarro` lê `"(03 PEQUENOS E 01 GRANDE)"` e **só vale se a soma bater com o total**;
+  senão, todos os carros usam o tipo já classificado. **Reserva multi-apartamento é LEGÍTIMA** e
+  continua não sendo duplicata (regra da v1.5.6).
+- **7.2 A CHAVE DO AJUSTE É O CARRO, NÃO A RESERVA (regra permanente).** `ajustes` passou a ser chaveado
+  por `chaveCarro(res)` = `nro__apto__vagaIdx`. ⚠ **O store `ajustes`, o keyPath (`nro`) e o DB (v6) NÃO
+  mudaram** — muda só o **valor** gravado nesse campo; é a mesma engenharia da chave sintética do
+  hospedado (v1.5.1), cujo `id` já é o `nro`. **`resolverAjuste(res, ajustes)` é o único jeito certo de
+  ler um ajuste**: acha o registro do carro e, se não houver, cai no **legado por nº de reserva** (≤ v1.5.6.1),
+  válido para o 1º carro — **nada foi apagado e não houve migração**. `congelarLayout`, `assinaturaLayout`,
+  `chavesConflitantes` e o placement de `aplicarAjustes` são **todos por carro**. Arrastar/editar um carro
+  **não toca nos outros carros da reserva**; a regra da v1.5.5 (destino livre não reacomoda ninguém;
+  destino ocupado reacomoda só o conflitante) segue valendo, agora na granularidade certa. Vale p/ vaga,
+  overbooking, vaga extra e motos. `carrosDaChave(k)` resolve os dois usos: **chave de carro** (detalhe do
+  mapa) → aquele carro; **nº da reserva** (Contato, área "Editadas") → todos os carros da reserva.
+  `span.dataset.chave` expõe a identidade do carro no DOM (`data-nro` repete entre carros).
+- **7.3 "Carro X de N": N = carros que AINDA TÊM GARAGEM.** `mapaCarrosPorReserva(reservas, ajustes)` —
+  com o 2º parâmetro, exclui os `sem_garagem`. Dar baixa em 2 de 5 carros reindexa os 3 restantes **na
+  hora** ("1 de 3", "2 de 3", "3 de 3"). Ordem de desempate inalterada (`vagaIdx` → `apto` → `id`), para a
+  numeração não dançar.
+- **7.4 Botão "Limpar informações" (Gestão › Manutenção).** Apaga **todos** os dados de reserva —
+  `reservas`, `hospedados`, `ajustes`, `reservasManuais`, **`contatos` (telefones digitados)** e
+  **`envios` (histórico de contato)** — e **PRESERVA `gestao`** (empresa, funcionários, modelos).
+  **Confirmação obrigatória** em modal que diz que é **irreversível** e que telefones e envios também somem.
+  Fica no fim da Gestão, em card próprio, para não ser clicado por acidente. ⚠ **Isto NÃO é migração:** é
+  ação deliberada do usuário. A regra de **migração não-destrutiva** (`onupgradeneeded` nunca apaga nada)
+  continua valendo e não foi tocada. Depois de limpar, o app volta ao estado vazio **sem quebrar** e
+  importar de novo funciona.
+- **7.5 FERIADOS NACIONAIS SÃO CALCULADOS PELO APP — não há cadastro.** `pascoa(ano)` (Meeus/Butcher) +
+  `feriadosNacionais(ano)` = **9 fixos** (01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 20/11, 25/12)
+  + **4 móveis** derivados da Páscoa (Carnaval −48/−47, Sexta-feira Santa −2, Corpus Christi +60).
+  `ehFeriado(data)` recalcula por ano sob demanda (cache em memória): funciona offline e **nunca envelhece**.
+  ⚠ **NÃO criar tela/cadastro de feriado.** Municipais (Balneário Camboriú) ficam **fora**; quando as datas
+  vierem, entram como **lista embutida** aqui, nunca como cadastro.
+- **7.6 Realce de fim de semana e feriado = FUNDO DE COLUNA, subordinado aos blocos.** `realceDoDia(data)`
+  → `'feriado'` | `'fds'` | `''`, com **feriado PREVALECENDO** sobre fim de semana. Aplicado por `mkRow`
+  (nas `.cell`, **atrás** dos blocos) e por `mkDatesRow` (no cabeçalho), **seguindo a DATA da coluna, nunca a
+  posição**. ⚠ **Alpha muito menor que o de qualquer status**: `--fds-bg` .06/.07 e `--feriado-bg` .07,
+  contra .18/.12 dos blocos — e o realce **não tem borda**, enquanto todo bloco tem borda sólida por cima.
+  É assim que o "Aguardando" (amarelo) continua claramente legível sobre uma coluna de fim de semana e o
+  hospedado (teal) não se confunde com o verde do feriado. O tom é composto sobre `--cell-livre`
+  (`linear-gradient` de uma cor só) para valer **também atrás das células ocupadas**.
+  ⚠ **NÃO alterar nenhuma cor de bloco por causa disto** — em especial, **o tom do amarelo "Aguardando"
+  não muda** (decisão do Doug; a receita da v1.5.6.1 segue intacta).
+
 ## Versão atual
+
+**v1.5.7** — **total de carros correto (fim da explosão) + arraste por carro + "X de N" recomputando +
+botão Limpar + realce de fim de semana/feriado calculado** (sem schema, DB v6; sem store novo). Carros =
+total da reserva (#26389: 4, não 20), com `GARAGEM 0N` por apto ainda somando (#26161 = 3); `ajustes`
+chaveado por carro (`chaveCarro`/`resolverAjuste`, com fallback legado); N conta só quem tem garagem;
+Limpar zera os dados de reserva preservando a Gestão; feriados nacionais calculados (fixos + móveis via
+Páscoa), sem cadastro; realce de coluna que não confunde com os status. Testes **449/449** (293 engine +
+100 jsdom + 56 Playwright), sem `skip`; hooks `[real]` verdes + **comparação parser antigo × novo no PDF
+real: 101 = 101, conjuntos idênticos**. Ver `RELATORIO-v1.5.7.md`.
 
 **v1.5.6.1** — **amarelo claro e translúcido, no mesmo estilo do azul e do verde** (correção visual sobre
 o patch; sem schema, sem lógica, sem layout). `.cell-span.amarelo` deixou o fill sólido da v1.5.5 e voltou

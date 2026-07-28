@@ -4,7 +4,35 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.6.1** (27/07/2026) — **correção visual: o amarelo "Aguardando" voltou à receita
+- **Versão entregue: v1.5.7** (28/07/2026) — **total de carros correto (fim da explosão) + arraste por
+  carro + "X de N" recomputando + botão Limpar + realce de fim de semana/feriado calculado** (sem schema,
+  DB v6; **sem store novo**).
+  **(7.1)** ⚠ **BUG CRÍTICO:** o total de garagem era aplicado **por bloco (= por apartamento)** dentro do
+  laço do parser — a #26389 (5 aptos, `GARAGEM TOTAL 04 CARROS`) virava **5 × 4 = 20 carros**. Agora a
+  expansão é **uma vez por reserva** (`expandirCarrosDaReserva`). Regra permanente: **`TOTAL 0N CARROS` =
+  total da RESERVA (nunca multiplica)**; **`GARAGEM 0N CARROS` = por APARTAMENTO (soma)** — é o que mantém o
+  #26161 em 3 vagas. 5 aptos / total 04 → 4 carros, **1 apartamento sem carro** (o app não decide qual).
+  `repartirTiposCarro` lê "(03 PEQUENOS E 01 GRANDE)" só quando a soma bate com o total.
+  **(7.2)** ⚠ **A chave do `ajustes` é o CARRO** (`chaveCarro` = `nro__apto__vagaIdx`); **store, keyPath
+  (`nro`) e DB (v6) INALTERADOS** — mudou só o valor gravado, como já era com o hospedado (v1.5.1).
+  Ler ajuste **sempre** por `resolverAjuste(res, ajustes)` (tem o **fallback legado** por nº, p/ o 1º carro).
+  `congelarLayout`/`assinaturaLayout`/`chavesConflitantes`/placement: **todos por carro**. Mover um carro não
+  mexe nos outros; regra da v1.5.5 preservada; vale p/ overbooking, extra e motos. `carrosDaChave(k)`:
+  chave de carro → 1 carro; nº de reserva (Contato/Editadas) → todos os carros.
+  **(7.3)** `mapaCarrosPorReserva(reservas, ajustes)` — **N = carros ainda com garagem**; baixa reindexa na hora.
+  **(7.4)** **Limpar informações** (Gestão › Manutenção): apaga `reservas`/`hospedados`/`ajustes`/
+  `reservasManuais`/**`contatos`**/**`envios`** e **PRESERVA `gestao`**, atrás de confirmação explícita
+  (irreversível; avisa que telefones e envios somem). ⚠ **Não é migração** — a regra de migração
+  não-destrutiva segue intacta.
+  **(7.5)** **Feriados nacionais CALCULADOS** (`pascoa` Meeus/Butcher; 9 fixos + 4 móveis), **sem cadastro**,
+  recalculando por ano. Municipais fora (parqueado, entram como lista embutida).
+  **(7.6)** **Realce de coluna** por DATA: fim de semana quente, feriado verde, **feriado prevalece**. É
+  **fundo** (`--fds-bg` .06/.07, `--feriado-bg` .07 × .18/.12 dos blocos, sem borda) → o "Aguardando"
+  continua legível por cima. ⚠ **Nenhuma cor de bloco mudou — o tom do amarelo NÃO foi tocado.**
+  Testes **449/449** (293 engine + 100 jsdom + 56 Playwright), sem `skip`; hooks `[real]` verdes +
+  **comparação parser antigo × novo no PDF real: 101 = 101, conjuntos idênticos**.
+  Ver `RELATORIO-v1.5.7.md`. Tags `pre-v1.5.7` e `v1.5.7`.
+- **Versão anterior: v1.5.6.1** (27/07/2026) — **correção visual: o amarelo "Aguardando" voltou à receita
   translúcida do azul/verde.** Só CSS: **nenhuma** mudança de lógica, layout, schema (segue DB v6), store,
   caminho ou selo de gravação. A v1.5.5 pintava `.cell-span.amarelo` com **`background:var(--amarelo)`**
   (a cor SÓLIDA da bolinha, alpha 1) — era o único status fora do sistema e lia como **laranja/tijolo**.
@@ -199,4 +227,4 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 - `pre-v1.0.0`, `v1.0.0`, `pre-v1.1.0`, `v1.1.0`, `pre-v1.2.0`, `v1.2.0`, `pre-v1.3.0`, `v1.3.0`,
   `pre-v1.4.0`, `v1.4.0`, `pre-v1.5.0`, `v1.5.0`, `pre-v1.5.1`, `v1.5.1`, `pre-v1.5.1.1`, `v1.5.1.1`,
   `pre-v1.5.2`, `v1.5.2`, `pre-v1.5.3`, `v1.5.3`, `pre-v1.5.4`, `v1.5.4`, `pre-v1.5.5`, `v1.5.5`,
-  `pre-v1.5.6`, `v1.5.6`, `pre-v1.5.6.1`, `v1.5.6.1`.
+  `pre-v1.5.6`, `v1.5.6`, `pre-v1.5.6.1`, `v1.5.6.1`, `pre-v1.5.7`, `v1.5.7`.

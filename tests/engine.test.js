@@ -49,7 +49,11 @@ const EXPORTS = [
   // v1.5.5
   'telefoneCurto','telefoneDoDocumento','congelarLayout',
   // v1.5.6
-  'detectarDuplicatas','assinaturaCluster'
+  'detectarDuplicatas','assinaturaCluster',
+  // v1.5.7
+  'carrosDeclaradosNoBloco','distribuirCarrosPorApto','repartirTiposCarro','expandirCarrosDaReserva',
+  'chaveCarro','resolverAjuste','mapaChaveNro',
+  'pascoa','feriadosNacionais','ehFeriado','ehFimDeSemana','realceDoDia'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -735,7 +739,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.6.1', () => { eq(E.APP_VERSION, 'v1.5.6.1'); });
+t('APP_VERSION é v1.5.7', () => { eq(E.APP_VERSION, 'v1.5.7'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
@@ -1345,6 +1349,185 @@ t('7.4 destaque/isolamento continua GENÉRICO (não trata o amarelo à parte)', 
   ok(/\.mapa-wrapper\.busca-ativa \.cell-span:not\(\.busca-hit\)\{opacity:\.16;filter:grayscale\(\.4\)\}/.test(html), 'busca genérica');
   ok(/\.mapa-wrapper\.dup-isolando \.cell-span:not\(\.dup-foco\)\{opacity:\.14;filter:grayscale\(\.5\)\}/.test(html), 'isolamento genérico');
   ok(!/busca-ativa[^{]*amarelo|dup-isolando[^{]*amarelo/.test(html), 'nenhuma exceção por cor no destaque');
+});
+
+/* ══════════════════════════ v1.5.7 ══════════════════════════ */
+
+/* ── (7.1) BUG DA EXPLOSÃO DE CARROS ── */
+// #26389 (família Henrichsen, Booking, 5 aptos): "GARAGEM TOTAL 04 CARROS (03 PEQUENOS E 01 GRANDE)"
+// gerava 5 × 4 = 20 carros porque o total era aplicado POR BLOCO (por apartamento).
+const blocoPDF = (apto, nro, obs, nome) =>
+  `10/08/26 20/08 1 2 ${apto} ABC ${nro} H\nBOOKING 413101ID20542561\nObs do Apto: ${obs}\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
+const OBS_26389 = 'GARAGEM TOTAL 04 CARROS (03 PEQUENOS E 01 GRANDE)';
+const APTOS_26389 = ['352', '354', '355', '387', '390'];
+
+t('7.1 carrosDeclaradosNoBloco: "GARAGEM 0N CARROS" é POR APARTAMENTO', () => {
+  eq(E.carrosDeclaradosNoBloco('GARAGEM 02 CARROS PEQUENO').porApto, 2);
+  eq(E.carrosDeclaradosNoBloco('GARAGEM 02 CARROS PEQUENO').totalReserva, null);
+});
+t('7.1 carrosDeclaradosNoBloco: "TOTAL 0N CARROS" é TOTAL DA RESERVA', () => {
+  const d = E.carrosDeclaradosNoBloco(OBS_26389);
+  eq(d.totalReserva, 4, 'lê o 04 do documento');
+  eq(d.porApto, null, 'não é declaração por apartamento');
+});
+t('7.1 carrosDeclaradosNoBloco: "TOTAL X APARTAMENTOS E Y CARROS" segue IGNORADO (v1.0.0)', () => {
+  const d = E.carrosDeclaradosNoBloco('GARAGEM TOTAL 3 APARTAMENTOS E 5 CARROS');
+  ok(d.porApto === null && d.totalReserva === null);
+});
+t('7.1 distribuirCarrosPorApto: 5 aptos / total 04 → 1 apartamento fica SEM carro', () => {
+  eq(E.distribuirCarrosPorApto(5, 4).join(','), '1,1,1,1,0');
+  eq(E.distribuirCarrosPorApto(5, 2).join(','), '1,1,0,0,0', '5 aptos / total 02');
+  eq(E.distribuirCarrosPorApto(1, 3).join(','), '3', 'apto único leva todos');
+  eq(E.distribuirCarrosPorApto(2, 4).join(','), '2,2', 'total > aptos → round-robin');
+});
+t('7.1 repartirTiposCarro: só vale quando a soma BATE com o total', () => {
+  eq(E.repartirTiposCarro(OBS_26389, 4).join(','), 'pequeno,pequeno,pequeno,grande');
+  eq(E.repartirTiposCarro('TOTAL 04 CARROS (02 PEQUENOS E 01 GRANDE)', 4), null, 'soma não bate → null');
+  eq(E.repartirTiposCarro('GARAGEM PEQUENO', 2), null, 'sem repartição informada → null');
+});
+t('7.1 CENTRAL: #26389 (5 aptos, TOTAL 04) gera 4 carros — não 20', () => {
+  const rs = E.parsear(APTOS_26389.map(a => blocoPDF(a, '26389', OBS_26389, 'FAMILIA HENRICHSEN')).join('\n'));
+  eq(rs.length, 4, 'respeita o TOTAL da reserva (era 20 = 5 aptos × 4)');
+  const orig = rs.map(r => r.garagemOrig).sort().join(',');
+  eq(orig, 'azul_grande,azul_pequeno,azul_pequeno,azul_pequeno', '03 pequenos + 01 grande');
+  eq(new Set(rs.map(r => r.apto)).size, 4, '4 apartamentos com carro');
+  ok(!rs.some(r => r.apto === '390'), '1 apartamento fica sem carro (decidido no check-in, não pelo app)');
+  ok(rs.every(r => r.totalCarros === 4), 'totalCarros = total da reserva');
+});
+t('7.1 NÃO REGRIDE #26161: "GARAGEM 0N CARROS" por apto continua SOMANDO (1+2=3)', () => {
+  const rs = E.parsear([
+    blocoPDF('129', '26161', 'GARAGEM 01 CARROS PEQUENO', 'HENRIDES DOS SANTOS'),
+    blocoPDF('130', '26161', 'GARAGEM 02 CARROS PEQUENO', 'HENRIDES DOS SANTOS')].join('\n'));
+  eq(rs.length, 3, 'apto 129 = 1 + apto 130 = 2');
+  eq(rs.map(r => r.id).join('|'), '26161__129__1|26161__130__1|26161__130__2', 'ids preservados');
+});
+t('7.1 é o TOTAL que manda: 5 aptos / TOTAL 02 → 2 carros', () => {
+  eq(E.parsear(APTOS_26389.map(a => blocoPDF(a, '27000', 'GARAGEM TOTAL 02 CARROS', 'X')).join('\n')).length, 2);
+});
+t('7.1 reserva simples (1 apto, sem declaração) segue com 1 carro', () => {
+  const rs = E.parsear(blocoPDF('401', '27001', 'GARAGEM PEQUENO', 'SOZINHO'));
+  eq(rs.length, 1); eq(rs[0].garagem, 'azul_pequeno'); ok(!rs[0].ehMultiplo);
+});
+t('7.1 multi-apto sem declaração (1 carro por apto) segue multi-carro, cor pelo status real', () => {
+  const rs = E.parsear([blocoPDF('501', '27002', 'GARAGEM PEQUENO', 'M'),
+                        blocoPDF('502', '27002', 'VERIFICAR INTERESSE', 'M')].join('\n'));
+  eq(rs.length, 2);
+  ok(rs.every(r => r.ehMultiplo && /^laranja_/.test(r.garagem)), 'alocação usa laranja_* (inalterado)');
+  eq(rs.map(r => r.garagemOrig).join(','), 'azul_pequeno,amarelo', 'garagemOrig = status REAL de cada bloco');
+});
+t('7.1 multi-apto NÃO é duplicata (regra da v1.5.6 preservada)', () => {
+  const rs = E.parsear(APTOS_26389.map(a => blocoPDF(a, '26389', OBS_26389, 'FAMILIA HENRICHSEN')).join('\n'));
+  eq(E.detectarDuplicatas(rs).length, 0, 'nenhum cluster de duplicata na reserva multi-apto');
+});
+
+/* ── (7.2) ARRASTE POR CARRO: a chave do ajuste é o CARRO ── */
+const carro = (nro, apto, idx, g) => ({ id: `${nro}__${apto}__${idx}`, nro, apto, vagaIdx: idx,
+  garagem: g || 'azul_pequeno', entrada: D('05/06/26'), saida: D('10/06/26'), nomeCompleto: 'N' + idx });
+
+t('7.2 chaveCarro = id do carro; hospedado (id = nro sintético) cai igual', () => {
+  eq(E.chaveCarro(carro('26389', '352', 1)), '26389__352__1');
+  eq(E.chaveCarro({ id: 'A__2026-01-01__P', nro: 'A__2026-01-01__P', ehHospedado: true }), 'A__2026-01-01__P');
+  eq(E.chaveCarro({ nro: '99' }), '99', 'sem id, cai no nº (nunca quebra)');
+});
+t('7.2 resolverAjuste: cada carro enxerga SÓ o seu registro', () => {
+  const c1 = carro('26389', '352', 1), c2 = carro('26389', '354', 1);
+  const aj = { '26389__352__1': { vagaIdManual: 'P3' } };
+  eq(E.resolverAjuste(c1, aj).vagaIdManual, 'P3');
+  eq(E.resolverAjuste(c2, aj), null, 'o outro carro NÃO herda o ajuste');
+});
+t('7.2 resolverAjuste: ajuste LEGADO (por nº) continua valendo — nada se perde', () => {
+  const c1 = carro('900', '10', 1), c2 = carro('900', '10', 2);
+  const aj = { '900': { vagaIdManual: 'G1' } };
+  eq(E.resolverAjuste(c1, aj).vagaIdManual, 'G1', 'legado aplicado ao 1º carro');
+  eq(E.resolverAjuste(c2, aj), null, 'não vaza para os demais carros');
+});
+t('7.2 CENTRAL: fixar 1 carro NÃO arrasta os outros carros da mesma reserva', () => {
+  const cs = [carro('700', '11', 1), carro('700', '12', 1), carro('700', '13', 1)];
+  const al = E.aplicarAjustes(cs, { '700__12__1': { vagaIdManual: 'P9' } });
+  const em = v => (al.linhasP[v - 1] || []).map(r => r.id);
+  ok(em(9).includes('700__12__1'), 'o carro arrastado foi para P9');
+  eq(cs.filter(r => r.ajusteManual).length, 1, 'só o arrastado é marcado ✋');
+  ok(!em(9).includes('700__11__1') && !em(9).includes('700__13__1'), 'os outros não foram junto');
+});
+t('7.2 congelarLayout congela por CARRO (chave), não por reserva', () => {
+  const a = carro('700', '11', 1), b = carro('700', '12', 1);
+  const m = E.congelarLayout({ linhasP: [[a], [b]], linhasG: [], overflow: [], extras: {} });
+  eq(m['700__11__1'], 'P1'); eq(m['700__12__1'], 'P2');
+});
+t('7.2 mapaChaveNro devolve chave de carro → nº da reserva', () => {
+  const m = E.mapaChaveNro([carro('700', '11', 1), carro('700', '12', 2)]);
+  eq(m['700__11__1'], '700'); eq(m['700__12__2'], '700');
+});
+t('7.2 montarEditadasManuais agrupa os carros de volta na reserva (via mapaChaveNro)', () => {
+  const l = E.montarEditadasManuais({ '700__11__1': { vagaIdManual: 'P4', ultimaAlteracao: { funcionario: 'D', dataHora: '2026-07-28T09:00:00Z' } } },
+    [], { '700__11__1': '700' });
+  eq(l.length, 1); eq(l[0].nro, '700', 'exibido pelo nº da reserva'); eq(l[0].chave, '700__11__1');
+});
+
+/* ── (7.3) "Carro X de N" recomputa na baixa ── */
+t('7.3 CENTRAL: 5 carros, 2 marcados "sem garagem" → restantes viram 1/2/3 de 3', () => {
+  const cs = [1, 2, 3, 4, 5].map(i => carro('800', '20', i));
+  const semAjuste = E.mapaCarrosPorReserva(cs);
+  eq(semAjuste['800__20__1'].carroTotal, 5, 'sem baixa, N = 5');
+  const aj = { '800__20__2': { statusManual: 'sem_garagem' }, '800__20__4': { statusManual: 'sem_garagem' } };
+  const m = E.mapaCarrosPorReserva(cs, aj);
+  eq(m['800__20__2'], undefined, 'carro sem garagem sai da numeração');
+  eq(m['800__20__4'], undefined);
+  eq([1, 3, 5].map(i => `${m['800__20__' + i].carroSeq} de ${m['800__20__' + i].carroTotal}`).join(' · '),
+    '1 de 3 · 2 de 3 · 3 de 3');
+});
+t('7.3 ordem da numeração é ESTÁVEL (vagaIdx → apto → id), não "dança"', () => {
+  const cs = [carro('801', '30', 2), carro('801', '20', 1), carro('801', '30', 1)];
+  const m = E.mapaCarrosPorReserva(cs, {});
+  const ordem = cs.slice().sort((a, b) => m[a.id].carroSeq - m[b.id].carroSeq).map(r => r.id);
+  eq(ordem.join('|'), '801__20__1|801__30__1|801__30__2');
+  eq(E.mapaCarrosPorReserva(cs.slice().reverse(), {})['801__20__1'].carroSeq, 1, 'independe da ordem de entrada');
+});
+
+/* ── (7.5) FERIADOS NACIONAIS CALCULADOS (sem cadastro) ── */
+const isoD = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+t('7.5 Páscoa calculada: 2026 = 05/04, 2027 = 28/03', () => {
+  eq(isoD(E.pascoa(2026)), '2026-04-05');
+  eq(isoD(E.pascoa(2027)), '2027-03-28');
+});
+t('7.5 feriados FIXOS conhecidos de 2026', () => {
+  eq(E.ehFeriado(new Date(2026, 8, 7)), 'Independência', '07/09/2026');
+  eq(E.ehFeriado(new Date(2026, 11, 25)), 'Natal', '25/12/2026');
+  eq(E.ehFeriado(new Date(2026, 0, 1)), 'Confraternização Universal');
+});
+t('7.5 feriados MÓVEIS de 2026 derivados da Páscoa', () => {
+  eq(E.ehFeriado(new Date(2026, 3, 3)), 'Sexta-feira Santa', '03/04/2026 = Páscoa − 2');
+  eq(E.ehFeriado(new Date(2026, 5, 4)), 'Corpus Christi', '04/06/2026 = Páscoa + 60');
+  eq(E.ehFeriado(new Date(2026, 1, 16)), 'Carnaval', 'segunda 16/02/2026');
+  eq(E.ehFeriado(new Date(2026, 1, 17)), 'Carnaval', 'terça 17/02/2026');
+});
+t('7.5 outro ano RECALCULA os móveis (2027) — nunca envelhece', () => {
+  eq(E.ehFeriado(new Date(2027, 2, 26)), 'Sexta-feira Santa', '26/03/2027');
+  eq(E.ehFeriado(new Date(2027, 4, 27)), 'Corpus Christi', '27/05/2027');
+  eq(E.ehFeriado(new Date(2027, 3, 3)), null, 'a Sexta Santa de 2026 não vale em 2027');
+});
+t('7.5 dia comum não é feriado; data inválida não quebra', () => {
+  eq(E.ehFeriado(new Date(2026, 5, 10)), null);
+  eq(E.ehFeriado(null), null); eq(E.ehFeriado(new Date('x')), null);
+});
+t('7.5 municipais NÃO entram nesta versão (nada além dos nacionais)', () => {
+  eq(Object.keys(E.feriadosNacionais(2026)).length, 13, '9 fixos + 4 móveis');
+});
+
+/* ── (7.6) realce da coluna ── */
+t('7.6 realceDoDia: sábado e domingo = "fds"; dia útil = ""', () => {
+  eq(E.realceDoDia(new Date(2026, 7, 1)), 'fds', 'sábado 01/08/2026');
+  eq(E.realceDoDia(new Date(2026, 7, 2)), 'fds', 'domingo 02/08/2026');
+  eq(E.realceDoDia(new Date(2026, 7, 3)), '', 'segunda 03/08/2026');
+});
+t('7.6 CENTRAL: feriado PREVALECE sobre fim de semana quando coincidem', () => {
+  const d = new Date(2026, 10, 15); // 15/11/2026 cai num DOMINGO
+  eq(d.getDay(), 0, 'é domingo');
+  ok(E.ehFimDeSemana(d), 'e é fim de semana');
+  eq(E.realceDoDia(d), 'feriado', 'mas o realce é de FERIADO');
+});
+t('7.6 feriado em dia útil também realça', () => {
+  eq(E.realceDoDia(new Date(2026, 8, 7)), 'feriado', '07/09/2026 (segunda)');
 });
 
 /* ── runner (suporta testes async) ── */

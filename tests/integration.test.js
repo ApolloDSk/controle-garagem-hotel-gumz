@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.6.1', async () => {
+  await T('rodapé mostra v1.5.7', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.6.1');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.7');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -1319,6 +1319,162 @@ Total Geral`;
     const am = w.document.querySelector('#mapa-container .cell-span.amarelo');
     ok(am && !am.classList.contains('busca-hit'), 'o amarelo fora da busca é escurecido pela regra genérica');
     eq(am.style.opacity, '', 'sem tratamento inline por cor');
+  });
+
+  /* ════════════════════════ v1.5.7 ════════════════════════ */
+  const OBS_TOTAL4 = 'GARAGEM TOTAL 04 CARROS (03 PEQUENOS E 01 GRANDE)';
+  const pdfMultiApto = (nro, obs) => ['352', '354', '355', '387', '390']
+    .map(a => bloco(nro, diasDeHoje(0), diasDeHoje(4), a, 'BOOKING 413101ID20542561', obs, 'FAMILIA HENRICHSEN')).join('\n');
+
+  await T('v1.5.7 (7.1) reserva multi-apto com TOTAL 04 → 4 blocos no mapa, não 20', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(pdfMultiApto('26389', OBS_TOTAL4))); await sleep(40);
+    const blocos = [...w.document.querySelectorAll('#mapa-container .cell-span')]
+      .filter(s => /FAMILIA HENRICHSEN/.test(s.textContent));
+    eq(blocos.length, 4, 'exatamente 4 carros no mapa');
+    ok(/Carro 04/.test(blocos.map(s => s.textContent).join(' ')), 'numerados até "Carro 04"');
+    ok(!/Carro 0?5|de 20/.test(blocos.map(s => s.textContent).join(' ')), 'nenhum vestígio da explosão');
+    const regs = (await w.dbGetAll('reservas')).filter(r => String(r.nro) === '26389' && r.ativo !== false);
+    eq(regs.length, 4, 'o banco também guarda 4');
+  });
+
+  await T('v1.5.7 (7.1) multi-apto NÃO recebe selo de duplicata', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(pdfMultiApto('26389', OBS_TOTAL4))); await sleep(40);
+    eq(w.document.querySelectorAll('#mapa-container .dup-badge').length, 0, 'multi-apto é legítimo');
+  });
+
+  await T('v1.5.7 (7.2) CENTRAL: mover UM carro não move os outros carros da reserva', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(pdfMultiApto('26389', OBS_TOTAL4))); await sleep(40);
+    // chave = identificação do CARRO (.cell-info: "#nro · Ap X · Carro NN"). Não usar o texto todo:
+    // o bloco arrastado ganha o marcador ✋ no nome e a chave mudaria junto.
+    const posicoes = () => {
+      const m = {};
+      w.document.querySelectorAll('#mapa-container .cell-span').forEach(s => {
+        const cel = s.closest('[data-vaga]'); const info = s.querySelector('.cell-info');
+        if (cel && info) m[info.textContent.replace(/\s+/g, ' ').trim()] = cel.dataset.vaga;
+      });
+      return m;
+    };
+    const antes = posicoes();
+    const alvo = w.conjuntoAtivo().find(r => String(r.nro) === '26389' && r.apto === '354');
+    ok(alvo, 'achou o carro do apto 354');
+    await w.salvarAjuste(w.chaveCarro(alvo), 'P17'); await sleep(40);
+    const ajustes = await w.dbGetAll('ajustes');
+    eq(ajustes.length, 1, 'um único registro de ajuste');
+    eq(ajustes[0].nro, '26389__354__1', 'gravado pela chave do CARRO, não pelo nº da reserva');
+    const depois = posicoes();
+    const movidos = Object.keys(antes).filter(k => depois[k] && depois[k] !== antes[k]);
+    eq(movidos.length, 1, 'só um bloco mudou de vaga (os outros 3 carros ficaram)');
+    eq(w.document.querySelectorAll('#mapa-container .cell-span.tem-ajuste').length, 1, 'só um ✋');
+  });
+
+  await T('v1.5.7 (7.2) ajuste LEGADO (por nº) segue valendo — nada se perde na virada', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(bloco('28001', diasDeHoje(0), diasDeHoje(4), '601', 'WHATSAPP', 'GARAGEM PEQUENO', 'LEGADO UM'))); await sleep(30);
+    await w.dbPut('ajustes', { nro: '28001', vagaIdManual: 'P12', statusManual: null, criadoEm: 1, atualizadoEm: 1 });
+    await w.carregarAjustes(); await sleep(10); w.renderMapa(); await sleep(20);
+    const bl = [...w.document.querySelectorAll('#mapa-container .cell-span')].find(s => /LEGADO UM/.test(s.textContent));
+    ok(bl, 'bloco presente');
+    eq(bl.closest('[data-vaga]').dataset.vaga, 'P12', 'ajuste gravado por nº continua posicionando');
+  });
+
+  await T('v1.5.7 (7.3) "Carro X de N" recomputa ao dar baixa em carros', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(pdfMultiApto('26390', 'GARAGEM TOTAL 05 CARROS'))); await sleep(40);
+    const rotulos = () => [...w.document.querySelectorAll('#mapa-container .cell-carro')].map(e => e.textContent).sort();
+    eq(rotulos().length, 5, '5 carros no mapa');
+    eq(rotulos().join(','), 'Carro 01,Carro 02,Carro 03,Carro 04,Carro 05');
+    const carros = w.conjuntoAtivo().filter(r => String(r.nro) === '26390');
+    await w.salvarStatusManual(w.chaveCarro(carros[1]), 'sem_garagem');
+    await w.salvarStatusManual(w.chaveCarro(carros[3]), 'sem_garagem'); await sleep(40);
+    eq(rotulos().join(','), 'Carro 01,Carro 02,Carro 03', 'os 3 restantes reindexaram na hora');
+    const total = [...w.document.querySelectorAll('#mapa-container .cell-span')]
+      .filter(s => /FAMILIA HENRICHSEN/.test(s.textContent)).length;
+    eq(total, 3, 'os 2 com baixa saíram do mapa');
+  });
+
+  await T('v1.5.7 (7.6) colunas de sábado/domingo e de feriado recebem o realce, pela DATA', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(bloco('28100', diasDeHoje(0), diasDeHoje(20), '701', 'WHATSAPP', 'GARAGEM PEQUENO', 'REALCE'))); await sleep(40);
+    // a janela vem dos inputs de filtro do próprio app (dataInicio/dataFim são `let` de módulo)
+    const datas = [];
+    const d = new Date(w.document.getElementById('data-inicio').value + 'T00:00:00');
+    const fim = new Date(w.document.getElementById('data-fim').value + 'T00:00:00');
+    while (d <= fim) { datas.push(new Date(d)); d.setDate(d.getDate() + 1); }
+    const cells = [...w.document.querySelectorAll('#mapa-container .vaga-row .row-cells')[0].querySelectorAll('.cell')];
+    eq(cells.length, datas.length, 'uma célula por dia');
+    datas.forEach((dt, i) => {
+      const esperado = w.realceDoDia(dt);
+      const tem = cells[i].classList.contains('feriado') ? 'feriado' : (cells[i].classList.contains('fds') ? 'fds' : '');
+      eq(tem, esperado, `coluna ${dt.toDateString()}`);
+    });
+    // o cabeçalho segue a mesma regra
+    const heads = [...w.document.querySelectorAll('#mapa-container .dates-row')[0].querySelectorAll('.date-cell')];
+    datas.forEach((dt, i) => {
+      const esperado = w.realceDoDia(dt);
+      const tem = heads[i].classList.contains('feriado') ? 'feriado' : (heads[i].classList.contains('fds') ? 'fds' : '');
+      eq(tem, esperado, `cabeçalho ${dt.toDateString()}`);
+    });
+    ok(datas.some(dt => w.ehFimDeSemana(dt)), 'a janela contém ao menos um fim de semana');
+  });
+
+  await T('v1.5.7 (7.6) realce é FUNDO: não altera nenhuma cor de bloco de status', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear([
+      bloco('28200', diasDeHoje(0), diasDeHoje(9), '801', 'WHATSAPP', 'VERIFICAR INTERESSE', 'AGUARDA REALCE'),
+      bloco('28201', diasDeHoje(0), diasDeHoje(9), '802', 'WHATSAPP', 'GARAGEM PEQUENO', 'CONFIRMA REALCE')].join('\n'))); await sleep(40);
+    const am = w.document.querySelector('#mapa-container .cell-span.amarelo');
+    const az = w.document.querySelector('#mapa-container .cell-span.azul');
+    ok(am && az, 'blocos presentes');
+    [am, az].forEach(el => {
+      eq(el.style.background, '', 'sem fundo inline no bloco');
+      ok(!el.classList.contains('fds') && !el.classList.contains('feriado'), 'o realce não entra no bloco');
+    });
+  });
+
+  await T('v1.5.7 (7.4) Limpar: SEM confirmar não apaga nada', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(bloco('29001', diasDeHoje(0), diasDeHoje(4), '901', 'WHATSAPP', 'GARAGEM PEQUENO', 'FICA'))); await sleep(30);
+    w.abrirLimparInformacoes(); await sleep(10);
+    eq(w.document.getElementById('limpar-modal').style.display, 'flex', 'modal de confirmação aberto');
+    w.fecharLimparInformacoes(); await sleep(20);
+    ok((await w.dbGetAll('reservas')).length > 0, 'cancelar não apagou nada');
+    ok(w.document.querySelector('#mapa-container .cell-span'), 'mapa intacto');
+  });
+
+  await T('v1.5.7 (7.4) CENTRAL: Limpar zera os dados de reserva e PRESERVA a Gestão', async () => {
+    const { w } = await novoApp();
+    // dados de reserva de todas as origens
+    await w.importarPDF(w.parsear(bloco('29002', diasDeHoje(0), diasDeHoje(4), '902', 'WHATSAPP', 'GARAGEM PEQUENO', 'SOME'))); await sleep(30);
+    await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(30);
+    const alvo = w.conjuntoAtivo().find(r => String(r.nro) === '29002');
+    await w.salvarAjuste(w.chaveCarro(alvo), 'P5'); await sleep(20);
+    w.trocarAba('contato'); await sleep(20);
+    const inp = w.document.getElementById('fone-29002'); if (inp) inp.value = '5547999998888';
+    await w.confirmarTelefone('29002'); await sleep(20);
+    await w.registrarEnvio('29002', 'verificando', 0); await sleep(20);
+    w.trocarAba('mapa'); await sleep(20);
+    await w.salvarReservaManual(w.montarReservaManual(
+      { nome: 'MANUAL SOME', tipo: 'P', entrada: diasDeHoje(0), saida: diasDeHoje(3), nro: '29003' },
+      { funcionario: 'Ana', dataHora: new Date().toISOString() })); await sleep(20);
+    // Gestão com conteúdo próprio
+    w.gestaoSetEmpresa('Hotel Gumz'); await w.gestaoAddFuncionario('Douglas'); await sleep(20);
+    const gestaoAntes = JSON.stringify(await w.dbGetAll('gestao'));
+    ok(gestaoAntes.length > 2, 'Gestão tinha dados');
+
+    await w.limparInformacoes(); await sleep(60);
+
+    for (const s of ['reservas', 'hospedados', 'ajustes', 'reservasManuais', 'contatos', 'envios']) {
+      eq((await w.dbGetAll(s)).length, 0, `store "${s}" vazio`);
+    }
+    eq(JSON.stringify(await w.dbGetAll('gestao')), gestaoAntes, 'Gestão PRESERVADA byte a byte');
+    eq(w.document.querySelectorAll('#mapa-container .cell-span').length, 0, 'mapa vazio');
+    eq(w.conjuntoAtivo().length, 0, 'estado em memória zerado');
+    // e volta a funcionar: importar de novo
+    await w.importarPDF(w.parsear(bloco('29010', diasDeHoje(0), diasDeHoje(4), '910', 'WHATSAPP', 'GARAGEM PEQUENO', 'DEPOIS'))); await sleep(40);
+    ok(w.document.querySelector('#mapa-container .cell-span'), 'importar depois do clear funciona');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

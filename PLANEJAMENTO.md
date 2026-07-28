@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.6.1** (entregue) · Roadmap local sem backend concluído; próximo passo próprio: empacotar como executável desktop. Demais exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.7** (entregue) · Roadmap local sem backend concluído; próximo passo próprio: empacotar como executável desktop. Demais exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -183,8 +183,29 @@
   segue genérico; sem mudança de schema, lógica, layout, caminho ou selo.
 - Testes **406/406** (264 engine + 91 jsdom + 51 Playwright), sem `skip`; hooks `[real]` verdes. Ver
   `RELATORIO-v1.5.6.1.md`.
+
+### v1.5.7 (entregue 28/07/2026) — carros multi-reserva + limpar + fds/feriado (sem schema, DB v6)
+- **BUG CRÍTICO corrigido — explosão de carros:** o total de garagem era aplicado **por bloco (por
+  apartamento)** dentro do laço do parser; a #26389 (5 aptos, "GARAGEM TOTAL 04 CARROS") virava **20 carros**.
+  Agora a expansão é **uma vez por reserva**: `TOTAL 0N CARROS` = total da reserva (nunca multiplica);
+  `GARAGEM 0N CARROS` = por apartamento (soma — #26161 segue com 3). 5 aptos / total 04 → 4 carros e
+  **1 apartamento sem carro** (o app não decide qual). Repartição P/G lida quando a soma bate com o total.
+- **BUG corrigido — arraste por CARRO:** `ajustes` passou a ser chaveado por `nro__apto__vagaIdx`
+  (`chaveCarro`/`resolverAjuste`, com **fallback legado** por nº). Store, keyPath e DB **inalterados**.
+  Mover um carro não mexe nos outros; regra da v1.5.5 preservada; vale p/ overbooking, extra e motos.
+- **"Carro X de N" recomputa na baixa** — N = carros ainda com garagem; ordem estável.
+- **Botão "Limpar informações"** (Gestão › Manutenção): apaga reservas/hospedados/ajustes/manuais/
+  **contatos e envios**, **preserva a Gestão**, atrás de confirmação explícita e irreversível.
+- **Feriados nacionais CALCULADOS pelo app** (9 fixos + 4 móveis via Páscoa de Meeus/Butcher), sem cadastro,
+  recalculando por ano. **Realce de coluna**: fim de semana quente suave, feriado verde suave, **feriado
+  prevalece**; é fundo (alpha .06/.07 contra .18/.12 dos blocos, sem borda), não altera nenhum status.
+- Testes **449/449** (293 engine + 100 jsdom + 56 Playwright), sem `skip`; hooks `[real]` verdes +
+  **comparação parser antigo × novo no PDF real: 101 = 101, conjuntos idênticos**. Ver `RELATORIO-v1.5.7.md`.
 - **PRÓXIMO (patch próprio, inalterado):** **empacotar como executável desktop** (Electron/Tauri a escolher;
   precisa do ícone; sem separação por empresa; dados não migram — reimportar o relatório reconstrói).
+- **Parqueado:** captura de e-mail; afinar o tom do amarelo "Aguardando" (hoje **fica como está**, decisão
+  do Doug); **feriados municipais de Balneário Camboriú** (embutir quando o Doug fornecer as datas —
+  lista embutida, nunca cadastro).
 
 ---
 
