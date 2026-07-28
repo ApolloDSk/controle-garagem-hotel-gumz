@@ -309,8 +309,9 @@ Garage Spot** (a chave é o `nro` do PMS).
 > dados/stores da v1.5.3 são preservados**. Nenhum store novo.
 
 - **5.1 Amarelo derivado da bolinha "Aguardando":** o fundo do bloco amarelo usa o **mesmo matiz** de
-  `--amarelo` (a cor do contador/legenda "Aguardando"), só com **alpha maior** (`--amarelo-bg`) — **não
-  inventar hue** ("mostarda" é regressão).
+  `--amarelo` (a cor do contador/legenda "Aguardando"), aplicado como `--amarelo-bg` — **não inventar
+  hue** ("mostarda" é regressão). *(O ALPHA foi alinhado ao padrão do app na v1.5.6.1: `.18`/`.12`, o
+  mesmo do azul/verde. A matiz continua a da bolinha.)*
 - **5.2 Fim do laranja de grupo + "Carro 0N" no bloco:** a categoria visual **laranja** (cor de bloco,
   **bolinha/indicador**, **ícone 👥** e **legenda** de "Grupo/Múlt. aptos") foi **removida por completo**
   — a cor e a bolinha **seguem o STATUS REAL** do bloco. ⚠ **`laranja_*` continua existindo só como chave
@@ -342,10 +343,11 @@ Garage Spot** (a chave é o `nro` do PMS).
 
 > **SEM mudança de schema (segue DB v6).** Sem backend, sem dependência nova, sem arquivo novo.
 
-- **6.1 Amarelo = a cor da bolinha (fonte única):** `.cell-span.amarelo` usa **`background:var(--amarelo)`
-  sólido** — a MESMA cor da bolinha/legenda "Aguardando" — e **não** mais o fill translúcido `--amarelo-bg`
-  (era o que lia como "mostarda"). Texto do bloco escurecido por **`--sobre-amarelo`** só para contraste
-  (mesma matiz). ⚠ **NÃO** voltar ao fill translúcido nem inventar hue; **nenhum laranja**.
+- **6.1 Amarelo sólido — ⚠ REVERTIDO NA v1.5.6.1.** A v1.5.5 fez `.cell-span.amarelo` usar
+  `background:var(--amarelo)` **sólido** (a cor cheia da bolinha). Na prática o bloco ficou **opaco e
+  puxando para laranja/tijolo**, e era o **único status fora do sistema de cores** do app. Ver a seção da
+  **v1.5.6.1** abaixo — vale ela, não esta. O que **permanece** da v1.5.5: a matiz é a da bolinha
+  (`--amarelo`, sem inventar hue) e **nenhum laranja**.
 - **6.2 Arraste manual move SÓ a reserva arrastada — realocação global por arraste é PROIBIDA (regra
   permanente):** `aplicarAjustes(reservas, ajustes, layoutSeed)` tem um **3º parâmetro** — o **layout
   congelado** (`congelarLayout(aloc)`, `nro→vagaId`) atua como **soft-pin invisível** que segura cada
@@ -400,7 +402,47 @@ Garage Spot** (a chave é o `nro` do PMS).
   sozinho" o ambíguo (vale p/ documento antigo recusado, garagem duvidosa sinalizada, PMS desconhecido
   recusado e, agora, a conferência de duplicata).
 
+## Comportamentos da v1.5.6.1 a preservar (amarelo claro e translúcido)
+
+> **Correção puramente VISUAL. Sem schema (segue DB v6), sem store, sem lógica, sem layout, sem
+> dependência, sem arquivo novo.** Nada além de CSS mudou no app.
+
+- **7.1 RECEITA ÚNICA DE BLOCO DE STATUS (regra permanente):** todo bloco do mapa é
+  **fundo TRANSLÚCIDO da matiz (`--X-bg`) + borda `1.5px solid` da matiz (`--X`) + nome na matiz
+  (`--nome-X`)**. O amarelo **não é exceção**:
+  `.cell-span.amarelo{background:var(--amarelo-bg);border:1.5px solid var(--amarelo)}` — **literalmente
+  a mesma estrutura** de `.cell-span.azul` e `.cell-span.hospedado`, só trocando a matiz.
+  ⚠ **NUNCA** pintar um bloco de status com a cor **cheia/sólida** (`background:var(--amarelo)`): foi
+  exatamente isso que fez o "Aguardando" ler como **laranja/tijolo** na v1.5.5.
+- **7.2 Mesmo ALPHA de fundo em todos os status:** `--amarelo-bg` usa o alpha **padrão do app** —
+  **`.18` no tema escuro** e **`.12` no claro** — idêntico a `--azul-bg`/`--hosped-bg`/`--vermelho-bg`/
+  `--moto-bg`. ⚠ Alpha diferente = o amarelo volta a destoar. A matiz (RGB) continua sendo **a mesma da
+  bolinha `--amarelo`** (`#eab308` escuro / `#ca8a04` claro) — regra da v1.5.4, mantida.
+- **7.3 Texto do bloco = `--nome-amarelo`, o par de `--nome-azul`/`--nome-hosped`.** ⚠ **Critério real do
+  app (registrar para não se perder):** azul e verde **não** usam "texto escuro" — usam **um tom da própria
+  matiz**, que é **claro no tema escuro** (`#93c5fd`, `#5eead4`, `#fde047`) e **escuro no tema claro**
+  (`#1d4ed8`, `#0f766e`, `#854d0e`), porque no tema escuro o vidro fica sobre fundo quase preto. Texto
+  escuro no tema escuro **reprova no contraste**. `.cell-info` **não** tem override nenhum (herda
+  `--muted`, como no azul/hospedado). **`--sobre-amarelo` foi REMOVIDO** — existia só para o fill sólido;
+  não recriar.
+- **7.4 Destaque/isolamento continua GENÉRICO:** `busca-ativa`/`dup-isolando` aplicam `opacity`+`grayscale`
+  a **qualquer** `.cell-span`. Como o amarelo voltou à receita comum, ele escurece igual ao azul/verde.
+  **Não criar exceção por cor.**
+- **7.5 Vale para TODAS as variações** do bloco (pequeno, `cortado-esq`, "Carro 01/02"): o hook é único
+  (`.cell-span.amarelo`, atribuído por `corCls`), então basta a regra base. `.ct-item.amarelo` (aba
+  Contato) segue sendo só `border-left-color` — não é bloco de mapa, não muda.
+- **Coerência com a legenda:** a legenda "Aguardando" **já** desenhava `--amarelo-bg` + borda `--amarelo`;
+  na v1.5.5 ela discordava do bloco real. Agora legenda e mapa mostram a mesma coisa — se um dia
+  divergirem de novo, é sinal de regressão.
+
 ## Versão atual
+
+**v1.5.6.1** — **amarelo claro e translúcido, no mesmo estilo do azul e do verde** (correção visual sobre
+o patch; sem schema, sem lógica, sem layout). `.cell-span.amarelo` deixou o fill sólido da v1.5.5 e voltou
+à receita única do app (fundo `--amarelo-bg` no alpha padrão `.18`/`.12` + borda sólida `--amarelo` + nome
+`--nome-amarelo`); `--sobre-amarelo` removido. Azul, verde, vermelho e roxo intactos; nenhum laranja.
+Testes **406/406** (264 engine + 91 jsdom + 51 Playwright), sem `skip`; hooks `[real]` verdes. Ver
+`RELATORIO-v1.5.6.1.md`.
 
 **v1.5.6** — **vaga extra p/ hospedado em overbooking + numeração de vagas fixa + conferência
 anti-duplicata (sinaliza, não apaga)** (sem schema, DB v6; sem store novo). Testes **387/387** (253 engine

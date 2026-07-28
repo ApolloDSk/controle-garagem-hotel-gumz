@@ -37,8 +37,10 @@ const __workerBlob=new Blob([atob("LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzI
   --text:#e8eaf2;--muted:#6b7494;--cell-livre:#1f2436;
   --azul:#3b82f6;--azul-bg:rgba(59,130,246,.18);
   /* v1.5.4 (5.1) — amarelo do bloco DERIVADO da bolinha "Aguardando" (--amarelo): mesma matiz
-     (mesmo RGB), alpha maior p/ ler como amarelo de verdade e não "mostarda". NÃO inventar hue. */
-  --amarelo:#eab308;--amarelo-bg:rgba(234,179,8,.30);
+     (mesmo RGB). NÃO inventar hue.
+     v1.5.6.1 — alpha alinhado ao PADRÃO translúcido do app (.18, o mesmo de --azul-bg/--hosped-bg/
+     --vermelho-bg/--moto-bg): o bloco "Aguardando" é vidro amarelo, não tinta sólida. */
+  --amarelo:#eab308;--amarelo-bg:rgba(234,179,8,.18);
   /* v1.5.4 (5.2) — laranja NÃO é mais status/grupo. Mantido só p/ o alerta "grande em vaga pequena". */
   --laranja:#f97316;--laranja-bg:rgba(249,115,22,.22);
   --vermelho:#ef4444;--vermelho-bg:rgba(239,68,68,.18);
@@ -48,14 +50,15 @@ const __workerBlob=new Blob([atob("LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzI
   --extra:#c084fc;--extra-bg:rgba(192,132,252,.14);--busca:#22d3ee;
   --nome-azul:#93c5fd;--nome-amarelo:#fde047;--nome-laranja:#fdba74;
   --nome-vermelho:#fca5a5;--nome-moto:#d8b4fe;
-  --sobre-amarelo:#1a1205; /* v1.5.5 (6.1) — texto escuro legível sobre o amarelo sólido da bolinha */
+  /* v1.5.6.1 — --sobre-amarelo REMOVIDO: existia só p/ o fill sólido da v1.5.5. O texto do bloco
+     amarelo volta a --nome-amarelo, o par exato de --nome-azul/--nome-hosped (mesmo critério). */
   --cw:88px;--rh:44px;--lw:52px;
 }
 body.light {
   --bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;--border:#e2e8f0;
   --text:#1e293b;--muted:#94a3b8;--cell-livre:#ffffff;
   --azul:#2563eb;--azul-bg:rgba(37,99,235,.12);
-  --amarelo:#ca8a04;--amarelo-bg:rgba(202,138,4,.22);
+  --amarelo:#ca8a04;--amarelo-bg:rgba(202,138,4,.12); /* v1.5.6.1 — mesmo alpha do --azul-bg claro */
   --laranja:#ea580c;--laranja-bg:rgba(234,88,12,.16);
   --vermelho:#dc2626;--vermelho-bg:rgba(220,38,38,.12);
   --verde:#16a34a;--verde-bg:rgba(22,163,74,.12);--moto:#9333ea;--moto-bg:rgba(147,51,234,.12);
@@ -64,7 +67,6 @@ body.light {
   --extra:#9333ea;--extra-bg:rgba(147,51,234,.10);--busca:#0891b2;
   --nome-azul:#1d4ed8;--nome-amarelo:#854d0e;--nome-laranja:#9a3412;
   --nome-vermelho:#991b1b;--nome-moto:#6b21a8;
-  --sobre-amarelo:#1a1205; /* v1.5.5 (6.1) — texto escuro sobre o amarelo sólido */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;transition:background .2s,color .2s}
@@ -135,10 +137,12 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-span{position:absolute;top:0;height:var(--rh);border-radius:5px;display:flex;align-items:center;padding:0 6px;overflow:hidden;z-index:5;cursor:default;transition:transform .1s}
 .cell-span:hover{transform:scaleY(1.07);z-index:200}
 .cell-span.azul   {background:var(--azul-bg);   border:1.5px solid var(--azul)}
-/* v1.5.5 (6.1) — o bloco "Aguardando" usa LITERALMENTE a cor sólida da bolinha (--amarelo),
-   fonte única. Fim do fill translúcido (--amarelo-bg) que lia como "mostarda". Texto escurecido
-   (--sobre-amarelo) só p/ contraste — mesma matiz, sem inventar hue nem reintroduzir laranja. */
-.cell-span.amarelo{background:var(--amarelo);border:1.5px solid var(--amarelo)}
+/* v1.5.6.1 (7.1) — o bloco "Aguardando" volta à RECEITA ÚNICA do app, idêntica à do azul
+   (confirmado) e à do verde/teal (hospedado): fundo TRANSLÚCIDO na mesma opacidade (--amarelo-bg,
+   alpha .18 escuro / .12 claro) + borda SÓLIDA da matiz (--amarelo, a cor da bolinha "Aguardando")
+   + texto na matiz (--nome-amarelo). ⚠ O fill SÓLIDO da v1.5.5 lia como laranja/tijolo e era o
+   único status fora do sistema — NÃO voltar a pintar o bloco com var(--amarelo) cheio. */
+.cell-span.amarelo{background:var(--amarelo-bg);border:1.5px solid var(--amarelo)}
 /* v1.5.4 (5.2) — categoria de bloco "laranja" (grupo) REMOVIDA: a bolinha/cor segue o status real. */
 .cell-span.vermelho{background:var(--vermelho-bg);border:1.5px solid var(--vermelho);animation:pulse 1.5s infinite}
 .cell-span.moto-c {background:var(--moto-bg);   border:1.5px solid var(--moto)}
@@ -150,8 +154,10 @@ input[type="date"].hidden-picker{position:fixed;opacity:0;pointer-events:none;wi
 .cell-nome-duplo{font-size:9px;font-weight:700;overflow:hidden;text-overflow:ellipsis;display:block;line-height:1.3;white-space:nowrap}
 .cell-info{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;color:var(--muted)}
 .cell-span.azul    .cell-nome,.cell-span.azul    .cell-nome-duplo{color:var(--nome-azul)}
-.cell-span.amarelo .cell-nome,.cell-span.amarelo .cell-nome-duplo{color:var(--sobre-amarelo)}
-.cell-span.amarelo .cell-info{color:var(--sobre-amarelo);opacity:.8} /* v1.5.5 (6.1) */
+/* v1.5.6.1 (7.1) — mesmo critério do azul/verde: a MATIZ do próprio status no nome
+   (--nome-amarelo: tint no tema escuro, âmbar escuro no claro) e .cell-info sem override
+   (herda --muted, como azul/hospedado). */
+.cell-span.amarelo .cell-nome,.cell-span.amarelo .cell-nome-duplo{color:var(--nome-amarelo)}
 .cell-span.vermelho .cell-nome,.cell-span.vermelho .cell-nome-duplo{color:var(--nome-vermelho)}
 .cell-span.moto-c  .cell-nome,.cell-span.moto-c  .cell-nome-duplo{color:var(--nome-moto)}
 .cell-span.hospedado .cell-nome,.cell-span.hospedado .cell-nome-duplo{color:var(--nome-hosped)}
@@ -697,7 +703,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.6';
+const APP_VERSION='v1.5.6.1';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}

@@ -96,9 +96,9 @@ async function aguardarBoot(w) {
     ok(/salvo/.test(w.document.getElementById('db-chip').textContent), 'chip deveria indicar persistência');
   });
 
-  await T('rodapé mostra v1.5.6', async () => {
+  await T('rodapé mostra v1.5.6.1', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.6');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.6.1');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -1261,6 +1261,64 @@ Total Geral`;
     ].join('\n');
     await w.importarPDF(w.parsear(pdf)); await sleep(30);
     eq(w.document.querySelectorAll('#mapa-container .dup-badge').length, 0, 'nenhum selo (homônimos e multi-apto são legítimos)');
+  });
+
+  /* ════════════════════════ v1.5.6.1 — amarelo translúcido como azul/verde ════════════════════════ */
+  // Lê as regras pelo CSSOM do documento carregado (não pelo texto do arquivo): garante que o que
+  // chega ao navegador é a MESMA receita para os três status, e que nada pinta o bloco por inline.
+  const regraDe = (w, sel) => {
+    for (const sh of w.document.styleSheets) {
+      for (const r of (sh.cssRules || [])) if (r.selectorText && r.selectorText.replace(/\s+/g, ' ') === sel) return r.style;
+    }
+    return null;
+  };
+
+  await T('v1.5.6.1 (7.1) CSSOM: amarelo tem a mesma receita do azul/hospedado (fundo -bg + borda matiz)', async () => {
+    const { w } = await novoApp();
+    const am = regraDe(w, '.cell-span.amarelo'), az = regraDe(w, '.cell-span.azul'), ho = regraDe(w, '.cell-span.hospedado');
+    ok(am && az && ho, 'as três regras chegam ao CSSOM');
+    eq(am.background || am.backgroundColor, 'var(--amarelo-bg)', 'fundo translúcido (nunca var(--amarelo) sólido)');
+    eq(az.background || az.backgroundColor, 'var(--azul-bg)', 'azul intacto');
+    eq(ho.background || ho.backgroundColor, 'var(--hosped-bg)', 'hospedado intacto');
+    const semMatiz = st => (st.border || '').replace(/var\(--[a-z-]+\)/, 'MATIZ').replace(/\s+/g, ' ').trim();
+    eq(semMatiz(am), semMatiz(az), 'mesma borda do azul');
+    eq(semMatiz(am), semMatiz(ho), 'mesma borda do hospedado');
+    ok(!regraDe(w, '.cell-span.amarelo .cell-info'), 'sem override de .cell-info no amarelo (herda --muted como o azul)');
+  });
+
+  await T('v1.5.6.1 (7.1) blocos aguardando e confirmado: estilo só pela classe, nada inline', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    const pdf = [
+      bloco('95001', ent, sai, '901', 'WHATSAPP', 'GARAGEM PEQUENO', 'AZUL CONFIRMADO'),
+      bloco('95002', ent, sai, '902', 'WHATSAPP', 'VERIFICAR INTERESSE', 'AMARELO AGUARDANDO'),
+    ].join('\n');
+    await w.importarPDF(w.parsear(pdf)); await sleep(30);
+    const am = w.document.querySelector('#mapa-container .cell-span.amarelo');
+    const az = w.document.querySelector('#mapa-container .cell-span.azul');
+    ok(am && az, 'um bloco de cada status no mapa');
+    [am, az].forEach(el => {
+      eq(el.style.background, '', 'sem background inline (' + el.className + ')');
+      eq(el.style.backgroundColor, '', 'sem background-color inline (' + el.className + ')');
+      eq(el.style.borderColor, '', 'sem borda inline (' + el.className + ')');
+    });
+    // as variações do bloco (nome duplo, "Carro 0N"/.cell-info) não recebem cor própria no amarelo
+    ok(!am.querySelector('[style*="color"]'), 'nada colorido por inline dentro do bloco amarelo');
+  });
+
+  await T('v1.5.6.1 (7.4) busca/isolamento tratam o amarelo como qualquer outro bloco', async () => {
+    const { w } = await novoApp();
+    const ent = diasDeHoje(0), sai = diasDeHoje(4);
+    const pdf = [
+      bloco('95003', ent, sai, '903', 'WHATSAPP', 'GARAGEM PEQUENO', 'ALVO BUSCA'),
+      bloco('95004', ent, sai, '904', 'WHATSAPP', 'VERIFICAR INTERESSE', 'OUTRO AGUARDA'),
+    ].join('\n');
+    await w.importarPDF(w.parsear(pdf)); await sleep(30);
+    w.onBuscaInput('ALVO BUSCA'); await sleep(20);
+    ok(w.document.getElementById('mapa-wrapper').classList.contains('busca-ativa'), 'busca ativa');
+    const am = w.document.querySelector('#mapa-container .cell-span.amarelo');
+    ok(am && !am.classList.contains('busca-hit'), 'o amarelo fora da busca é escurecido pela regra genérica');
+    eq(am.style.opacity, '', 'sem tratamento inline por cor');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

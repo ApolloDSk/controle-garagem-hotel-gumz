@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.6');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.6.1');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -906,4 +906,142 @@ test('v1.5.6 (6.3) duplicata: selo nos 2 → clicar isola o par → x dispensa o
   // dispensa NÃO é permanente: reimportar reproduz o par → alerta volta
   await page.evaluate(async (txt) => { await window.importarPDF(window.parsear(txt)); }, mkDupPDF());
   await expect(page.locator('#mapa-container .dup-badge')).toHaveCount(2);
+});
+
+/* ════════════════════════ v1.5.6.1 — amarelo claro e translúcido ════════════════════════ */
+// Compara PROPRIEDADES COMPUTADAS (navegador real) entre um bloco "Aguardando" e um
+// "Confirmado"/"Hospedado": tudo tem de bater menos a MATIZ. A v1.5.5 pintava o amarelo com
+// a cor sólida da bolinha (alpha 1) e ele lia como laranja/tijolo.
+const _rgba = s => { const m = s.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/); return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null; };
+const _hue = ({ r, g, b }) => { const [R, G, B] = [r / 255, g / 255, b / 255]; const mx = Math.max(R, G, B), mn = Math.min(R, G, B), d = mx - mn; if (!d) return 0; const h = mx === R ? ((G - B) / d) % 6 : mx === G ? (B - R) / d + 2 : (R - G) / d + 4; return (h * 60 + 360) % 360; };
+const _lum = ({ r, g, b }) => { const c = [r, g, b].map(x => { const v = x / 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+const _contraste = (f, bg) => { const [x, y] = [_lum(f), _lum(bg)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+// composição alpha do fundo do bloco sobre o fundo da célula (o que o olho realmente vê)
+const _sobre = (fg, s) => ({ r: fg.r * fg.a + s.r * (1 - fg.a), g: fg.g * fg.a + s.g * (1 - fg.a), b: fg.b * fg.a + s.b * (1 - fg.a), a: 1 });
+
+async function receitas(page) {
+  return page.evaluate(() => {
+    const g = sel => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      const nome = el.querySelector('.cell-nome,.cell-nome-duplo');
+      const info = el.querySelector('.cell-info');
+      return {
+        bg: cs.backgroundColor, borda: cs.borderTopColor,
+        bordaW: cs.borderTopWidth, bordaS: cs.borderTopStyle, raio: cs.borderTopLeftRadius,
+        nome: nome ? getComputedStyle(nome).color : null,
+        info: info ? getComputedStyle(info).color : null,
+      };
+    };
+    const cel = document.querySelector('#mapa-container .cell');
+    return {
+      // :not(.cortado-esq) — o recorte de continuação (check-in no passado) zera cantos/borda
+      // esquerda por conta própria; não tem relação com a receita de COR (comparar maçã com maçã).
+      am: g('#mapa-container .cell-span.amarelo:not(.cortado-esq)'),
+      az: g('#mapa-container .cell-span.azul:not(.cortado-esq)'),
+      celula: cel ? getComputedStyle(cel).backgroundColor : null,
+    };
+  });
+}
+
+test('v1.5.6.1 (7.1) bloco Aguardando = vidro amarelo: mesma receita computada do azul, só a matiz muda', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  const r = await receitas(page);
+  expect(r.am).not.toBeNull();
+  expect(r.az).not.toBeNull();
+
+  const bgAm = _rgba(r.am.bg), bgAz = _rgba(r.az.bg);
+  // 1) NÃO é sólido: fundo translúcido, com o MESMO alpha do azul
+  expect(bgAm.a).toBeLessThan(1);
+  expect(bgAm.a).toBeCloseTo(bgAz.a, 3);
+  // 2) borda: mesma espessura/estilo/raio do azul, cor sólida
+  expect(r.am.bordaW).toBe(r.az.bordaW);
+  expect(r.am.bordaS).toBe('solid');
+  expect(r.am.bordaS).toBe(r.az.bordaS);
+  expect(r.am.raio).toBe(r.az.raio);
+  expect(_rgba(r.am.borda).a).toBe(1);
+  // 3) só a MATIZ difere — e é amarela, não laranja (--laranja #f97316 fica em ~25°)
+  const h = _hue(bgAm);
+  expect(Math.abs(h - _hue(bgAz))).toBeGreaterThan(10);
+  expect(h).toBeGreaterThanOrEqual(38);
+  expect(h).toBeLessThanOrEqual(70);
+  // borda na mesma matiz do fundo (a cor da bolinha "Aguardando")
+  expect(Math.abs(_hue(_rgba(r.am.borda)) - h)).toBeLessThan(2);
+  // 4) .cell-info sem tratamento próprio: igual ao do azul (herda --muted)
+  if (r.am.info && r.az.info) expect(r.am.info).toBe(r.az.info);
+});
+
+test('v1.5.6.1 (7.2) texto do bloco amarelo é legível (contraste >= 4.5:1) nos dois temas', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  for (const tema of ['escuro', 'claro']) {
+    if (tema === 'claro') { await page.evaluate(() => window.toggleTheme()); await page.waitForTimeout(150); }
+    const r = await receitas(page);
+    const visto = _sobre(_rgba(r.am.bg), _rgba(r.celula)); // fundo real percebido do bloco
+    const c = _contraste(_rgba(r.am.nome), visto);
+    expect(c, `contraste do nome no tema ${tema}: ${c.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test('v1.5.6.1 (7.2) azul/hospedado/moto intactos: translúcidos, borda sólida, nenhum laranja', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await importarComandas(page);
+  const cores = await page.evaluate(() => {
+    const out = {};
+    ['azul', 'hospedado', 'amarelo', 'moto-c'].forEach(c => {
+      const el = document.querySelector('#mapa-container .cell-span.' + c);
+      if (el) { const cs = getComputedStyle(el); out[c] = { bg: cs.backgroundColor, borda: cs.borderTopColor }; }
+    });
+    return out;
+  });
+  expect(Object.keys(cores).length).toBeGreaterThanOrEqual(3);
+  Object.entries(cores).forEach(([c, v]) => {
+    expect(_rgba(v.bg).a, `${c} translúcido`).toBeLessThan(1);
+    expect(_rgba(v.borda).a, `${c} com borda sólida`).toBe(1);
+    const h = _hue(_rgba(v.bg));
+    expect(h < 20 || h > 35, `${c} não é laranja (hue ${h.toFixed(1)})`).toBeTruthy();
+  });
+});
+
+test('v1.5.6.1 (7.4) no destaque da busca o amarelo se comporta igual ao azul', async ({ page }) => {
+  await boot(page);
+  await importar(page);
+  await page.evaluate(() => window.onBuscaInput('ANA')); // casa só com a reserva azul
+  await page.waitForSelector('#mapa-wrapper.busca-ativa');
+  const fora = await page.evaluate(() => {
+    const g = sel => { const el = document.querySelector(sel); if (!el) return null; const cs = getComputedStyle(el); return { op: cs.opacity, f: cs.filter, bg: cs.backgroundColor }; };
+    return { am: g('.cell-span.amarelo:not(.busca-hit)'), az: g('.cell-span.azul:not(.busca-hit)') };
+  });
+  expect(fora.am).not.toBeNull();
+  expect(fora.az).not.toBeNull();
+  expect(fora.am.op).toBe(fora.az.op);   // mesmo escurecimento
+  expect(fora.am.f).toBe(fora.az.f);     // mesmo filtro
+  expect(_rgba(fora.am.bg).a).toBeLessThan(1); // continua vidro, não vira bloco opaco
+});
+
+test('v1.5.6.1 (7.5) blocos pequenos e "Carro 01/02" aguardando recebem a mesma receita', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const ent = d(0), sai = d(3);
+    // MESMA reserva em 2 aptos, os DOIS aguardando → "Carro 01"/"Carro 02", ambos amarelos
+    const b = (apto, nome) => `${fb(ent)} ${fs(sai)} 1 2 ${apto} ABC 60001 H\nWHATSAPP\nObs do Apto: VERIFICAR INTERESSE\nHóspedes :\n${nome}\n${nome}\nDesbravador Software`;
+    await window.importarPDF(window.parsear([b('301', 'DOIS CARROS'), b('302', 'DOIS CARROS')].join('\n')));
+  });
+  await page.waitForSelector('.cell-span.amarelo');
+  await expect(page.locator('.cell-span.amarelo', { hasText: 'Carro 01' })).toHaveCount(1);
+  await expect(page.locator('.cell-span.amarelo', { hasText: 'Carro 02' })).toHaveCount(1);
+  const todos = await page.evaluate(() => [...document.querySelectorAll('#mapa-container .cell-span.amarelo')].map(el => {
+    const cs = getComputedStyle(el);
+    return cs.backgroundColor + '|' + cs.borderTopColor + '|' + cs.borderTopWidth;
+  }));
+  expect(todos.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(todos).size, 'todas as variações do bloco amarelo com a MESMA receita').toBe(1);
+  todos.forEach(t => expect(_rgba(t.split('|')[0]).a).toBeLessThan(1));
 });

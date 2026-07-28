@@ -4,7 +4,22 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.6** (27/07/2026) — **vaga extra p/ hospedado em overbooking + numeração de vagas
+- **Versão entregue: v1.5.6.1** (27/07/2026) — **correção visual: o amarelo "Aguardando" voltou à receita
+  translúcida do azul/verde.** Só CSS: **nenhuma** mudança de lógica, layout, schema (segue DB v6), store,
+  caminho ou selo de gravação. A v1.5.5 pintava `.cell-span.amarelo` com **`background:var(--amarelo)`**
+  (a cor SÓLIDA da bolinha, alpha 1) — era o único status fora do sistema e lia como **laranja/tijolo**.
+  Agora `.cell-span.amarelo{background:var(--amarelo-bg);border:1.5px solid var(--amarelo)}`, **idêntico**
+  a `.cell-span.azul`/`.hospedado`, com `--amarelo-bg` alinhado ao **alpha padrão do app** (`.18` escuro /
+  `.12` claro — o mesmo de `--azul-bg`/`--hosped-bg`). Texto do nome voltou a **`--nome-amarelo`** (o par
+  exato de `--nome-azul`/`--nome-hosped`: tint no tema escuro, âmbar escuro `#854d0e` no claro) e o
+  **`--sobre-amarelo` foi REMOVIDO** (existia só para o fill sólido), junto do override de `.cell-info`.
+  ⚠ **Nota importante:** no **tema escuro** o azul e o verde **não** usam texto escuro — usam um *tint claro
+  da própria matiz* sobre o vidro escuro; texto escuro ali reprovaria no contraste. O critério real (e
+  agora seguido pelo amarelo) é **"matiz própria: tint no escuro, tom escuro no claro"**. Azul, verde,
+  vermelho e roxo **intactos**; nenhum laranja reintroduzido (`--laranja` segue só nos 4 usos de ALERTA).
+  Testes **406/406** (264 engine + 91 jsdom + 51 Playwright), sem `skip`; hooks `[real]` verdes (Comandas
+  → 21 hospedados; Reservas sem regressão). Ver `RELATORIO-v1.5.6.1.md`. Tags `pre-v1.5.6.1` e `v1.5.6.1`.
+- **Versão anterior: v1.5.6** (27/07/2026) — **vaga extra p/ hospedado em overbooking + numeração de vagas
   FIXA (cima→baixo) + conferência anti-duplicata (sinaliza, NUNCA apaga)** (sem schema, DB v6; **sem store
   novo**). (6.1) `statusEditorHospedadoHTML(nro,st,ctx)` oferece "➕ Vaga extra (EXTRAn)" em overbooking
   (detalhe: `emOver=!!res._over`, sem `!ehH`); mover via `colocarEmVagaExtra` **mantém o status hospedado**;
@@ -18,8 +33,10 @@
   (253 engine + 88 jsdom + 46 Playwright), sem `skip`; hooks `[real]` verdes (**0 duplicata falsa** no
   relatório real). Ver `RELATORIO-v1.5.6.md`. Tags `pre-v1.5.6` e `v1.5.6`.
 - **Versão anterior: v1.5.5** (24/07/2026) — **amarelo + arraste + modal + fila de contato (sem schema,
-  DB v6):** **amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; fim do "mostarda"; texto por
-  `--sobre-amarelo`); **arraste manual move SÓ a reserva arrastada** — **congelamento de layout**
+  DB v6):** ~~**amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; texto por
+  `--sobre-amarelo`)~~ — **REVERTIDO na v1.5.6.1** (o fill sólido lia como laranja/tijolo; o amarelo voltou
+  à receita translúcida do azul/verde e `--sobre-amarelo` deixou de existir);
+  **arraste manual move SÓ a reserva arrastada** — **congelamento de layout**
   (`congelarLayout` + 3º parâmetro `layoutSeed` de `aplicarAjustes`, ativado por assinatura
   `janela+conjunto` no `renderMapa`): destino livre → nenhuma outra se move; destino ocupado → só a(s)
   conflitante(s) reacomoda(m); **realocação global por arraste PROIBIDA**; **alocação automática na
@@ -180,4 +197,6 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 
 ## Tags
 - `pre-v1.0.0`, `v1.0.0`, `pre-v1.1.0`, `v1.1.0`, `pre-v1.2.0`, `v1.2.0`, `pre-v1.3.0`, `v1.3.0`,
-  `pre-v1.4.0`, `v1.4.0`, `pre-v1.5.0`, `v1.5.0`.
+  `pre-v1.4.0`, `v1.4.0`, `pre-v1.5.0`, `v1.5.0`, `pre-v1.5.1`, `v1.5.1`, `pre-v1.5.1.1`, `v1.5.1.1`,
+  `pre-v1.5.2`, `v1.5.2`, `pre-v1.5.3`, `v1.5.3`, `pre-v1.5.4`, `v1.5.4`, `pre-v1.5.5`, `v1.5.5`,
+  `pre-v1.5.6`, `v1.5.6`, `pre-v1.5.6.1`, `v1.5.6.1`.

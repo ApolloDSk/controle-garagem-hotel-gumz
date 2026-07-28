@@ -735,7 +735,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.6', () => { eq(E.APP_VERSION, 'v1.5.6'); });
+t('APP_VERSION é v1.5.6.1', () => { eq(E.APP_VERSION, 'v1.5.6.1'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
@@ -1247,6 +1247,104 @@ t('5.3 montarEditadasManuais: incluída manualmente aparece marcada e no mapa', 
   const l = E.montarEditadasManuais({}, manuais);
   const it = l.find(x => String(x.nro) === '77');
   ok(it && it.incluidaManual === true && it.noMapa === true, 'incluída manual, no mapa');
+});
+
+/* ════════ v1.5.6.1 — amarelo CLARO e TRANSLÚCIDO, mesma receita do azul/verde ════════ */
+
+// A receita do app é: fundo = matiz translúcida (--X-bg) + borda 1.5px sólida da matiz (--X) +
+// nome na matiz (--nome-X). A v1.5.5 tirou o amarelo desse sistema (fill sólido var(--amarelo)),
+// e ele passou a ler como laranja/tijolo. Estes testes travam o amarelo dentro do sistema.
+function regraCss(sel) {
+  const re = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}');
+  const m = html.match(re);
+  return m ? m[1] : null;
+}
+function alphaDe(s) { const m = s && s.match(/rgba?\([^)]*,\s*([.\d]+)\s*\)/); return m ? parseFloat(m[1]) : 1; }
+function hueDe(hex) {
+  const [r, g, b] = hexToRgb(hex).map(x => x / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (!d) return 0;
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+const raizCss = html.slice(html.indexOf(':root {'), html.indexOf('body.light'));
+const claroCss = html.slice(html.indexOf('body.light'), html.indexOf('*{box-sizing'));
+
+t('7.1 bloco amarelo usa o FUNDO TRANSLÚCIDO (--amarelo-bg), não a cor sólida da bolinha', () => {
+  const r = regraCss('.cell-span.amarelo');
+  ok(r, 'regra .cell-span.amarelo presente');
+  ok(/background:\s*var\(--amarelo-bg\)/.test(r), 'fundo = var(--amarelo-bg)');
+  ok(!/background:\s*var\(--amarelo\)/.test(r), 'NÃO pode voltar ao fill sólido var(--amarelo)');
+});
+t('7.1 bloco amarelo tem a MESMA estrutura de borda do azul e do hospedado', () => {
+  const am = regraCss('.cell-span.amarelo'), az = regraCss('.cell-span.azul'), ho = regraCss('.cell-span.hospedado');
+  const borda = x => (x.match(/border:\s*([^;]+)/) || [])[1].replace(/var\(--[a-z-]+\)/, 'MATIZ').trim();
+  eq(borda(am), borda(az), 'mesma borda do azul (só a matiz difere)');
+  eq(borda(am), borda(ho), 'mesma borda do hospedado');
+  ok(/border:\s*1\.5px solid var\(--amarelo\)/.test(am), 'borda sólida na cor da bolinha "Aguardando"');
+});
+t('7.1 --amarelo-bg tem o MESMO alpha do --azul-bg/--hosped-bg (tema escuro)', () => {
+  const a = alphaDe(rgbDe(raizCss, 'amarelo-bg'));
+  eq(a, alphaDe(rgbDe(raizCss, 'azul-bg')), 'mesmo alpha do azul');
+  eq(a, alphaDe(rgbDe(raizCss, 'hosped-bg')), 'mesmo alpha do hospedado');
+  ok(a < 1, 'translúcido, nunca opaco');
+});
+t('7.1 --amarelo-bg tem o MESMO alpha do --azul-bg (tema claro)', () => {
+  const a = alphaDe(rgbDe(claroCss, 'amarelo-bg'));
+  eq(a, alphaDe(rgbDe(claroCss, 'azul-bg')), 'mesmo alpha do azul (claro)');
+  ok(a < 1, 'translúcido, nunca opaco (claro)');
+});
+t('7.1 nome do bloco amarelo usa --nome-amarelo (mesmo critério de --nome-azul/--nome-hosped)', () => {
+  const r = regraCss('.cell-span.amarelo .cell-nome,.cell-span.amarelo .cell-nome-duplo');
+  ok(r && /color:\s*var\(--nome-amarelo\)/.test(r), 'cor do nome = var(--nome-amarelo)');
+  ok(!/--sobre-amarelo\s*:/.test(html), '--sobre-amarelo (token do fill sólido) não é mais DEFINIDO');
+  ok(!/var\(--sobre-amarelo\)/.test(html), '--sobre-amarelo não é mais USADO em lugar nenhum');
+  ok(!/\.cell-span\.amarelo \.cell-info/.test(html), 'sem override de .cell-info (herda --muted, como azul/hospedado)');
+});
+t('7.1 texto do amarelo passa no contraste em ambos os temas (≥4.5:1)', () => {
+  const lum = hex => {
+    const c = hexToRgb(hex).map(x => { const v = x / 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+    return .2126 * c[0] + .7152 * c[1] + .0722 * c[2];
+  };
+  const contraste = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+  // escuro: nome claro sobre a superfície escura da célula; claro: nome escuro sobre a célula branca
+  const cEsc = contraste(rgbDe(raizCss, 'nome-amarelo'), rgbDe(raizCss, 'cell-livre'));
+  const cCla = contraste(rgbDe(claroCss, 'nome-amarelo'), rgbDe(claroCss, 'cell-livre'));
+  ok(cEsc >= 4.5, 'contraste tema escuro ' + cEsc.toFixed(2) + ':1');
+  ok(cCla >= 4.5, 'contraste tema claro ' + cCla.toFixed(2) + ':1');
+});
+t('7.1 o amarelo é AMARELO, não laranja (matiz longe do --laranja) nos dois temas', () => {
+  [['escuro', raizCss], ['claro', claroCss]].forEach(([nome, css]) => {
+    const hAm = hueDe(rgbDe(css, 'amarelo')), hLar = hueDe(rgbDe(css, 'laranja'));
+    ok(hAm >= 38 && hAm <= 70, 'matiz amarela (' + nome + '): ' + hAm.toFixed(1) + '°');
+    ok(hAm - hLar >= 12, 'nitidamente distinta do laranja (' + nome + ')');
+  });
+});
+t('7.2 demais cores INTACTAS: azul, hospedado, vermelho e moto seguem a receita translúcida', () => {
+  const norm = x => x.replace(/\s+/g, ' ').trim();
+  eq(norm(regraCss('.cell-span.azul')), 'background:var(--azul-bg); border:1.5px solid var(--azul)');
+  eq(norm(regraCss('.cell-span.hospedado')), 'background:var(--hosped-bg);border:1.5px solid var(--hosped)');
+  eq(norm(regraCss('.cell-span.vermelho')), 'background:var(--vermelho-bg);border:1.5px solid var(--vermelho);animation:pulse 1.5s infinite');
+  eq(norm(regraCss('.cell-span.moto-c')), 'background:var(--moto-bg); border:1.5px solid var(--moto)');
+});
+t('7.2 nenhum bloco de STATUS voltou a ser laranja (--laranja segue só no alerta grande-em-pequena)', () => {
+  ok(!/\.cell-span\.laranja/.test(html), 'sem classe de bloco laranja');
+  // baseline v1.5.4/v1.5.6: 4 usos, todos de ALERTA (grande-em-vaga-pequena, .tt-warn,
+  // .ct-fone-aviso, legenda do tracejado) — nenhum é fundo/cor de bloco de STATUS.
+  const usos = (html.match(/var\(--laranja(?:-bg)?\)/g) || []).length;
+  ok(/var\(--laranja\)/.test(regraCss('.cell-span.grande-peq')), 'laranja preservado no alerta grande-em-vaga-pequena');
+  ok(usos <= 4, 'laranja não reintroduzido (usos: ' + usos + ')');
+  ok(!/\.cell-span\.[a-z-]*\{[^}]*background:var\(--laranja/.test(html), 'nenhum bloco com FUNDO laranja');
+});
+t('7.3 legenda "Aguardando" e o bloco do mapa usam a MESMA receita (fundo -bg + borda matiz)', () => {
+  const leg = html.slice(html.indexOf('<div class="legenda">'), html.indexOf('<div class="legenda">') + 1600);
+  const li = leg.slice(leg.indexOf('Aguardando') - 200, leg.indexOf('Aguardando'));
+  ok(/var\(--amarelo-bg\)/.test(li) && /border:1px solid var\(--amarelo\)/.test(li), 'legenda translúcida (já era) — agora bate com o bloco');
+});
+t('7.4 destaque/isolamento continua GENÉRICO (não trata o amarelo à parte)', () => {
+  ok(/\.mapa-wrapper\.busca-ativa \.cell-span:not\(\.busca-hit\)\{opacity:\.16;filter:grayscale\(\.4\)\}/.test(html), 'busca genérica');
+  ok(/\.mapa-wrapper\.dup-isolando \.cell-span:not\(\.dup-foco\)\{opacity:\.14;filter:grayscale\(\.5\)\}/.test(html), 'isolamento genérico');
+  ok(!/busca-ativa[^{]*amarelo|dup-isolando[^{]*amarelo/.test(html), 'nenhuma exceção por cor no destaque');
 });
 
 /* ── runner (suporta testes async) ── */

@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.6** (entregue) · Roadmap local sem backend concluído; próximo passo próprio: empacotar como executável desktop. Demais exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.6.1** (entregue) · Roadmap local sem backend concluído; próximo passo próprio: empacotar como executável desktop. Demais exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -141,8 +141,9 @@
   `RELATORIO-v1.5.4.md`.
 
 ### v1.5.5 (entregue 24/07/2026) — amarelo + arraste + modal + fila de contato (sem schema, DB v6)
-- **Amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; fim do fill translúcido/"mostarda";
-  texto por `--sobre-amarelo`).
+- ~~**Amarelo = a cor SÓLIDA da bolinha** (fonte única `--amarelo`; texto por `--sobre-amarelo`)~~
+  → **REVERTIDO na v1.5.6.1**: o fill sólido lia como laranja/tijolo e era o único status fora do
+  sistema de cores. A matiz da bolinha continua valendo; o fill voltou a ser translúcido.
 - **Arraste manual move SÓ a reserva arrastada** — **congelamento de layout** (`congelarLayout` +
   3º parâmetro `layoutSeed` de `aplicarAjustes`, ativado por assinatura `janela+conjunto` no
   `renderMapa`): destino livre → nada mais se move; destino ocupado → só a(s) conflitante(s) reacomoda(m);
@@ -168,8 +169,22 @@
   relatório reproduzir o par). Nenhum store novo.
 - Testes **387/387** (253 engine + 88 jsdom + 46 Playwright), sem `skip`; hooks `[real]` verdes (0 duplicata
   falsa no relatório real). Ver `RELATORIO-v1.5.6.md`.
-- **PRÓXIMO (patch próprio):** **empacotar como executável desktop** (Electron/Tauri a escolher; precisa do
-  ícone; sem separação por empresa; dados não migram — reimportar o relatório reconstrói).
+
+### v1.5.6.1 (entregue 27/07/2026) — amarelo claro e translúcido, no estilo do azul/verde (só CSS)
+- **Correção visual de tema único.** O bloco "Aguardando" deixou o **fill sólido** da v1.5.5
+  (`background:var(--amarelo)`, alpha 1 — lia como **laranja/tijolo**) e voltou à **receita única** do app:
+  `.cell-span.amarelo{background:var(--amarelo-bg);border:1.5px solid var(--amarelo)}`, **idêntica** a
+  `.cell-span.azul` e `.cell-span.hospedado`.
+- **`--amarelo-bg` no alpha PADRÃO**: `.18` (escuro) / `.12` (claro) — o mesmo de `--azul-bg`/`--hosped-bg`.
+  A matiz continua sendo a da bolinha "Aguardando".
+- **Texto por `--nome-amarelo`** (par exato de `--nome-azul`/`--nome-hosped`: tint no tema escuro `#fde047`,
+  âmbar escuro no claro `#854d0e`); `.cell-info` sem override; **`--sobre-amarelo` removido**.
+- **Azul, verde, vermelho e roxo intactos**; nenhum laranja reintroduzido; destaque da busca/isolamento
+  segue genérico; sem mudança de schema, lógica, layout, caminho ou selo.
+- Testes **406/406** (264 engine + 91 jsdom + 51 Playwright), sem `skip`; hooks `[real]` verdes. Ver
+  `RELATORIO-v1.5.6.1.md`.
+- **PRÓXIMO (patch próprio, inalterado):** **empacotar como executável desktop** (Electron/Tauri a escolher;
+  precisa do ícone; sem separação por empresa; dados não migram — reimportar o relatório reconstrói).
 
 ---
 
