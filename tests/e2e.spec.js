@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.7');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.8');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -524,12 +524,25 @@ test('v1.5.1.1 [real] Reservas de amostras/ → sem regressão (pendente até ha
   test.skip(pdfs.length === 0, 'Sem PDF de Reservas em amostras/ — validação com o real fica pendente das amostras.');
   await boot(page);
   await page.setInputFiles('#file-input', pdfs[0]);
+  // v1.5.8 — a amostra é de uma data FIXA (10/jul): a janela padrão (hoje+30) deixa de mostrá-la com o
+  // passar do calendário (a v1.5.7 falhava igual em out/2026). Espera a importação e enquadra o período
+  // nas datas da própria amostra (o filtro é só visualização — v1.5.8 B).
+  await expect.poll(async () => page.evaluate(async () => (await window.dbGetAll('reservas')).length),
+    { timeout: 20000, intervals: [200, 300, 500, 1000] }).toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const rs = window.conjuntoCompleto();
+    window.setRange(new Date(Math.min(...rs.map(r => +r.entrada))), new Date(Math.max(...rs.map(r => +r.saida))));
+  });
   await page.waitForSelector('.cell-span', { timeout: 15000 });
   const n = await page.evaluate(() => document.querySelectorAll('#mapa-container .cell-span').length);
   expect(n).toBeGreaterThan(0);
-  // v1.5.6 (6.3) — nenhuma reserva legítima do relatório real vira "duplicata" (multi-apto/homônimos ok).
-  const dups = await page.evaluate(() => document.querySelectorAll('#mapa-container .dup-badge').length);
-  expect(dups).toBe(0);
+  // v1.5.6 (6.3) — multi-carro/homônimos não viram "duplicata". Com o relatório INTEIRO à vista, o único
+  // sinal é o caso CONHECIDO da regra (inalterada) da v1.5.6: #27316 = 2 quartos (APF/TST) ainda SEM apto
+  // atribuído ("-") → mesmo nº+apto+carro → sinaliza (v1.5.7 sinaliza igual nesse período). Registrado.
+  const dupNros = await page.evaluate(() => [...new Set([...document.querySelectorAll('#mapa-container .cell-span.tem-dup')].map(s => s.dataset.nro))]);
+  expect(dupNros.filter(x => x !== '27316')).toEqual([]);
+  // v1.5.8 (B) — a alocação do relatório real não tem NENHUMA sobreposição (invariante).
+  expect(await page.evaluate(() => window.verificarSobreposicoes(window.getUltimaAlocacao()).length)).toBe(0);
 });
 
 test('v1.5.4 (5.2) fim do laranja: Carro 01/02 no bloco, cores pelo status, sem 👥', async ({ page }) => {
@@ -1220,4 +1233,279 @@ test('v1.5.7 (7.6) fim de semana e feriado realçados pela DATA; aguardando segu
   expect(parseFloat(vis.bordaW)).toBeGreaterThan(0);
   expect(vis.celBg).toContain('gradient');                  // o realce vive na célula, atrás do bloco
   expect(vis.blocoBg).not.toContain('gradient');            // e NÃO entra no bloco
+});
+
+/* ════════════════════════ v1.5.8 — motor do mapa ════════════════════════ */
+// blocos do relatório de reservas com datas relativas a hoje: {nro, apto, obs, nome, e, s, origem?}
+async function importarBlocos(page, blocos) {
+  await page.evaluate(async (bs) => {
+    const pad = n => String(n).padStart(2, '0');
+    const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; };
+    const fb = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${String(x.getFullYear()).slice(2)}`;
+    const fs = x => `${pad(x.getDate())}/${pad(x.getMonth() + 1)}`;
+    const txt = bs.map(b => `${fb(d(b.e))} ${fs(d(b.s))} 1 2 ${b.apto} ABC ${b.nro} H\n${b.origem || 'WHATSAPP'}\nObs do Apto: ${b.obs}\nHóspedes :\n${b.nome}\n${b.nome}\nDesbravador Software`).join('\n');
+    await window.importarPDF(window.parsear(txt));
+  }, blocos);
+  await page.waitForSelector('#mapa-container .cell-span');
+}
+const layoutCompleto = (page) => page.evaluate(() => window.congelarLayout(window.getUltimaAlocacao()));
+const sobreposicoes = (page) => page.evaluate(() => window.verificarSobreposicoes(window.getUltimaAlocacao()).length);
+const chaveDe = (page, nro) => page.evaluate((n) => window.chaveCarro(window.conjuntoCompleto().find(r => String(r.nro) === n)), nro);
+const TRES = [
+  { nro: '81001', apto: '201', obs: 'GARAGEM PEQUENO', nome: 'ANA TROCA', e: 0, s: 5 },
+  { nro: '81002', apto: '202', obs: 'GARAGEM PEQUENO', nome: 'BIA TROCA', e: 1, s: 6 },
+  { nro: '81003', apto: '203', obs: 'GARAGEM PEQUENO', nome: 'CAIO PARADO', e: 0, s: 4 },
+];
+
+test('v1.5.8 (A) soltar sobre ocupado → TROCA de lugar; ninguém mais se move; aviso + log', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, TRES);
+  const antes = await snapCarros(page);
+  const kA = await chaveDe(page, '81001'), kB = await chaveDe(page, '81002'), kC = await chaveDe(page, '81003');
+  await arrastar(page, 'ANA TROCA', antes[kB]);
+  await expect(page.locator('#mover-conflito')).toContainText('BIA TROCA');
+  await expect(page.locator('#mover-conflito')).toContainText('troca de lugar');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('#copy-toast')).toContainText('BIA TROCA foi para a vaga');
+  const depois = await snapCarros(page);
+  expect(depois[kA]).toBe(antes[kB]);
+  expect(depois[kB]).toBe(antes[kA]);
+  expect(depois[kC]).toBe(antes[kC]);
+  expect(await sobreposicoes(page)).toBe(0);
+  const aj = await page.evaluate(async (k) => (await window.dbGetAll('ajustes')).find(a => a.nro === k), kB);
+  expect(aj.historico.some(h => h.tipo === 'deslocado')).toBeTruthy();
+  await page.click('text=✍️ Edições');
+  await expect(page.locator('#edicoes-corpo')).toContainText('BIA TROCA foi para a vaga');
+});
+
+test('v1.5.8 (A) garagem lotada: soltar o do overbooking sobre ocupado → o deslocado vai p/ o OVERBOOKING com aviso', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 2600 });
+  await boot(page);
+  const bs = []; for (let i = 0; i < 33; i++) bs.push({ nro: String(82000 + i), apto: String(300 + i), obs: 'GARAGEM PEQUENO', nome: 'LOTADO ' + String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + Math.floor(i / 26)), e: 0, s: 5 });
+  await importarBlocos(page, bs);
+  const over = page.locator('.row-cells[data-vaga="OVERBOOKING"] .cell-span');
+  await expect(over).toHaveCount(1);
+  const nomeOver = (await over.locator('.cell-nome').innerText()).trim();
+  const ocupanteP3 = (await page.locator('.row-cells[data-vaga="P3"] .cell-span .cell-nome').innerText()).trim();
+  const statusAntes = await page.evaluate((n) => window.conjuntoCompleto().find(r => r.nomeCompleto === n)._statusEfetivo, ocupanteP3);
+  await arrastar(page, nomeOver, 'P3');
+  await expect(page.locator('#mover-conflito')).toContainText('não há vaga livre');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('#copy-toast')).toContainText(`${ocupanteP3} foi para o overbooking`);
+  await expect(page.locator('.row-cells[data-vaga="P3"] .cell-span', { hasText: nomeOver })).toHaveCount(1);
+  await expect(page.locator('.row-cells[data-vaga="OVERBOOKING"] .cell-span', { hasText: ocupanteP3 })).toHaveCount(1);
+  expect(await page.evaluate((n) => window.conjuntoCompleto().find(r => r.nomeCompleto === n)._statusEfetivo, ocupanteP3)).toBe(statusAntes);
+  expect(await sobreposicoes(page)).toBe(0);
+});
+
+test('v1.5.8 (B) encaixe manual + trocar Hoje/Semana/Mês/Ano/período → NADA se move', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, TRES.concat([{ nro: '81004', apto: '204', obs: 'VERIFICAR', nome: 'DUDA FUTURA', e: 12, s: 15 }]));
+  await arrastar(page, 'CAIO PARADO', 'P9');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P9"] .cell-span', { hasText: 'CAIO PARADO' })).toHaveCount(1);
+  const ref = await layoutCompleto(page);
+  const domRef = await snapCarros(page);
+  for (const f of ['verHoje', 'verSemana', 'resetarFiltro', 'verAnoTodo']) {
+    await page.evaluate((fn) => window[fn](), f);
+    expect(await layoutCompleto(page), f).toEqual(ref);
+  }
+  await page.evaluate(() => { const a = new Date(); a.setHours(0, 0, 0, 0); a.setDate(a.getDate() + 10); const b = new Date(a); b.setDate(b.getDate() + 6); window.setRange(a, b); });
+  expect(await layoutCompleto(page), 'período customizado').toEqual(ref);
+  await page.evaluate(() => window.resetarFiltro());
+  expect(await snapCarros(page)).toEqual(domRef);
+});
+
+test('v1.5.8 (B) reimportar o MESMO relatório → idêntico; +1 nova → só ela é encaixada; reabrir → idêntico', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, TRES);
+  await arrastar(page, 'BIA TROCA', 'P12');
+  await page.click('#mover-confirmar');
+  await expect(page.locator('.row-cells[data-vaga="P12"] .cell-span', { hasText: 'BIA TROCA' })).toHaveCount(1);
+  const ref = await layoutCompleto(page);
+  await importarBlocos(page, TRES);
+  expect(await layoutCompleto(page)).toEqual(ref);
+  await importarBlocos(page, TRES.concat([{ nro: '81009', apto: '209', obs: 'GARAGEM PEQUENO', nome: 'NOVA CHEGADA', e: 0, s: 3 }]));
+  const depois = await layoutCompleto(page);
+  for (const k of Object.keys(ref)) expect(depois[k], k).toBe(ref[k]);
+  expect(Object.keys(depois).length).toBe(Object.keys(ref).length + 1);
+  await page.reload();
+  await page.evaluate(() => window.__appReady);
+  await page.waitForSelector('#mapa-container .cell-span');
+  expect(await layoutCompleto(page)).toEqual(depois);
+});
+
+test('v1.5.8 (C) conflito PMS × manual: igual não avisa; diferente avisa; "Manter" e "Usar o PMS" resolvem e vão p/ o log', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  const base = [{ nro: '83001', apto: '301', obs: 'VERIFICAR INTERESSE', nome: 'CONFLITO UM', e: 0, s: 5 },
+                { nro: '83002', apto: '302', obs: 'VERIFICAR INTERESSE', nome: 'CONFLITO DOIS', e: 0, s: 5 }];
+  await importarBlocos(page, base);
+  for (const n of ['CONFLITO UM', 'CONFLITO DOIS']) {
+    await page.locator('.cell-span', { hasText: n }).first().click();
+    await page.locator('#detalhe-corpo .status-sel').selectOption('confirmado');
+    await page.click('#detalhe-acoes >> text=Fechar');
+  }
+  await importarBlocos(page, base); // PMS igual
+  await expect(page.locator('#pend-n')).toHaveText('0');
+  // PMS muda: UM ganha 1 diária; DOIS passa a ter garagem GRANDE confirmada
+  await importarBlocos(page, [{ ...base[0], s: 6 }, { ...base[1], obs: 'GARAGEM GRANDE' }]);
+  await expect(page.locator('#pend-n')).toHaveText('2');
+  await expect(page.locator('#pend-btn')).toHaveClass(/tem/);
+  await expect(page.locator('.cell-span', { hasText: 'CONFLITO UM' }).locator('.pend-badge.pend-conflito')).toHaveCount(1);
+  await page.click('#pend-btn');
+  await expect(page.locator('#pendencias-corpo')).toContainText('Conflito PMS × edição manual — 2');
+  await page.locator('#pendencias-corpo .pend-item', { hasText: 'CONFLITO UM' }).click();
+  await expect(page.locator('#pend-modal')).toBeVisible();
+  await expect(page.locator('#pend-corpo .pend-tab')).toContainText('Sua edição');
+  await expect(page.locator('#pend-corpo .pend-tab')).toContainText('PMS agora');
+  await expect(page.locator('#pend-corpo tr.pend-dif')).toHaveCount(1);
+  await page.click('#pend-acoes >> text=Manter minha edição');
+  await expect(page.locator('#pend-n')).toHaveText('1');
+  await importarBlocos(page, [{ ...base[0], s: 6 }, { ...base[1], obs: 'GARAGEM GRANDE' }]); // mesmo PMS → "Manter" não volta
+  await expect(page.locator('#pend-n')).toHaveText('1');
+  await page.locator('.cell-span', { hasText: 'CONFLITO DOIS' }).locator('.pend-badge.pend-conflito').click();
+  await page.click('#pend-acoes >> text=Usar o PMS');
+  await expect(page.locator('#pend-n')).toHaveText('0');
+  const k2 = await chaveDe(page, '83002');
+  const aj2 = await page.evaluate(async (k) => (await window.dbGetAll('ajustes')).find(a => a.nro === k), k2);
+  expect(aj2.statusManual).toBeNull(); // passou a valer o PMS (garagem grande confirmada)
+  await page.click('text=✍️ Edições');
+  await expect(page.locator('#edicoes-corpo')).toContainText('manteve a edição manual');
+  await expect(page.locator('#edicoes-corpo')).toContainText('passou a valer o PMS');
+});
+
+test('v1.5.8 (C/H) "sem garagem" em conflito (fora do mapa) aparece no contador, na lista e nas editadas', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  const b = { nro: '84001', apto: '401', obs: 'GARAGEM PEQUENO', nome: 'FORA DO MAPA', e: 0, s: 5 };
+  const fica = { nro: '84002', apto: '402', obs: 'GARAGEM PEQUENO', nome: 'FICA', e: 0, s: 5 };
+  await importarBlocos(page, [b, fica]);
+  await page.locator('.cell-span', { hasText: 'FORA DO MAPA' }).first().click();
+  await page.locator('#detalhe-corpo .status-sel').selectOption('sem_garagem');
+  await page.click('#detalhe-acoes >> text=Fechar');
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'FORA DO MAPA' })).toHaveCount(0);
+  await importarBlocos(page, [{ ...b, s: 7 }, fica]);
+  await expect(page.locator('#pend-n')).toHaveText('1');
+  await page.click('#pend-btn');
+  await expect(page.locator('#pendencias-corpo .pend-item', { hasText: 'FORA DO MAPA' })).toContainText('fora do mapa');
+  await page.click('#pendencias-modal .modal-x');
+  await page.check('#chk-semgar');
+  await expect(page.locator('.secao-semgar .semgar-item', { hasText: 'FORA DO MAPA' }).locator('.pend-badge')).toContainText('conflito PMS');
+});
+
+test('v1.5.8 (D) reverter "sem garagem" pela lista de editadas → volta encaixada, sem mover quem já estava', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, [
+    { nro: '85001', apto: '501', obs: 'GARAGEM PEQUENO', nome: 'MULTI CARRO', e: 0, s: 5 },
+    { nro: '85001', apto: '502', obs: 'VERIFICAR', nome: 'MULTI CARRO', e: 0, s: 5 },
+    { nro: '85002', apto: '503', obs: 'GARAGEM PEQUENO', nome: 'VIZINHO', e: 0, s: 5 }]);
+  const carros = await page.evaluate(() => window.conjuntoCompleto().filter(r => r.nro === '85001').map(r => window.chaveCarro(r)));
+  await page.evaluate(async (k) => window.onStatusChange(k, 'sem_garagem'), carros[0]);
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'MULTI CARRO' })).toHaveCount(1);
+  const antes = await snapCarros(page);
+  await page.check('#chk-semgar');
+  await page.locator('.secao-semgar .semgar-item', { hasText: 'MULTI CARRO' }).locator('.status-sel').selectOption('confirmado');
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'MULTI CARRO' })).toHaveCount(2);
+  const depois = await snapCarros(page);
+  for (const k of Object.keys(antes)) expect(depois[k], k + ' não se moveu').toBe(antes[k]);
+  // só o carro que estava sem garagem mudou de status; o outro (aguardando do PMS) não foi tocado
+  const ajs = await page.evaluate(async () => Object.fromEntries((await window.dbGetAll('ajustes')).map(a => [a.nro, a.statusManual])));
+  expect(ajs[carros[0]]).toBe('confirmado');
+  expect(ajs[carros[1]] == null).toBeTruthy();
+  expect(await sobreposicoes(page)).toBe(0);
+});
+
+test('v1.5.8 (E) Confirmada ganha "Vaga extra"; mover não muda o status; volta p/ vaga normal livre', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, [{ nro: '86001', apto: '601', obs: 'GARAGEM PEQUENO', nome: 'CONFIRMADA EXTRA', e: 0, s: 5 }]);
+  await page.locator('.cell-span', { hasText: 'CONFIRMADA EXTRA' }).first().click();
+  await expect(page.locator('#detalhe-corpo .status-sel option[value="__extra__"]')).toHaveCount(1);
+  await page.locator('#detalhe-corpo .status-sel').selectOption('__extra__');
+  await expect(page.locator('.row-cells[data-vaga="EXTRA1"] .cell-span', { hasText: 'CONFIRMADA EXTRA' })).toHaveCount(1);
+  expect(await page.evaluate(() => window.conjuntoCompleto().find(r => r.nro === '86001')._statusEfetivo)).toBe('confirmado');
+  const k = await chaveDe(page, '86001');
+  expect(await page.evaluate(async (kk) => (await window.dbGetAll('ajustes')).find(a => a.nro === kk).statusManual, k)).toBeNull();
+  if (await page.locator('#detalhe-modal').isVisible()) await page.click('#detalhe-acoes >> text=Fechar');
+  await page.locator('.row-cells[data-vaga="EXTRA1"] .cell-span').first().click();
+  await page.locator('#detalhe-corpo .status-sel').selectOption('__normal__');
+  await expect(page.locator('.row-cells[data-vaga="EXTRA1"] .cell-span')).toHaveCount(0);
+  await expect(page.locator('.row-cells[data-vaga^="P"] .cell-span', { hasText: 'CONFIRMADA EXTRA' })).toHaveCount(1);
+});
+
+test('v1.5.8 (F) 3 motos da mesma hospedagem + 1 de outra reserva → pareamento visível, Moto X de 3, grupo, destaque', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, [{ nro: '87001', apto: '701', obs: 'GARAGEM MOTO', nome: 'MOTO OUTRA RESERVA', e: 0, s: 4 }]);
+  const txt = montarComandas([blocoComanda('702', 'TRES MOTOS', dias(0), dias(5), '', 'MOTO - BAIXA 2025')]).replace(' 1 ESTACIONAMENTO MOTO', ' 3 ESTACIONAMENTO MOTO');
+  await page.evaluate(async (t) => { await window.importarComandas(window.parsearComandas(t)); }, txt);
+  await page.waitForSelector('.cell-span.moto-c');
+  expect(await page.evaluate(() => window.conjuntoCompleto().filter(r => r.ehHospedado && r.apto === '702').length)).toBe(3);
+  const motos = page.locator('#mapa-container .cell-span.moto-c');
+  await expect(motos).toHaveCount(2);                                  // 4 motos = 2 vagas
+  await expect(page.locator('#mapa-container .cell-span.moto-compartilhada')).toHaveCount(1);
+  await expect(page.locator('#mapa-container .cell-span.moto-compartilhada')).toContainText('compartilhada');
+  await expect(page.locator('#mapa-container .cell-span.moto-compartilhada')).toContainText('#87001');
+  for (const x of ['Moto 1 de 3', 'Moto 2 de 3', 'Moto 3 de 3']) await expect(page.locator('#mapa-container .moto-id', { hasText: x })).toHaveCount(1);
+  await expect(page.locator('#mapa-container .moto-grupo')).toHaveCount(3); // a letra do grupo nas 3 motos
+  await page.locator('#mapa-container [data-moto-idx]', { hasText: 'TRES MOTOS' }).first().click();
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  await expect(page.locator('#detalhe-corpo')).toContainText('de 3');
+  await page.click('#detalhe-acoes >> text=Fechar');
+  await expect(page.locator('#mapa-container .cell-span.moto-c.destaque-clique')).toHaveCount(2); // as 3 motos (2 vagas)
+  expect(await sobreposicoes(page)).toBe(0);
+});
+
+test('v1.5.8 (G) mais de 1 carro no apto → pendência ×2; "Confirmar exceção" some e vai p/ o log; "Corrigir" + sem garagem some sozinha', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  await importarBlocos(page, [
+    { nro: '88001', apto: '801', obs: 'GARAGEM 02 CARROS', nome: 'DOIS CARROS A', e: 0, s: 5 },
+    { nro: '88002', apto: '802', obs: 'GARAGEM 02 CARROS', nome: 'DOIS CARROS B', e: 0, s: 5 }]);
+  await expect(page.locator('#pend-n')).toHaveText('2');
+  await expect(page.locator('.cell-span', { hasText: 'DOIS CARROS A' }).locator('.pend-badge.pend-excesso')).toHaveCount(2);
+  await page.locator('.cell-span', { hasText: 'DOIS CARROS A' }).first().locator('.pend-badge.pend-excesso').click();
+  await expect(page.locator('#pend-corpo')).toContainText('2 carros');
+  await page.click('#pend-acoes >> text=Confirmar exceção');
+  await expect(page.locator('#pend-n')).toHaveText('1');
+  await page.click('#pend-btn');
+  await page.locator('#pendencias-corpo .pend-item', { hasText: 'DOIS CARROS B' }).click();
+  await page.click('#pend-acoes >> text=Corrigir');
+  await expect(page.locator('#detalhe-modal')).toBeVisible();
+  await page.locator('#detalhe-corpo .status-sel').selectOption('sem_garagem');
+  await page.click('#detalhe-acoes >> text=Fechar');
+  await expect(page.locator('#pend-n')).toHaveText('0');
+  await page.click('text=✍️ Edições');
+  await expect(page.locator('#edicoes-corpo')).toContainText('Exceção confirmada: 2 carros no apto 801');
+});
+
+test('v1.5.8 (H) contador soma conflito + excesso + duplicata; lista agrupada; clicar destaca e abre a resolução', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  await boot(page);
+  const base = [
+    { nro: '89001', apto: '901', obs: 'VERIFICAR', nome: 'PEND CONFLITO', e: 0, s: 5 },
+    { nro: '89002', apto: '902', obs: 'GARAGEM 02 CARROS', nome: 'PEND EXCESSO', e: 0, s: 5 },
+    { nro: '89004', apto: '904', obs: 'GARAGEM PEQUENO', nome: 'PEND DUP OTA', e: 0, s: 5, origem: 'BOOKING 413101ID29990001' },
+    { nro: '89005', apto: '905', obs: 'GARAGEM PEQUENO', nome: 'PEND DUP OTA 2', e: 0, s: 5, origem: 'BOOKING 413101ID29990001' }];
+  await importarBlocos(page, base);
+  await page.locator('.cell-span', { hasText: 'PEND CONFLITO' }).first().click();
+  await page.locator('#detalhe-corpo .status-sel').selectOption('confirmado');
+  await page.click('#detalhe-acoes >> text=Fechar');
+  await importarBlocos(page, [{ ...base[0], s: 6 }, ...base.slice(1)]);
+  await expect(page.locator('#pend-n')).toHaveText('3');
+  await page.click('#pend-btn');
+  await expect(page.locator('#pendencias-corpo .pend-grupo')).toHaveCount(3);
+  await expect(page.locator('#pendencias-corpo')).toContainText('Possível duplicata — 1');
+  await page.locator('#pendencias-corpo .pend-item', { hasText: 'Mesma reserva' }).click();
+  await expect(page.locator('#mapa-wrapper')).toHaveClass(/dup-isolando/);     // regra/visual da v1.5.6 intactos
+  await expect(page.locator('.cell-span.dup-foco')).toHaveCount(2);
+  await page.click('#pend-btn');
+  await page.locator('#pendencias-corpo .pend-item', { hasText: 'PEND CONFLITO' }).click();
+  await expect(page.locator('#pend-modal')).toBeVisible();
+  await expect(page.locator('.cell-span.destaque-clique')).toContainText('PEND CONFLITO');
 });

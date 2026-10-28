@@ -98,7 +98,7 @@ async function aguardarBoot(w) {
 
   await T('rodapé mostra v1.5.7', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.7');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.8');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -1475,6 +1475,55 @@ Total Geral`;
     // e volta a funcionar: importar de novo
     await w.importarPDF(w.parsear(bloco('29010', diasDeHoje(0), diasDeHoje(4), '910', 'WHATSAPP', 'GARAGEM PEQUENO', 'DEPOIS'))); await sleep(40);
     ok(w.document.querySelector('#mapa-container .cell-span'), 'importar depois do clear funciona');
+  });
+
+  /* ════════ v1.5.8 ════════ */
+  await T('v1.5.8 (C) editar grava o RETRATO do PMS; reimport igual = sem pendência; diferente = conflito; "Manter" atualiza o retrato', async () => {
+    const { w } = await novoApp();
+    const txt = (sai) => bloco('91001', diasDeHoje(0), diasDeHoje(sai), '911', 'WHATSAPP', 'VERIFICAR', 'RETRATO');
+    await w.importarPDF(w.parsear(txt(4))); await sleep(30);
+    const k = w.chaveCarro(w.conjuntoCompleto().find(r => r.nro === '91001'));
+    await w.onStatusChange(k, 'confirmado'); await sleep(30);
+    const reg = (await w.dbGetAll('ajustes')).find(a => a.nro === k);
+    ok(reg.retratoPMS, 'retrato gravado junto do ajuste');
+    eq(reg.retratoPMS.garagem, 'aguardando'); eq(reg.retratoPMS.tipo, 'pequeno');
+    await w.importarPDF(w.parsear(txt(4))); await sleep(30);
+    eq(w.document.getElementById('pend-n').textContent, '0', 'PMS igual → sem pendência');
+    await w.importarPDF(w.parsear(txt(6))); await sleep(30);
+    eq(w.document.getElementById('pend-n').textContent, '1', 'PMS mudou a saída → conflito');
+    w.abrirPendencias();
+    const id = w.document.querySelector('#pendencias-corpo .pend-item').dataset.pend;
+    await w.resolverConflito(id, 'manter'); await sleep(30);
+    eq(w.document.getElementById('pend-n').textContent, '0');
+    const reg2 = (await w.dbGetAll('ajustes')).find(a => a.nro === k);
+    eq(reg2.statusManual, 'confirmado', 'a edição continua valendo');
+    eq(reg2.retratoPMS.saida, w.isoDataChave(diasDeHoje(6)), 'retrato = PMS atual');
+    ok(reg2.historico.some(h => h.tipo === 'conflito'), 'decisão no log');
+  });
+
+  await T('v1.5.8 (C) edição ANTIGA (sem retrato) recebe o retrato do PMS anterior antes da reimportação', async () => {
+    const { w } = await novoApp();
+    const txt = (sai) => bloco('91002', diasDeHoje(0), diasDeHoje(sai), '912', 'WHATSAPP', 'GARAGEM PEQUENO', 'LEGADO');
+    await w.importarPDF(w.parsear(txt(4))); await sleep(30);
+    const k = w.chaveCarro(w.conjuntoCompleto().find(r => r.nro === '91002'));
+    // registro como a v1.5.7 gravava (sem retratoPMS/historico)
+    await w.dbPut('ajustes', { nro: k, vagaIdManual: 'P7', statusManual: null, ultimaAlteracao: null, criadoEm: 1, atualizadoEm: 1 });
+    await w.carregarAjustes();
+    await w.importarPDF(w.parsear(txt(7))); await sleep(30);
+    eq(w.document.getElementById('pend-n').textContent, '1', 'a mudança do PMS passa a ser detectada');
+  });
+
+  await T('v1.5.8 (F) Comandas com Qtde 2 de MOTO → 2 hospedados (ids distintos, mesmo nro); ajuste da 1ª segue pela chave antiga', async () => {
+    const { w } = await novoApp();
+    const txt = montarComandas([blocoComanda('951', 'DUAS MOTOS', diasDeHoje(0), diasDeHoje(4), '', 'MOTO - BAIXA')]).replace(' 1 ESTACIONAMENTO MOTO', ' 2 ESTACIONAMENTO MOTO');
+    await w.importarComandas(w.parsearComandas(txt)); await sleep(30);
+    const regs = await w.dbGetAll('hospedados');
+    eq(regs.length, 2); ok(regs[0].id !== regs[1].id);
+    const hs = w.conjuntoCompleto().filter(r => r.ehHospedado);
+    eq(new Set(hs.map(r => r.nro)).size, 1, 'mesmo nro (grupo)');
+    const base = hs.find(r => r.vagaIdx === 1);
+    eq(base.id, base.nro, '1ª moto mantém a chave antiga');
+    eq(w.document.querySelectorAll('#mapa-container .cell-span.moto-c').length, 1, '2 motos da mesma hospedagem = 1 vaga');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

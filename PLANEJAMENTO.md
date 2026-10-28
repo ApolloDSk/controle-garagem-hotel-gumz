@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.7** (entregue) · Roadmap local sem backend concluído; próximo passo próprio: empacotar como executável desktop. Demais exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.8** (entregue) · Próximo: **v1.5.9** (patch único com os itens simples); depois o **executável desktop**. Demais exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -201,11 +201,39 @@
   prevalece**; é fundo (alpha .06/.07 contra .18/.12 dos blocos, sem borda), não altera nenhum status.
 - Testes **449/449** (293 engine + 100 jsdom + 56 Playwright), sem `skip`; hooks `[real]` verdes +
   **comparação parser antigo × novo no PDF real: 101 = 101, conjuntos idênticos**. Ver `RELATORIO-v1.5.7.md`.
-- **PRÓXIMO (patch próprio, inalterado):** **empacotar como executável desktop** (Electron/Tauri a escolher;
-  precisa do ícone; sem separação por empresa; dados não migram — reimportar o relatório reconstrói).
 - **Parqueado:** captura de e-mail; afinar o tom do amarelo "Aguardando" (hoje **fica como está**, decisão
   do Doug); **feriados municipais de Balneário Camboriú** (embutir quando o Doug fornecer as datas —
   lista embutida, nunca cadastro).
+
+### v1.5.8 (entregue 27/10/2026) — motor do mapa (DB v6, sem store novo)
+- **(A) Arraste NUNCA sobrepõe e NUNCA é recusado:** destino ocupado → troca → vaga de baixo → livre
+  compatível mais próxima → overbooking (posição, não status), com plano no modal, aviso "FULANO foi para…"
+  e evento no log. Invariante garantido também no motor (fixação que colidiria é re-encaixada e avisada).
+- **(B) Encaixe estável:** alocação sempre sobre o conjunto completo (filtro = só visualização); layout
+  persistido com impressão (datas+tamanho); reimport mantém quem não mudou e encaixa só novo/alterado;
+  reabrir = mesmo mapa; confirmado nunca derrubado.
+- **(C) Conflito PMS × manual:** retrato do PMS gravado em toda edição; PMS diferente → pendência com painel
+  lado a lado (Manter / Usar o PMS), log.
+- **(D)** "Sem garagem" reversível pela área "Editadas" (lista tudo; volta só os carros sem garagem).
+- **(E)** Vaga extra também p/ Confirmada + volta p/ vaga normal livre.
+- **(F)** Motos: quantidade pela **Qtde** da comanda (amostra real: apto 279 = 2 motos), pareamento mesma
+  reserva → outra reserva, "Moto X de N", letra do grupo, vaga compartilhada sinalizada.
+- **(G)** 1 carro por apartamento: pendência "Mais de 1 carro no apto" (Confirmar exceção / Corrigir).
+- **(H)** Central "Pendências: N" (conflito + excesso + duplicata da v1.5.6 inalterada).
+- Testes **495/495** (325 engine + 103 jsdom + 67 Playwright), sem `skip`. Amostras: reservas 101 = 101
+  idênticas; comandas 21 → 22 (só a correção F). Caso conhecido: #27316 (2 quartos sem apto) segue
+  sinalizada como possível duplicata pela regra da v1.5.6 (decisão do Doug). Ver `RELATORIO-v1.5.8.md`.
+
+### 🔜 v1.5.9 (próximo — patch único com os itens simples)
+- **nº OTA a partir de `Origem (…):`** (o Code escolhe o local mais confiável nos relatórios — ex. na amostra:
+  `Origem (W2M Dynamic - ES): RES004092-18243`); chave **`[ota]`**; **`[canal]`** a partir da origem.
+- Botão **"Copiar mensagem"** no Detalhe com data/hora da última cópia + ícone **"contatado, aguardando
+  resposta"** no bloco.
+- **Busca no Contato.**
+- **Limpar sem apagar os modelos de texto.**
+- **Depois:** **executável desktop** (Electron/Tauri a escolher; precisa do ícone; sem separação por empresa;
+  dados não migram — reimportar o relatório reconstrói).
+- **Parqueados:** legenda/índices; tom do amarelo.
 
 ---
 

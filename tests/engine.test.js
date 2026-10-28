@@ -53,7 +53,12 @@ const EXPORTS = [
   // v1.5.7
   'carrosDeclaradosNoBloco','distribuirCarrosPorApto','repartirTiposCarro','expandirCarrosDaReserva',
   'chaveCarro','resolverAjuste','mapaChaveNro',
-  'pascoa','feriadosNacionais','ehFeriado','ehFimDeSemana','realceDoDia'
+  'pascoa','feriadosNacionais','ehFeriado','ehFimDeSemana','realceDoDia',
+  // v1.5.8
+  'chaveHospedadoBase','classeTamanho','impressaoCarro','congelarLayoutComImpressao','verificarSobreposicoes',
+  'vagaCompativel','planejarDrop','vagaNormalLivre','tipoPMS','retratoPMS','diffRetrato','conflitoPMS',
+  'ajusteTemEdicao','grupoApto','excessoCarrosPorApto','calcularPendencias','mapaMotosPorReserva','isoDataChave',
+  'ORDEM_VAGAS_PADRAO'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -739,7 +744,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.7', () => { eq(E.APP_VERSION, 'v1.5.7'); });
+t('APP_VERSION é v1.5.8', () => { eq(E.APP_VERSION, 'v1.5.8'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
@@ -1528,6 +1533,293 @@ t('7.6 CENTRAL: feriado PREVALECE sobre fim de semana quando coincidem', () => {
 });
 t('7.6 feriado em dia útil também realça', () => {
   eq(E.realceDoDia(new Date(2026, 8, 7)), 'feriado', '07/09/2026 (segunda)');
+});
+
+/* ════════════════════════ v1.5.8 — motor do mapa ════════════════════════ */
+const d8 = (n) => new Date(2026, 8, n); // setembro/2026 (datas fixas)
+const car8 = (id, nro, e, s, garagem = 'azul_pequeno', apto = '1', vagaIdx = 1, extra = {}) =>
+  Object.assign({ id, nro, entrada: d8(e), saida: d8(s), garagem, apto, vagaIdx, origem: 'Direta', nomeCompleto: 'N' + id }, extra);
+const moto8 = (id, nro, e, s, apto = '1', vagaIdx = 1) => car8(id, nro, e, s, 'azul_moto', apto, vagaIdx);
+const linhaDe8 = (aloc, v) => (v[0] === 'P' ? aloc.linhasP : aloc.linhasG)[parseInt(v.slice(1), 10) - 1];
+const ondeEsta = (aloc, r) => {
+  const has = (x) => x === r || (x._motoSlot && (x.res1 === r || x.res2 === r));
+  for (let i = 0; i < aloc.linhasP.length; i++) if (aloc.linhasP[i].some(has)) return 'P' + (i + 1);
+  for (let i = 0; i < aloc.linhasG.length; i++) if (aloc.linhasG[i].some(has)) return 'G' + (i + 1);
+  for (const k of E.EXTRAS_IDS) if ((aloc.extras[k] || []).some(has)) return k;
+  if ((aloc.overflow || []).some(has)) return 'OVERBOOKING';
+  return null;
+};
+
+/* ── (F) Comandas: a QUANTIDADE vem da coluna Qtde ── */
+const COMANDA_REAL_2MOTOS = `HOTEL GUMZ   Comandas em aberto - detalhado
+279   ADIL APARECIDO DE SOUZA / DIG
+Ponto de Venda   Qtde   Descrição   Val.Unit.   Val.Total   Tipo   Func Data   Origem
+09/07/2026   12/07/2026
+Comanda   Cupom
+Extras
+Taxas
+GARAGEM   2   ESTACIONAMENTO MOTO - BAIXA 2025 20,00   40,00   Lançamento   TALYTA SOUZA DE 09/07/26   279 0   0 0,00
+GARAGEM   2   ESTACIONAMENTO MOTO - BAIXA 2025 20,00   40,00   Lançamento 10/07/26   279 0   0 0,00
+Total da Conta   80,00   0,00 Total das Taxas   80,00 Total Geral`;
+t('1.5.8 F parsearComandas: "GARAGEM 2 … MOTO" (layout real) = 2 motos — o MAIOR Qtde, nunca a soma dos dias', () => {
+  const h = E.parsearComandas(COMANDA_REAL_2MOTOS);
+  eq(h.length, 2); ok(h.every(x => x.tipoVeiculo === 'moto' && x.qtdVeiculos === 2 && x.apto === '279'));
+  eq(h.map(x => x.idxVeiculo).join(','), '1,2');
+});
+t('1.5.8 F parsearComandas: 3 motos (Qtde 3) → 3 registros; layout com data antes da Qtde também lê', () => {
+  eq(E.parsearComandas(COMANDA_REAL_2MOTOS.replace(/GARAGEM   2/g, 'GARAGEM   3')).length, 3);
+  const txt = COMANDAS_FIXTURE.replace('GARAGEM           05/07/26       1 ESTACIONAMENTO MOTO', 'GARAGEM           05/07/26       3 ESTACIONAMENTO MOTO');
+  eq(E.parsearComandas(txt).filter(x => x.apto === '300').length, 3);
+  eq(E.parsearComandas(COMANDAS_FIXTURE).length, 3, 'fixture antiga (Qtde 1) inalterada');
+});
+t('1.5.8 F chaveHospedado: 1º veículo mantém a chave antiga; os demais ganham __N; nro = chave-base', () => {
+  const b = { apto: '279', entrada: new Date(2026, 6, 9), tipoVeiculo: 'moto' };
+  eq(E.chaveHospedado(b), '279__2026-07-09__moto');
+  eq(E.chaveHospedado({ ...b, idxVeiculo: 1 }), '279__2026-07-09__moto');
+  eq(E.chaveHospedado({ ...b, idxVeiculo: 3 }), '279__2026-07-09__moto__3');
+  const r2 = E.hospedadoParaReserva({ ...b, saida: new Date(2026, 6, 12), nome: 'X', idxVeiculo: 2, qtdVeiculos: 3 });
+  eq(r2.nro, '279__2026-07-09__moto'); eq(r2.id, '279__2026-07-09__moto__2'); eq(r2.vagaIdx, 2); eq(r2.totalVeiculos, 3);
+});
+
+/* ── (F) pareamento: mesma reserva primeiro; ímpar com outra reserva ── */
+t('1.5.8 F processarMotos: 3 motos da MESMA reserva → 1 par + 1 sozinha (N=3 entram, N=3 saem)', () => {
+  const ms = [moto8('a1', '700', 1, 5), moto8('a2', '700', 1, 5), moto8('a3', '700', 1, 5)];
+  const { vagasCarro } = E.processarMotos(ms);
+  eq(vagasCarro.length, 2);
+  const par = vagasCarro.find(s => s.res2), solo = vagasCarro.find(s => !s.res2);
+  eq(par.res1.nro, '700'); eq(par.res2.nro, '700'); eq(solo.res1.nro, '700');
+  eq(vagasCarro.reduce((n, s) => n + (s.res2 ? 2 : 1), 0), 3);
+});
+t('1.5.8 F processarMotos: + 1 moto de OUTRA reserva → pareia com a ímpar (vaga compartilhada)', () => {
+  const ms = [moto8('b1', '701', 2, 6), moto8('a1', '700', 1, 5), moto8('a2', '700', 1, 5), moto8('a3', '700', 1, 5)];
+  const { vagasCarro } = E.processarMotos(ms);
+  eq(vagasCarro.length, 2, '4 motos = 2 vagas');
+  ok(vagasCarro.some(s => s.res2 && s.res1.nro === '700' && s.res2.nro === '700'), 'par da mesma reserva');
+  ok(vagasCarro.some(s => s.res2 && new Set([s.res1.nro, s.res2.nro]).size === 2), 'par compartilhado 700+701');
+});
+t('1.5.8 F processarMotos: a mesma reserva pareia ANTES de cruzar (mesmo com outra moto chegando antes)', () => {
+  const ms = [moto8('x', '800', 1, 9), moto8('a1', '700', 2, 5), moto8('a2', '700', 2, 5)];
+  const { vagasCarro } = E.processarMotos(ms);
+  ok(vagasCarro.some(s => s.res2 && s.res1.nro === '700' && s.res2.nro === '700'), '700 com 700');
+  ok(vagasCarro.some(s => !s.res2 && s.res1.nro === '800'), '800 sozinha');
+});
+t('1.5.8 F moto ímpar que CHEGA pareia com a moto sozinha JÁ encaixada (semente) de outra reserva', () => {
+  const antiga = moto8('o1', '900', 1, 5);
+  const a1 = E.aplicarAjustes([antiga], {}, null);
+  const seed = E.congelarLayoutComImpressao(a1);
+  const novas = [moto8('n1', '901', 1, 6, '2', 1), moto8('n2', '901', 1, 6, '2', 2), moto8('n3', '901', 1, 6, '2', 3)];
+  const a2 = E.aplicarAjustes([antiga].concat(novas), {}, seed);
+  const slots = [].concat(...a2.linhasP, ...a2.linhasG).filter(x => x._motoSlot);
+  eq(slots.length, 2, '4 motos = 2 vagas');
+  ok(slots.some(s => s.res2 && new Set([s.res1.nro, s.res2.nro]).size === 2), 'vaga compartilhada 900+901');
+  eq(ondeEsta(a2, antiga), ondeEsta(a1, antiga), 'a moto antiga não se moveu');
+  eq(E.verificarSobreposicoes(a2).length, 0);
+});
+t('1.5.8 F mapaMotosPorReserva: "Moto X de N" + letra de grupo só quando N>1', () => {
+  const m = E.mapaMotosPorReserva([moto8('a1', '700', 1, 5, '1', 1), moto8('a2', '700', 1, 5, '1', 2), moto8('a3', '700', 1, 5, '1', 3), moto8('b1', '701', 1, 5)]);
+  eq(m.a1.motoSeq, 1); eq(m.a3.motoSeq, 3); eq(m.a2.motoTotal, 3); eq(m.a1.grupo, 'A'); eq(m.a3.grupo, 'A');
+  eq(m.b1.motoTotal, 1); eq(m.b1.grupo, '');
+});
+
+/* ── (A) INVARIANTE: nenhuma fixação sobrepõe ── */
+t('1.5.8 A aplicarAjustes: 2 posições manuais sobrepostas na MESMA vaga → só a mais antiga fica; a outra é re-encaixada e sinalizada', () => {
+  const a = car8('a', '1', 1, 5), b = car8('b', '2', 1, 5);
+  const aloc = E.aplicarAjustes([a, b], { a: { vagaIdManual: 'P5', atualizadoEm: 100 }, b: { vagaIdManual: 'P5', atualizadoEm: 200 } });
+  eq(linhaDe8(aloc, 'P5').length, 1); eq(ondeEsta(aloc, a), 'P5');
+  ok(b._colisaoManual, 'b sinalizada'); ok(ondeEsta(aloc, b) && ondeEsta(aloc, b) !== 'P5', 'b encaixada em outra vaga');
+  eq(aloc.colisoesManuais.length, 1); eq(E.verificarSobreposicoes(aloc).length, 0);
+});
+t('1.5.8 A aplicarAjustes: moto fixada numa vaga de CARRO ocupado não sobrepõe; extra também não', () => {
+  const c = car8('c', '1', 1, 5), m = moto8('m', '2', 2, 4), x1 = car8('x1', '3', 1, 5), x2 = car8('x2', '4', 2, 6);
+  const aloc = E.aplicarAjustes([c, m, x1, x2], {
+    c: { vagaIdManual: 'P3', atualizadoEm: 1 }, m: { vagaIdManual: 'P3', atualizadoEm: 2 },
+    x1: { vagaIdManual: 'EXTRA1', atualizadoEm: 1 }, x2: { vagaIdManual: 'EXTRA1', atualizadoEm: 2 } });
+  eq(E.verificarSobreposicoes(aloc).length, 0);
+  eq(ondeEsta(aloc, c), 'P3'); ok(ondeEsta(aloc, m) !== 'P3'); eq(ondeEsta(aloc, x1), 'EXTRA1'); ok(ondeEsta(aloc, x2) !== 'EXTRA1');
+});
+t('1.5.8 A aplicarAjustes: 2 motos fixadas na mesma vaga pareiam; a 3ª não entra por cima', () => {
+  const ms = [moto8('m1', '1', 1, 5), moto8('m2', '2', 1, 5), moto8('m3', '3', 1, 5)];
+  const aj = { m1: { vagaIdManual: 'P2', atualizadoEm: 1 }, m2: { vagaIdManual: 'P2', atualizadoEm: 2 }, m3: { vagaIdManual: 'P2', atualizadoEm: 3 } };
+  const aloc = E.aplicarAjustes(ms, aj);
+  eq(linhaDe8(aloc, 'P2').length, 1); ok(linhaDe8(aloc, 'P2')[0].res2, 'par na P2'); ok(ondeEsta(aloc, ms[2]) !== 'P2');
+  eq(E.verificarSobreposicoes(aloc).length, 0);
+});
+
+/* ── (B) LAYOUT ESTÁVEL ── */
+t('1.5.8 B semente com impressão: não alterada fica; alterada (datas) é re-encaixada', () => {
+  const a = car8('a', '1', 1, 5), b = car8('b', '2', 1, 5);
+  const seed = { a: { v: 'P7', f: E.impressaoCarro(a) }, b: { v: 'P9', f: 'outra-data|x|p' } };
+  const aloc = E.aplicarAjustes([a, b], {}, seed);
+  eq(ondeEsta(aloc, a), 'P7'); ok(ondeEsta(aloc, b) !== 'P9', 'b mudou no PMS → re-encaixe');
+  ok(!a.ajusteManual, 'semente é invisível (sem ✋)');
+});
+t('1.5.8 B semente antiga (string) continua aceita; congelarLayoutComImpressao guarda {v,f}', () => {
+  const a = car8('a', '1', 1, 5);
+  const aloc = E.aplicarAjustes([a], {}, { a: 'P4' });
+  eq(ondeEsta(aloc, a), 'P4');
+  const snap = E.congelarLayoutComImpressao(aloc);
+  eq(snap.a.v, 'P4'); eq(snap.a.f, E.impressaoCarro(a));
+});
+t('1.5.8 B overbooking AUTOMÁTICO: segura entre renders; após importar (soltarOver) volta a disputar vaga', () => {
+  const a = car8('a', '1', 1, 5, 'amarelo');
+  const seed = { a: { v: 'OVERBOOKING', f: E.impressaoCarro(a) } };
+  eq(ondeEsta(E.aplicarAjustes([a], {}, seed), a), 'OVERBOOKING');
+  ok(/^[PG]\d+$/.test(ondeEsta(E.aplicarAjustes([a], {}, seed, { soltarOver: true }), a)));
+});
+t('1.5.8 B reimport com 1 reserva NOVA: só ela é encaixada; as demais idênticas', () => {
+  const base = []; for (let i = 0; i < 10; i++) base.push(car8('c' + i, String(100 + i), 1 + (i % 3), 6 + (i % 4)));
+  const a1 = E.aplicarAjustes(base, {}, null);
+  const snap = E.congelarLayoutComImpressao(a1);
+  const antes = {}; base.forEach(r => { antes[r.id] = ondeEsta(a1, r); });
+  const nova = car8('novo', '999', 2, 4);
+  const a2 = E.aplicarAjustes(base.concat([nova]), {}, snap);
+  base.forEach(r => eq(ondeEsta(a2, r), antes[r.id], r.id + ' não se moveu'));
+  ok(ondeEsta(a2, nova), 'nova encaixada'); eq(E.verificarSobreposicoes(a2).length, 0);
+});
+t('1.5.8 B overbooking automático NUNCA derruba confirmado: confirmado novo toma a vaga de aguardando semeado', () => {
+  const amarelos = []; for (let i = 0; i < 32; i++) amarelos.push(car8('y' + i, String(200 + i), 1, 9, 'amarelo'));
+  const a1 = E.aplicarAjustes(amarelos, {}, null);
+  eq((a1.overflow || []).length, 0, '32 aguardando cabem nas 32 vagas');
+  const snap = E.congelarLayoutComImpressao(a1);
+  const conf = car8('conf', '300', 2, 4, 'azul_pequeno');
+  const a2 = E.aplicarAjustes(amarelos.concat([conf]), {}, snap);
+  ok(/^[PG]\d+$/.test(ondeEsta(a2, conf)), 'confirmado ganhou vaga');
+  eq((a2.overflow || []).length, 1, 'só 1 aguardando cedeu (foi p/ overbooking)');
+  eq(amarelos.filter(r => ondeEsta(a2, r) !== ondeEsta(a1, r)).length, 1, 'só ele se moveu');
+});
+
+/* ── (A) PLANO DO ARRASTE ── */
+const montaAloc = (itens) => E.aplicarAjustes(itens.map(x => x.r), Object.fromEntries(itens.map((x, i) => [x.r.id, { vagaIdManual: x.v, atualizadoEm: i + 1 }])));
+t('1.5.8 A planejarDrop destino LIVRE: ninguém é deslocado', () => {
+  const a = car8('a', '1', 1, 5); const aloc = montaAloc([{ r: a, v: 'P1' }]);
+  eq(E.planejarDrop(aloc, a, 'P1', 'P6').deslocados.length, 0);
+});
+t('1.5.8 A planejarDrop 1) TROCA: o ocupante vai p/ a vaga de origem da arrastada', () => {
+  const a = car8('a', '1', 1, 5), b = car8('b', '2', 2, 6); const aloc = montaAloc([{ r: a, v: 'P1' }, { r: b, v: 'P2' }]);
+  const p = E.planejarDrop(aloc, a, 'P1', 'P2');
+  eq(p.deslocados.length, 1); eq(p.deslocados[0].item, b); eq(p.deslocados[0].para, 'P1'); eq(p.deslocados[0].motivo, 'troca');
+});
+t('1.5.8 A planejarDrop 2) troca impossível → VAGA DE BAIXO', () => {
+  const a = car8('a', '1', 1, 5), b = car8('b', '2', 2, 6); const aloc = montaAloc([{ r: a, v: 'OVERBOOKING' }, { r: b, v: 'P2' }]);
+  const p = E.planejarDrop(aloc, a, 'OVERBOOKING', 'P2');
+  eq(p.deslocados[0].para, 'P3'); eq(p.deslocados[0].motivo, 'abaixo');
+});
+t('1.5.8 A planejarDrop 3) de baixo ocupada → livre compatível MAIS PRÓXIMA', () => {
+  const a = car8('a', '1', 1, 5), b = car8('b', '2', 2, 6), c = car8('c', '3', 1, 9);
+  const aloc = montaAloc([{ r: a, v: 'OVERBOOKING' }, { r: b, v: 'P5' }, { r: c, v: 'P6' }]);
+  const p = E.planejarDrop(aloc, a, 'OVERBOOKING', 'P5');
+  eq(p.deslocados[0].para, 'P4'); eq(p.deslocados[0].motivo, 'livre');
+});
+t('1.5.8 A planejarDrop 4) sem nenhuma vaga → OVERBOOKING (status do deslocado intacto)', () => {
+  const todos = []; for (let i = 1; i <= 18; i++) todos.push({ r: car8('p' + i, String(i), 1, 9), v: 'P' + i });
+  for (let i = 1; i <= 14; i++) todos.push({ r: car8('g' + i, String(50 + i), 1, 9, 'azul_grande'), v: 'G' + i });
+  const a = car8('a', '99', 2, 5); todos.push({ r: a, v: 'OVERBOOKING' });
+  const aloc = montaAloc(todos);
+  const p = E.planejarDrop(aloc, a, 'OVERBOOKING', 'P3');
+  eq(p.deslocados.length, 1); eq(p.deslocados[0].para, 'OVERBOOKING'); eq(p.deslocados[0].motivo, 'overbooking');
+  eq(p.deslocados[0].item.garagem, 'azul_pequeno');
+});
+t('1.5.8 A planejarDrop: GRANDE deslocado nunca vai p/ vaga P (compatibilidade de tipo)', () => {
+  const a = car8('a', '1', 1, 5), g = car8('g', '2', 1, 5, 'azul_grande');
+  const aloc = montaAloc([{ r: a, v: 'P1' }, { r: g, v: 'G1' }]);
+  const p = E.planejarDrop(aloc, a, 'P1', 'G1');
+  ok(/^G\d+$/.test(p.deslocados[0].para), 'grande foi p/ ' + p.deslocados[0].para);
+});
+t('1.5.8 A planejarDrop: moto solo sobre moto solo → divide a vaga (não desloca)', () => {
+  const m1 = moto8('m1', '1', 1, 5), m2 = moto8('m2', '2', 2, 4);
+  const aloc = montaAloc([{ r: m1, v: 'P1' }, { r: m2, v: 'P2' }]);
+  const unidade = linhaDe8(aloc, 'P2')[0];
+  const p = E.planejarDrop(aloc, unidade, 'P2', 'P1');
+  eq(p.deslocados.length, 0); ok(p.pareiaCom && p.pareiaCom.res1 === m1);
+});
+t('1.5.8 A CENTRAL: qualquer sequência de arrastes (carros, motos, extra, overbooking) = ZERO sobreposição e nenhum recusado', () => {
+  let seedRnd = 7; const rnd = (n) => { seedRnd = (seedRnd * 1103515245 + 12345) % 2147483648; return seedRnd % n; };
+  const rs = [];
+  for (let i = 0; i < 26; i++) rs.push(car8('c' + i, String(400 + i), 1 + rnd(8), 9 + rnd(8), ['azul_pequeno', 'amarelo', 'azul_grande'][rnd(3)], String(100 + i)));
+  for (let i = 0; i < 7; i++) rs.push(moto8('m' + i, String(500 + (i >> 1)), 1 + rnd(6), 8 + rnd(6), '9' + i, (i & 1) + 1));
+  const vagas = E.ORDEM_VAGAS_PADRAO.concat(['EXTRA1', 'EXTRA2', 'OVERBOOKING']);
+  let aj = {}, seed = null, t0 = 1, nDesl = 0, nMov = 0;
+  for (let passo = 0; passo < 60; passo++) {
+    const aloc = E.aplicarAjustes(rs, aj, seed);
+    eq(E.verificarSobreposicoes(aloc).length, 0, 'passo ' + passo);
+    seed = E.congelarLayoutComImpressao(aloc);
+    const unidades = [].concat(...aloc.linhasP, ...aloc.linhasG, ...E.EXTRAS_IDS.map(k => aloc.extras[k] || []), aloc.overflow || []);
+    const u = unidades[rnd(unidades.length)]; if (!u) continue;
+    const de = ondeEsta(aloc, u._motoSlot ? u.res1 : u); const para = vagas[rnd(vagas.length)];
+    if (para === de) continue;
+    const plano = E.planejarDrop(aloc, u, de, para);
+    const grava = (x, v) => (x._motoSlot ? [x.res1, x.res2].filter(Boolean) : [x]).forEach(r => { aj[r.id] = Object.assign({}, aj[r.id], { vagaIdManual: v, atualizadoEm: t0++ }); });
+    grava(u, para); nMov++; nDesl += plano.deslocados.length; plano.deslocados.forEach(d => grava(d.item, d.para));
+  }
+  const fim = E.aplicarAjustes(rs, aj, seed);
+  eq(E.verificarSobreposicoes(fim).length, 0);
+  rs.forEach(r => ok(ondeEsta(fim, r), r.id + ' continua no mapa'));
+  ok(nMov > 30 && nDesl > 5, `exercitou de verdade (movimentos=${nMov}, deslocados=${nDesl})`);
+});
+
+/* ── (C) RETRATO DO PMS ── */
+t('1.5.8 C conflitoPMS: PMS igual ao retrato → sem conflito; datas mudaram → conflito nos campos certos', () => {
+  const r = car8('a', '1', 1, 5);
+  const aj = { statusManual: 'confirmado', retratoPMS: E.retratoPMS(r) };
+  eq(E.conflitoPMS(r, aj), null);
+  const r2 = Object.assign({}, r, { saida: d8(7) });
+  eq(E.conflitoPMS(r2, aj).campos.join(','), 'saida');
+  eq(E.conflitoPMS(r2, { retratoPMS: aj.retratoPMS }), null, 'sem edição manual → não é conflito');
+  eq(E.conflitoPMS(r2, { statusManual: 'confirmado' }), null, 'sem retrato (legado) → não é conflito');
+});
+t('1.5.8 C retratoPMS: indicação de garagem, tipo e qtd de carros', () => {
+  const r = car8('a', '1', 1, 5, 'laranja_grande', '1', 1, { garagemOrig: 'amarelo', totalCarros: 2 });
+  const rt = E.retratoPMS(r);
+  eq(rt.garagem, 'aguardando'); eq(rt.carros, 2); eq(rt.entrada, '2026-09-01');
+  eq(E.retratoPMS(car8('b', '2', 1, 5, 'azul_grande')).tipo, 'grande');
+  eq(E.diffRetrato({ garagem: 'aguardando', tipo: 'pequeno' }, { garagem: 'confirmado', tipo: 'pequeno' }).join(), 'garagem');
+});
+
+/* ── (G) 1 carro por apartamento ── */
+t('1.5.8 G apto com "GARAGEM 02 CARROS" → pendência; exceção com a MESMA qtd some; PMS muda a qtd → volta', () => {
+  const rs = E.parsear(`01/09/26 05/09 1 2 301 ABC 81001 H\nWHATSAPP\nObs do Apto: GARAGEM 02 CARROS\nHóspedes :\nDUPLO\nDUPLO\nDesbravador Software`);
+  eq(rs.length, 2);
+  const p = E.excessoCarrosPorApto(rs, {}); eq(p.length, 1); eq(p[0].qtd, 2); eq(p[0].apto, '301');
+  eq(E.excessoCarrosPorApto(rs, { ['EXC:' + p[0].grupo]: { excecao: { qtd: 2 } } }).length, 0);
+  eq(E.excessoCarrosPorApto(rs, { ['EXC:' + p[0].grupo]: { excecao: { qtd: 3 } } }).length, 1, 'qtd do PMS diferente da confirmada');
+  eq(E.excessoCarrosPorApto(rs, { [E.chaveCarro(rs[1])]: { statusManual: 'sem_garagem' } }).length, 0, 'corrigido: 1 com garagem');
+});
+t('1.5.8 G multi-apto: total ≤ nº de aptos → SEM pendência; total > aptos → pendência no apto com 2', () => {
+  const b = (apto, obs) => `01/09/26 05/09 1 2 ${apto} ABC 82001 H\nBOOKING\nObs do Apto: ${obs}\nHóspedes :\nFAM\nFAM\nDesbravador Software`;
+  const ok4 = E.parsear(['352', '354', '355', '387', '390'].map(a => b(a, 'GARAGEM TOTAL 04 CARROS')).join('\n'));
+  eq(ok4.length, 4); eq(E.excessoCarrosPorApto(ok4, {}).length, 0);
+  const mais = E.parsear(['352', '354'].map(a => b(a, 'GARAGEM TOTAL 03 CARROS')).join('\n'));
+  eq(mais.length, 3); const p = E.excessoCarrosPorApto(mais, {}); eq(p.length, 1); eq(p[0].qtd, 2);
+});
+t('1.5.8 G motos e reservas manuais não contam como carro do apto', () => {
+  eq(E.excessoCarrosPorApto([moto8('m1', '1', 1, 5, '10'), moto8('m2', '1', 1, 5, '10', 2)], {}).length, 0);
+  eq(E.excessoCarrosPorApto([car8('a', 'MAN1', 1, 5, 'azul_pequeno', '10', 1, { ehManual: true }), car8('b', 'MAN1', 1, 5, 'azul_pequeno', '10', 2, { ehManual: true })], {}).length, 0);
+});
+
+/* ── (H) central de pendências ── */
+t('1.5.8 H calcularPendencias soma conflito + excesso + duplicata', () => {
+  const a = car8('a', '1', 1, 5, 'azul_pequeno', '10', 1), b = car8('b', '1', 1, 5, 'azul_pequeno', '10', 2);
+  const c = car8('c', '2', 1, 5, 'azul_pequeno', '11');
+  const aj = { c: { statusManual: 'aguardando', retratoPMS: Object.assign(E.retratoPMS(c), { saida: '2026-09-09' }) } };
+  const ps = E.calcularPendencias([a, b, c], aj, [{ id: 'dup0', sig: 'x~y', reservas: [a, c] }]);
+  eq(ps.length, 3); eq(ps.map(p => p.tipo).sort().join(), 'conflito,duplicata,excesso');
+});
+
+/* ── (E) volta da vaga extra ── */
+t('1.5.8 E vagaNormalLivre: 1ª vaga normal livre e compatível no período', () => {
+  const a = car8('a', '1', 1, 5), x = car8('x', '2', 1, 5, 'azul_grande');
+  const aloc = montaAloc([{ r: a, v: 'P1' }, { r: x, v: 'EXTRA1' }]);
+  eq(E.vagaNormalLivre(aloc, x), 'G1', 'grande → só vaga G');
+  eq(E.vagaNormalLivre(aloc, car8('n', '3', 1, 5)), 'P2');
+});
+
+/* ── log ── */
+t('1.5.8 montarEdicoesManuais traz os eventos do histórico (deslocado, conflito, exceção)', () => {
+  const its = E.montarEdicoesManuais({
+    '1__1__1': { vagaIdManual: 'P3', historico: [{ tipo: 'deslocado', texto: 'X foi para a vaga P3', nro: '1', funcionario: 'Ana', dataHora: '2026-09-01T10:00:00Z' }] },
+    'EXC:R:2|20': { excecao: { qtd: 2 }, historico: [{ tipo: 'excecao', texto: 'Exceção confirmada', nro: '2', funcionario: 'Bia', dataHora: '2026-09-02T10:00:00Z' }] }
+  }, []);
+  eq(its.length, 2); eq(its[0].evento, 'excecao'); eq(its[1].texto, 'X foi para a vaga P3'); eq(its[1].nro, '1');
 });
 
 /* ── runner (suporta testes async) ── */

@@ -4,7 +4,33 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.7** (28/07/2026) — **total de carros correto (fim da explosão) + arraste por
+- **Versão entregue: v1.5.8** (27/10/2026) — **motor do mapa** (DB v6, **sem store novo**; campos novos
+  OPCIONAIS em `ajustes`/`hospedados`; `localStorage` `garagem_layout`). Ver `RELATORIO-v1.5.8.md` e a seção
+  "Comportamentos da v1.5.8" do `CLAUDE.md`. Tags `pre-v1.5.8` e `v1.5.8`.
+  **(A)** Arraste **nunca sobrepõe e nunca é recusado** (`planejarDrop`: troca → vaga de baixo → livre mais
+  próxima → overbooking; aviso + log); `aplicarAjustes` garante o invariante (fixação que colidiria é
+  re-encaixada e avisada; `verificarSobreposicoes` = 0). Causa raiz: fixações eram empurradas na vaga sem
+  checar ninguém (existia desde a v1.5.5).
+  **(B)** Alocação **sempre sobre o conjunto completo** (filtro só recorta o desenho); layout persistido com
+  impressão (datas+tamanho): reimport mantém o não alterado, reabrir mantém tudo. Causa raiz: alocava só a
+  janela e o congelamento dependia de "assinatura janela+conjunto" em memória.
+  **(C)** Retrato do PMS em toda edição → conflito = pendência com painel lado a lado (Manter / Usar o PMS).
+  **(D)** "Sem garagem" reversível pela área "Editadas" (lista tudo; volta só os carros sem garagem). Causa:
+  a área só listava o período visível e ficava escondida; Contato só lista Aguardando.
+  **(E)** Vaga extra p/ Confirmada + "↩ Vaga normal livre".
+  **(F)** Motos pela **Qtde** da comanda (amostra real apto 279: 2 motos — antes 1), pareamento mesma reserva
+  primeiro, "Moto X de N", letra do grupo, vaga compartilhada. ⚠ Qtde de motos no relatório de **Reservas**
+  não tem amostra → não há heurística (pedir PDF se aparecer).
+  **(G)** Pendência "Mais de 1 carro no apartamento" (Confirmar exceção `EXC:<grupo>` / Corrigir).
+  **(H)** Central "Pendências: N" (conflito + excesso + duplicata v1.5.6 inalterada).
+  Testes **495/495** (325 engine + 103 jsdom + 67 Playwright), sem `skip`. Amostras: reservas 101 = 101
+  idênticas; comandas 21 → 22 (só a correção F). ⚠ O hook `[real]` de Reservas tinha **bomba de calendário**
+  (janela = hoje+30, amostra de julho) — corrigido no teste (enquadra o período da amostra).
+  ⚠ **Caso conhecido:** #27316 (2 quartos sem apto atribuído) é "possível duplicata" pela regra da v1.5.6 —
+  regra mantida por ordem; decisão do Doug.
+  **PRÓXIMO: v1.5.9** (nº OTA por `Origem (…):`, `[ota]`, `[canal]`, Copiar mensagem + "contatado", busca no
+  Contato, Limpar sem apagar modelos) → depois o **executável**.
+- **Versão anterior: v1.5.7** (28/07/2026) — **total de carros correto (fim da explosão) + arraste por
   carro + "X de N" recomputando + botão Limpar + realce de fim de semana/feriado calculado** (sem schema,
   DB v6; **sem store novo**).
   **(7.1)** ⚠ **BUG CRÍTICO:** o total de garagem era aplicado **por bloco (= por apartamento)** dentro do
@@ -227,4 +253,4 @@ envio com preview/troca/editar; Backup export/import (Mesclar/Substituir).
 - `pre-v1.0.0`, `v1.0.0`, `pre-v1.1.0`, `v1.1.0`, `pre-v1.2.0`, `v1.2.0`, `pre-v1.3.0`, `v1.3.0`,
   `pre-v1.4.0`, `v1.4.0`, `pre-v1.5.0`, `v1.5.0`, `pre-v1.5.1`, `v1.5.1`, `pre-v1.5.1.1`, `v1.5.1.1`,
   `pre-v1.5.2`, `v1.5.2`, `pre-v1.5.3`, `v1.5.3`, `pre-v1.5.4`, `v1.5.4`, `pre-v1.5.5`, `v1.5.5`,
-  `pre-v1.5.6`, `v1.5.6`, `pre-v1.5.6.1`, `v1.5.6.1`, `pre-v1.5.7`, `v1.5.7`.
+  `pre-v1.5.6`, `v1.5.6`, `pre-v1.5.6.1`, `v1.5.6.1`, `pre-v1.5.7`, `v1.5.7`, `pre-v1.5.8`, `v1.5.8`.

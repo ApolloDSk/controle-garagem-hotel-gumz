@@ -495,7 +495,72 @@ Garage Spot** (a chave é o `nro` do PMS).
   ⚠ **NÃO alterar nenhuma cor de bloco por causa disto** — em especial, **o tom do amarelo "Aguardando"
   não muda** (decisão do Doug; a receita da v1.5.6.1 segue intacta).
 
+## Comportamentos da v1.5.8 a preservar (motor do mapa)
+
+> **DB segue v6, sem store novo, sem dependência nova, sem arquivo novo.** Campos novos são OPCIONAIS no
+> store `ajustes` (`retratoPMS`, `historico`, `excecao`, chave `EXC:<grupo>`) e no `hospedados`
+> (`idxVeiculo`, `qtdVeiculos`). `localStorage` ganhou `garagem_layout` (estado derivado, apagado no Limpar).
+
+- **PRINCÍPIO PRIMORDIAL (permanente): erros e supostos erros são SEMPRE notificados ao usuário.** O app
+  nunca resolve sozinho o que é ambíguo e nunca esconde uma inconsistência: mostra de forma visual e
+  intuitiva (selo no bloco, central de pendências, aviso) e o usuário decide.
+- **8.1 ARRASTE NUNCA SOBREPÕE E NUNCA É RECUSADO.** `planejarDrop` (puro): destino livre → só a arrastada
+  muda; destino ocupado → cada ocupante sobreposto vai, na 1ª opção que couber (tipo P/G + período), para:
+  **1) troca** (vaga de origem da arrastada) → **2) vaga imediatamente abaixo** (ordem da TELA) → **3) livre
+  compatível mais próxima** → **4) overbooking** (posição, NUNCA status). Grande deslocado só vai p/ G; moto
+  solo sobre moto solo divide a vaga. O modal mostra o plano antes; ao confirmar: aviso curto ("FULANO foi
+  para a vaga P9"), gravação em lote (`salvarAjustesEmLote`), deslocado vira posição manual, evento no log.
+  ⚠ **NÃO** voltar a aceitar "mover mesmo assim" sobre ocupado.
+- **8.2 INVARIANTE NO MOTOR:** `aplicarAjustes` encaixa fixações (manual/semente) só se couberem
+  (`_cabeNaLinha`/`_encaixarMotoNaLinha`; vale p/ vaga, extra e motos). Manual que colidiria (dado antigo,
+  PMS mudou datas) é re-encaixado pelo automático (a mais antiga fica), marcado `_colisaoManual` e
+  **avisado**. `verificarSobreposicoes(aloc)` deve ser sempre vazio (rede de segurança visível se não for).
+- **8.3 FILTRO DE PERÍODO NUNCA MOVE CARRO.** A alocação roda SEMPRE sobre `conjuntoCompleto()`; a janela só
+  recorta o desenho (`conjuntoAtivo()` = completo ∩ janela, mesmos objetos). ⚠ **NÃO** voltar a alocar só a
+  janela nem a usar "assinatura janela+conjunto".
+- **8.4 LAYOUT ESTÁVEL E PERSISTIDO.** `congelarLayoutComImpressao` (chave do carro → `{v, f}`; impressão =
+  datas + tamanho) é a semente de TODA alocação e fica no `localStorage`. Reimport: quem não mudou fica
+  igual; alterado (impressão diferente) e novo são encaixados ao redor; 1ª importação = automático completo.
+  Reabrir = mesmo mapa. Overbooking AUTOMÁTICO fica preso entre renders e só volta a disputar vaga logo após
+  importar (`soltarOver`). **Confirmado nunca é derrubado pelo automático**: toma a vaga de aguardando
+  semeado não manual (`_promoverConfirmados`). O Contato lê as flags da MESMA alocação do mapa.
+- **8.5 CONFLITO PMS × MANUAL É DECIDIDO PELO USUÁRIO.** Toda edição manual grava `retratoPMS` (garagem,
+  check-in, check-out, tipo, qtd de carros). PMS igual → nada; diferente → pendência "Conflito PMS"; até
+  decidir, **vale a edição**. Painel lado a lado: **Manter** (retrato = PMS atual) / **Usar o PMS** (status
+  sai se a garagem mudou; posição fica se ainda couber). Editar de novo não apaga conflito pendente. Edições
+  antigas recebem retrato ao abrir e antes de cada importação (`garantirRetratos`).
+- **8.6 "SEM GARAGEM" É REVERSÍVEL** pela área "Editadas" (que lista TUDO, não só o período):
+  `reverterSemGaragem` muda **só os carros sem garagem** da reserva. Marcar "sem garagem" libera a posição;
+  ao voltar, o carro é encaixado pelas regras normais sem mexer em ninguém.
+- **8.7 VAGA EXTRA É POSIÇÃO** e vale p/ **Confirmada**, overbooking a chegar e hospedado em overbooking;
+  nunca muda status. Na extra: "↩ Vaga normal livre" (`vagaNormalLivre`).
+- **8.8 MOTOS:** quantidade = coluna **Qtde** da comanda (maior Qtde do tipo, nunca soma de diárias); N
+  veículos = N registros (1º com a chave antiga, demais `__N`, mesmo `nro`). Pareamento: mesma reserva
+  primeiro → ímpar com ímpar de outra reserva → ímpar que chega com moto já sozinha. Visual: "Moto X de N",
+  #nº/apto, letra do grupo (Ⓐ) e vaga **compartilhada** tracejada com selo "⇄"; clicar destaca todas as
+  motos da reserva. Roxo = moto (sem cor nova). ⚠ Quantidade de motos na obs do relatório de **Reservas**
+  NÃO tem amostra — não inventar heurística; pedir o PDF.
+- **8.9 REGRA DE 1 CARRO POR APARTAMENTO:** >1 carro com garagem no mesmo apto → pendência "Mais de 1 carro
+  no apartamento" (`excessoCarrosPorApto`). **Confirmar exceção** grava `EXC:<grupo>` com a qtd do PMS (só
+  volta se o PMS mudar a qtd); **Corrigir** abre o detalhe p/ marcar o excedente "sem garagem". Multi-apto
+  com total ≤ aptos não gera pendência.
+- **8.10 CENTRAL DE PENDÊNCIAS:** botão "Pendências: N" na barra do mapa (neutro em zero) soma conflito +
+  excesso + duplicata (regra da v1.5.6 **inalterada**). Lista agrupada; clicar enquadra o período se preciso,
+  destaca e abre a resolução. Selos no bloco: `≠` conflito, `×N` excesso, `⧉` duplicata (como era). Reserva
+  fora do mapa aparece na lista e na área "Editadas" — nada fica invisível.
+- **Log de edições:** `historico` por ajuste (até 40) — posição, deslocamento, conflito, exceção, volta de
+  "sem garagem". Registro só é apagado se não sobrar nada nele.
+- **Caso conhecido (amostra real):** #27316 (2 quartos sem apto atribuído) é sinalizada como possível
+  duplicata pela regra da v1.5.6 — regra mantida por ordem; decisão do Doug para o futuro.
+
 ## Versão atual
+
+**v1.5.8** — **motor do mapa: arraste sem sobreposição (troca → vaga de baixo → livre → overbooking, com
+aviso) + encaixe estável (filtro não move nada; reimport/reabrir preservam) + central de pendências
+(conflito PMS × manual, mais de 1 carro no apto, duplicatas) + "sem garagem" reversível + vaga extra p/
+Confirmada + motos com quantidade real e pareamento visível** (DB v6, sem store novo). Testes **495/495**
+(325 engine + 103 jsdom + 67 Playwright), sem `skip`; amostras reais: reservas 101 = 101 idênticas;
+comandas 21 → 22 (só a correção da Qtde do apto 279). Ver `RELATORIO-v1.5.8.md`.
 
 **v1.5.7** — **total de carros correto (fim da explosão) + arraste por carro + "X de N" recomputando +
 botão Limpar + realce de fim de semana/feriado calculado** (sem schema, DB v6; sem store novo). Carros =
