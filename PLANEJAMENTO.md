@@ -1,7 +1,7 @@
 # PLANEJAMENTO.md — Reserva de Garagem do Hotel Gumz
 
 > Roadmap em **3 níveis**. Manter sempre atualizado ao fim de cada versão.
-> Versão atual: **v1.5.8** (entregue) · Próximo: **v1.5.9** (patch único com os itens simples); depois o **executável desktop**. Demais exigem infraestrutura (ou amostras de outros PMSs).
+> Versão atual: **v1.5.9** (entregue 28/10/2026) · Próximo: **executável desktop** (patch próprio; armazenamento em local fixo entre versões). Demais exigem infraestrutura (ou amostras de outros PMSs).
 
 ---
 
@@ -224,16 +224,34 @@
   idênticas; comandas 21 → 22 (só a correção F). Caso conhecido: #27316 (2 quartos sem apto) segue
   sinalizada como possível duplicata pela regra da v1.5.6 (decisão do Doug). Ver `RELATORIO-v1.5.8.md`.
 
-### 🔜 v1.5.9 (próximo — patch único com os itens simples)
-- **nº OTA a partir de `Origem (…):`** (o Code escolhe o local mais confiável nos relatórios — ex. na amostra:
-  `Origem (W2M Dynamic - ES): RES004092-18243`); chave **`[ota]`**; **`[canal]`** a partir da origem.
-- Botão **"Copiar mensagem"** no Detalhe com data/hora da última cópia + ícone **"contatado, aguardando
-  resposta"** no bloco.
-- **Busca no Contato.**
-- **Limpar sem apagar os modelos de texto.**
-- **Depois:** **executável desktop** (Electron/Tauri a escolher; precisa do ícone; sem separação por empresa;
-  dados não migram — reimportar o relatório reconstrói).
-- **Parqueados:** legenda/índices; tom do amarelo.
+### v1.5.9 (entregue 28/10/2026) — nº OTA, [ota]/[canal], copiar mensagem, busca no Contato, Limpar (DB v6, sem store novo)
+- **(A) Nº OTA = nº da reserva na OTA**, lido de `Origem (<canal>): <nº>` (genérico, aceita parênteses
+  aninhados e quebra de linha). **Nunca o localizador** (`413101ID…`, guardado à parte em `localizador`).
+  Amostra real: 69/69 reservas com Origem têm o número; 22 sem Origem (WhatsApp/Telefone) → "não informado".
+- **(B/C)** Chave **`[ota]`** e **`[canal]`** pela Origem (Booking → Booking.com; Booking Engine → site oficial
+  do hotel; Expedia; desconhecido = texto limpo; sem Origem → canal antigo). Chave usada e vazia → aviso.
+- **(D)** **"Copiar mensagem"** no Detalhe (mesmo texto do Contato) + "Última cópia" + evento `copiado` no
+  store `envios`; ícone 💬 "contatado, aguardando resposta" no bloco (Aguardando/overbooking).
+- **(E)** Busca no Contato (nome, nº, nº OTA, apto, entrada `dd/mm[/aaaa]`), somada ao período.
+- **(F)** Limpar preserva **Gestão + telefones + histórico**; apaga reservas/hospedados/ajustes/manuais/
+  posições/pendências. ⚠ A causa dos "modelos sumidos" **não** estava no Limpar (ver `RELATORIO-v1.5.9.md`).
+- **(G)** #27316: quartos diferentes sem apto atribuído não são mais duplicata (linha do relatório distingue).
+- Testes **517/517** (342 engine + 105 jsdom + 70 Playwright). Ver `RELATORIO-v1.5.9.md`.
+
+### 🔜 PRÓXIMO — executável desktop (patch próprio)
+- **Pontos a planejar:** escolha da ferramenta (Electron/Tauri); **ícone**; sem separação por empresa;
+  **onde ficam os dados** — IndexedDB e as posições/preferências hoje no `localStorage` (no executável o
+  armazenamento muda de lugar).
+- ⚠ **REQUISITO (correção de fundo dos "modelos sumidos"):** no executável, o armazenamento fica num
+  **local FIXO, que NÃO muda a cada versão**, para atualizar o app **sem perder Gestão, modelos, ajustes nem
+  posições**. Hoje, no navegador, cada arquivo `.html` aberto via `file://` (ex.:
+  `reserva-garagem-index-v1.5.8.html` × `…-v1.5.9.html`) tem a **sua própria** origem e, portanto, o seu
+  próprio banco — a versão nova abre "vazia". O nome do arquivo com a versão é regra fechada; a correção vem
+  pelo executável, não renomeando o arquivo.
+- **Parqueados:** legenda/índices; tom do amarelo; quantidade de motos no relatório de **Reservas** (aguarda
+  amostra).
+- **Adiados de sempre:** outros PMSs; múltiplas empresas; integração com o GarageSpot (feita no chat do
+  GarageSpot).
 
 ---
 
@@ -262,7 +280,8 @@ infraestrutura.
 - **Hospedados na aba Contato** (hoje só no mapa; Contato é ferramenta de telefonema para reservas).
 - **(Opção) Arraste manual "posicional"** — fixar a reserva na posição solta **sem realocar** os
   automáticos (hoje mover libera a vaga e os automáticos se reorganizam), se o Douglas preferir.
-- Mapeamento do **nome do canal** para `[canal]` (expedia.com / hoteis.com / omnibees).
+- ~~Mapeamento do **nome do canal** para `[canal]`~~ → feito na v1.5.9 pela `Origem (…)` (Booking.com /
+  Expedia / site oficial do hotel; demais = texto limpo).
 - Suporte a **mais de uma empresa**.
 - **Modelo de mensagem para reservas confirmadas/azuis** (hoje azul usa link `wa.me` simples).
 

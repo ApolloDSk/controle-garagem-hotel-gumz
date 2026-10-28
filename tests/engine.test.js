@@ -58,7 +58,9 @@ const EXPORTS = [
   'chaveHospedadoBase','classeTamanho','impressaoCarro','congelarLayoutComImpressao','verificarSobreposicoes',
   'vagaCompativel','planejarDrop','vagaNormalLivre','tipoPMS','retratoPMS','diffRetrato','conflitoPMS',
   'ajusteTemEdicao','grupoApto','excessoCarrosPorApto','calcularPendencias','mapaMotosPorReserva','isoDataChave',
-  'ORDEM_VAGAS_PADRAO'
+  'ORDEM_VAGAS_PADRAO',
+  // v1.5.9
+  'extrairOrigemOTA','canalAmigavel','chavesVazias','valoresChaves'
 ];
 const E = new Function(code + '\nreturn {' + EXPORTS.join(',') + '};')();
 
@@ -416,7 +418,7 @@ t('gestaoNormalizar cura config parcial sem quebrar', () => {
 
 /* 5.4 — autocomplete */
 t('5.4 autocompleteChaves [n → [nome]', () => { eq(JSON.stringify(E.autocompleteChaves('Olá [n')), '["[nome]"]'); });
-t('5.4 autocompleteChaves [ → todas as 5', () => { eq(E.autocompleteChaves('texto [').length, 5); });
+t('5.4 autocompleteChaves [ → todas as 6 (v1.5.9: +[ota])', () => { eq(E.autocompleteChaves('texto [').length, 6); ok(E.autocompleteChaves('texto [o').includes('[ota]')); });
 t('5.4 autocompleteChaves sem [ → nada', () => { eq(E.autocompleteChaves('texto normal').length, 0); });
 t('5.4 autocompleteChaves chave fechada → nada', () => { eq(E.autocompleteChaves('[nome] ').length, 0); });
 t('5.4 aplicarSugestao insere a chave no lugar do parcial', () => {
@@ -744,7 +746,7 @@ t('D10 sem_garagem + placement: sem_garagem vence (sai do mapa)', () => {
   ok(!([].concat(...aloc.linhasP, ...aloc.linhasG)).some(x => x.nro === '1'));
 });
 
-t('APP_VERSION é v1.5.8', () => { eq(E.APP_VERSION, 'v1.5.8'); });
+t('APP_VERSION é v1.5.9', () => { eq(E.APP_VERSION, 'v1.5.9'); });
 
 /* ════════════ v1.5.3 — ferramentas ════════════ */
 // Motos: 2 = 1 vaga de carro (cross-reserva); ímpar sozinha em vaga de carro
@@ -1820,6 +1822,116 @@ t('1.5.8 montarEdicoesManuais traz os eventos do histórico (deslocado, conflito
     'EXC:R:2|20': { excecao: { qtd: 2 }, historico: [{ tipo: 'excecao', texto: 'Exceção confirmada', nro: '2', funcionario: 'Bia', dataHora: '2026-09-02T10:00:00Z' }] }
   }, []);
   eq(its.length, 2); eq(its[0].evento, 'excecao'); eq(its[1].texto, 'X foi para a vaga P3'); eq(its[1].nro, '1');
+});
+
+/* ════════════ v1.5.9 ════════════ */
+// (A) Nº OTA = número da reserva na OTA, lido de "Origem (<canal>): <nº>" — NUNCA o localizador.
+const blocoOTA = (nro, apto, origemLinha, obs) =>
+  `10/08/26 14/08 1 2 ${apto} ABC ${nro} H\n${origemLinha}\nObs do Apto: ${obs}\nHóspedes :\nMARIA SOUZA\nMARIA SOUZA\nDesbravador Software`;
+t('1.5.9 A extrairOrigemOTA: Booking / Expedia / Booking Engine(** NA **) (parênteses aninhados)', () => {
+  let o = E.extrairOrigemOTA('xx Origem (Booking): 6093516736 / BED PREFERENCE');
+  eq(o.canal, 'Booking'); eq(o.numero, '6093516736');
+  o = E.extrairOrigemOTA('Origem (Expedia): 2444736832');
+  eq(o.canal, 'Expedia'); eq(o.numero, '2444736832');
+  o = E.extrairOrigemOTA('Origem (Booking Engine(** NA **)): RES004092-18243 / obs');
+  eq(o.canal, 'Booking Engine(** NA **)'); eq(o.numero, 'RES004092-18243');
+});
+t('1.5.9 A extrairOrigemOTA: quebra de linha no meio e canal desconhecido', () => {
+  const o = E.extrairOrigemOTA('Origem (W2M Dynamic\n- ES):\n  77123 / x');
+  eq(o.canal, 'W2M Dynamic - ES'); eq(o.numero, '77123');
+});
+t('1.5.9 A extrairOrigemOTA: sem Origem → vazio (nunca o localizador)', () => {
+  const o = E.extrairOrigemOTA('BOOKING 413101ID20542561\nObs do Apto: GARAGEM');
+  eq(o.canal, ''); eq(o.numero, '');
+  eq(E.extrairOrigemOTA('').numero, ''); eq(E.extrairOrigemOTA(null).numero, '');
+  eq(E.extrairOrigemOTA('Origem (Booking): / sem numero').numero, '', 'texto sem dígito não vira nº');
+});
+t('1.5.9 A parsear: nroOTA = nº da OTA; localizador guardado à parte', () => {
+  const r = E.parsear(blocoOTA('41001', '201', 'BOOKING 413101ID20542561', 'GARAGEM PEQUENO Origem (Booking): 6093516736 / x'))[0];
+  eq(r.nroOTA, '6093516736'); eq(r.localizador, '413101ID20542561'); eq(r.canalOTA, 'Booking.com');
+});
+t('1.5.9 A parsear: localizador SEM Origem → Nº OTA vazio (não informado)', () => {
+  const r = E.parsear(blocoOTA('41002', '202', 'BOOKING 413101ID20542561', 'GARAGEM PEQUENO'))[0];
+  eq(r.nroOTA, ''); eq(r.localizador, '413101ID20542561');
+});
+t('1.5.9 A duplicata por nº OTA repetido continua valendo com o número corrigido', () => {
+  const rs = E.parsear([
+    blocoOTA('41003', '203', 'BOOKING 413101ID1000001', 'GARAGEM PEQUENO Origem (Booking): 5550001 / x'),
+    blocoOTA('41004', '204', 'BOOKING 413101ID1000002', 'GARAGEM PEQUENO Origem (Booking): 5550001 / x')].join('\n'));
+  eq(E.detectarDuplicatas(rs).length, 1, 'mesmo nº OTA sob 2 nros → alerta');
+  const rs2 = E.parsear([
+    blocoOTA('41005', '205', 'BOOKING 413101ID1000001', 'GARAGEM PEQUENO Origem (Booking): 5550002 / x'),
+    blocoOTA('41006', '206', 'BOOKING 413101ID1000001', 'GARAGEM PEQUENO Origem (Booking): 5550003 / x')].join('\n'));
+  eq(E.detectarDuplicatas(rs2).length, 0, 'mesmo localizador mas nº OTA diferente → sem alerta');
+});
+
+// (B/C) [ota] e [canal]
+t('1.5.9 C canalAmigavel: Booking → Booking.com; Booking Engine → site oficial; Expedia; desconhecido limpo', () => {
+  eq(E.canalAmigavel('Booking'), 'Booking.com');
+  eq(E.canalAmigavel('Booking Engine(** NA **)'), 'site oficial do hotel');
+  eq(E.canalAmigavel('Expedia'), 'Expedia');
+  eq(E.canalAmigavel('Soul Traveler (** NA **)'), 'Soul Traveler');
+  eq(E.canalAmigavel(''), '');
+});
+t('1.5.9 B/C substituirChaves resolve [ota] e [canal] nos três canais', () => {
+  const g = E.gestaoDefault();
+  const tpl = 'via [canal] nº [ota]';
+  eq(E.substituirChaves(tpl, { canalOTA: 'Booking.com', nroOTA: '6093516736' }, g), 'via Booking.com nº 6093516736');
+  eq(E.substituirChaves(tpl, { canalOTA: 'site oficial do hotel', nroOTA: 'RES1-2' }, g), 'via site oficial do hotel nº RES1-2');
+  eq(E.substituirChaves(tpl, { canalOTA: 'Expedia', nroOTA: '2444736832' }, g), 'via Expedia nº 2444736832');
+});
+t('1.5.9 C [canal]: sem Origem cai no canal antigo (origem do relatório)', () => {
+  eq(E.substituirChaves('[canal]', { origem: 'Whatsapp' }, E.gestaoDefault()), 'Whatsapp');
+});
+t('1.5.9 B chavesVazias: avisa só as chaves USADAS e sem dado', () => {
+  const g = E.gestaoDefault();
+  eq(JSON.stringify(E.chavesVazias('Olá [nome], [ota]', { nome: 'ANA' }, g)), '["ota"]');
+  eq(JSON.stringify(E.chavesVazias('Olá [nome]', { nome: 'ANA' }, g)), '[]');
+  eq(JSON.stringify(E.chavesVazias('[ota] [canal] [ota]', {}, g)), '["ota","canal"]');
+  eq(E.substituirChaves('[ota]x', {}, g), 'x', 'nunca deixa chave literal');
+});
+
+// (D) categoria + tipo do evento
+t('1.5.9 D categoriaReserva: status efetivo manda; overbooking sempre tem modelo', () => {
+  eq(E.categoriaReserva({ garagem: 'azul_pequeno', _statusEfetivo: 'aguardando' }), 'verificando');
+  eq(E.categoriaReserva({ garagem: 'amarelo', _statusEfetivo: 'confirmado' }), null);
+  eq(E.categoriaReserva({ garagem: 'amarelo', _statusEfetivo: 'confirmado', over: true }), 'overbooking');
+  eq(E.categoriaReserva({ garagem: 'amarelo' }), 'verificando', 'sem status efetivo → regra antiga');
+});
+t('1.5.9 D montarRegistroEnvio: tipo copiado × enviado (padrão enviado)', () => {
+  eq(E.montarRegistroEnvio({ nro: '1', tipo: 'copiado', agoraMs: 0 }).tipo, 'copiado');
+  eq(E.montarRegistroEnvio({ nro: '1', agoraMs: 0 }).tipo, 'enviado');
+  eq(E.montarRegistroEnvio({ nro: '1', tipo: 'xyz', agoraMs: 0 }).tipo, 'enviado');
+  eq(E.statusEnvioReserva([{ nro: '1', tipo: 'copiado' }]), 'enviado', 'cópia também conta como contato');
+});
+
+// (E) busca por data de entrada
+t('1.5.9 E matchBusca: nº OTA e data de entrada dd/mm e dd/mm/aaaa', () => {
+  const r = { nro: '27000', nomeCompleto: 'JOAO', apto: '301', nroOTA: '6093516736', entrada: new Date(2026, 7, 5) };
+  ok(E.matchBusca(r, '609351')); ok(E.matchBusca(r, '05/08')); ok(E.matchBusca(r, '5/8'));
+  ok(E.matchBusca(r, '05/08/2026')); ok(E.matchBusca(r, '05/08/26'));
+  ok(!E.matchBusca(r, '06/08')); ok(!E.matchBusca(r, '05/08/2025'));
+});
+
+// (G) vários quartos sem apto atribuído (formato da #27316) × a mesma linha repetida
+const linhaSemApto = (tipo, nro) => `18/07/26 22/07 ${tipo} Garantida Aberta 5 3 0 1 4 - ${nro} A\nBooking Engine\nObs do Apto: GARAGEM PEQUENO Origem (Booking Engine(** NA **)): RES004092-18243 / x\nHóspedes :\nANA SILVA\nANA SILVA\nDesbravador Software`;
+t('1.5.9 G reserva de 2 quartos sem apto (APF + TST) NÃO é duplicata', () => {
+  const rs = E.parsear([linhaSemApto('APF', '27316'), linhaSemApto('TST', '27316')].join('\n'));
+  eq(rs.length, 2); ok(rs.every(r => r.apto === '-'), 'apto ainda não atribuído');
+  ok(rs[0].linhaPMS !== rs[1].linhaPMS, 'linhas do relatório distintas');
+  eq(E.detectarDuplicatas(rs).length, 0);
+});
+t('1.5.9 G a MESMA linha importada duas vezes continua alertando', () => {
+  const rs = E.parsear([linhaSemApto('APF', '27317'), linhaSemApto('APF', '27317')].join('\n'));
+  eq(rs.length, 2); eq(E.detectarDuplicatas(rs).length, 1);
+});
+t('1.5.9 G sem linhaPMS (dado antigo) → não dá p/ distinguir → alerta (notificar)', () => {
+  const a = { id: 'a', nro: '9', apto: '-', vagaIdx: 1, entrada: new Date(2026, 6, 1), saida: new Date(2026, 6, 3) };
+  eq(E.detectarDuplicatas([a, { ...a, id: 'b' }]).length, 1);
+});
+t('1.5.9 G mesmo nº + mesmo apto ATRIBUÍDO repetido continua alertando', () => {
+  const rs = E.parsear([blocoOTA('41010', '210', 'WHATSAPP', 'GARAGEM PEQUENO'), blocoOTA('41010', '210', 'WHATSAPP', 'GARAGEM PEQUENO')].join('\n'));
+  eq(E.detectarDuplicatas(rs).length, 1);
 });
 
 /* ── runner (suporta testes async) ── */

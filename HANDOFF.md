@@ -4,7 +4,25 @@
 > `PLANEJAMENTO.md` e o `RELATORIO-*` mais recente. A memória vive **nos arquivos**, não na conversa.
 
 ## Estado atual
-- **Versão entregue: v1.5.8** (27/10/2026) — **motor do mapa** (DB v6, **sem store novo**; campos novos
+- **Versão entregue: v1.5.9** (28/10/2026) — DB v6, **sem store novo** (campos opcionais `localizador`/
+  `canalOTA`/`linhaPMS` na reserva e `tipo` no `envios`). Ver `RELATORIO-v1.5.9.md` e a seção
+  "Comportamentos da v1.5.9" do `CLAUDE.md`. Tags `pre-v1.5.9` e `v1.5.9`. ⚠ Feita em **retomada** (o
+  notebook reiniciou no meio; o trabalho parcial não commitado foi conferido e continuado — caso B).
+  **(A)** Nº OTA = nº da reserva na OTA, de `Origem (<canal>): <nº>`; **nunca o localizador** (guardado em
+  `localizador`). Amostra: 69/69 com Origem têm número; 22 diretas = "não informado".
+  **(B/C)** `[ota]` e `[canal]` (Booking.com / site oficial do hotel / Expedia / texto limpo), aviso de chave vazia.
+  **(D)** "Copiar mensagem" no Detalhe (= texto do Contato) + "Última cópia" + `envios.tipo='copiado'`; ícone 💬
+  de contatado no bloco enquanto Aguardando/overbooking.
+  **(E)** Busca no Contato (nome/nº/OTA/apto/entrada dd/mm[/aaaa]) + período.
+  **(F)** Limpar preserva Gestão + telefones + histórico; apaga reservas/hospedados/ajustes/manuais/posições/
+  pendências. ⚠ Os "modelos sumidos" **não** vinham do Limpar (o store `gestao` nunca foi apagado por ele);
+  hipótese mais provável: cada `.html` do Desktop (`file://`) tem banco próprio → versão nova abre vazia.
+  Correção de fundo = **executável com armazenamento em local fixo** (requisito no `PLANEJAMENTO.md`).
+  **(G)** #27316 (APF × TST sem apto) não é mais duplicata; mesma linha repetida segue alertando.
+  Testes **517/517** (342 engine + 105 jsdom + 70 Playwright). Amostras: 101 = 101 carros idênticos fora do Nº
+  OTA; comandas 22 (inalterado); 0 duplicata no relatório real.
+  **PRÓXIMO: executável desktop** (ferramenta, ícone, onde ficam os dados — local fixo entre versões).
+- **Versão anterior: v1.5.8** (27/10/2026) — **motor do mapa** (DB v6, **sem store novo**; campos novos
   OPCIONAIS em `ajustes`/`hospedados`; `localStorage` `garagem_layout`). Ver `RELATORIO-v1.5.8.md` e a seção
   "Comportamentos da v1.5.8" do `CLAUDE.md`. Tags `pre-v1.5.8` e `v1.5.8`.
   **(A)** Arraste **nunca sobrepõe e nunca é recusado** (`planejarDrop`: troca → vaga de baixo → livre mais

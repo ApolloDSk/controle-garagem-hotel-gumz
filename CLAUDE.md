@@ -141,7 +141,8 @@ Garage Spot** (a chave é o `nro` do PMS).
 - **Aba Gestão** (Empresa, Funcionários, Modelos de Mensagens, Backup/Restauração). Store
   **`gestao`** (singleton `id:"config"`) criado por `onupgradeneeded` (DB v2) **sem tocar** em
   `reservas`/`contatos`; semeadura idempotente em `carregarGestao` (só grava se ausente).
-- **Chaves dos modelos:** `[nome] [data] [canal] [empresa] [funcionario]`. `substituirChaves`
+- **Chaves dos modelos:** `[nome] [data] [canal] [empresa] [funcionario]` (+ **`[ota]`** na v1.5.9; `[canal]`
+  vem da Origem — ver 9.2). `substituirChaves`
   **nunca deixa chave literal** (valor real ou vazio). `[data]` = entrada+saída (`fmtData`).
 - **Mapeamento status→categoria:** **amarelo→verificando**, **vermelho→overbooking**;
   **azul/confirmada fica fora** do sistema de modelos (link `wa.me` simples).
@@ -470,7 +471,8 @@ Garage Spot** (a chave é o `nro` do PMS).
   com o 2º parâmetro, exclui os `sem_garagem`. Dar baixa em 2 de 5 carros reindexa os 3 restantes **na
   hora** ("1 de 3", "2 de 3", "3 de 3"). Ordem de desempate inalterada (`vagaIdx` → `apto` → `id`), para a
   numeração não dançar.
-- **7.4 Botão "Limpar informações" (Gestão › Manutenção).** Apaga **todos** os dados de reserva —
+- **7.4 Botão "Limpar informações" (Gestão › Manutenção).** ⚠ **Escopo SUBSTITUÍDO na v1.5.9 (9.6):** hoje
+  telefones e envios são **preservados**. Texto original da v1.5.7: Apaga **todos** os dados de reserva —
   `reservas`, `hospedados`, `ajustes`, `reservasManuais`, **`contatos` (telefones digitados)** e
   **`envios` (histórico de contato)** — e **PRESERVA `gestao`** (empresa, funcionários, modelos).
   **Confirmação obrigatória** em modal que diz que é **irreversível** e que telefones e envios também somem.
@@ -552,8 +554,57 @@ Garage Spot** (a chave é o `nro` do PMS).
   "sem garagem". Registro só é apagado se não sobrar nada nele.
 - **Caso conhecido (amostra real):** #27316 (2 quartos sem apto atribuído) é sinalizada como possível
   duplicata pela regra da v1.5.6 — regra mantida por ordem; decisão do Doug para o futuro.
+  → **Resolvido na v1.5.9 (G)**, ver abaixo.
+
+## Comportamentos da v1.5.9 a preservar (nº OTA, chaves, copiar mensagem, busca, Limpar)
+
+> **DB segue v6, sem store novo, sem dependência nova, sem arquivo novo.** Campos novos OPCIONAIS: na reserva
+> (`localizador`, `canalOTA`, `linhaPMS` — gravados pela importação) e no `envios` (`tipo`).
+
+- **9.1 Nº OTA = número da reserva NA OTA, lido de `Origem (<canal>): <nº>` da observação — NUNCA o
+  localizador** (regra permanente). `extrairOrigemOTA` (pura) é **genérica**: qualquer canal entre os
+  parênteses, inclusive aninhados (`Booking Engine(** NA **)`) e quebra de linha no meio. O localizador do
+  channel manager (`413101ID…`, `extrairNroOTA`) fica em **`localizador`**, nunca exibido como Nº OTA. Sem
+  Origem → Nº OTA vazio + "não informado" (Detalhe, tooltip, Contato). Reserva gravada até a v1.5.8 e ainda
+  não reimportada: `hidratar` move o localizador de `nroOTA` p/ `localizador` (só em memória). A duplicata
+  por nº OTA repetido (v1.5.6) usa o número corrigido. Amostra real: 69/69 reservas com Origem têm o número.
+  Outro PMS → outra amostra; não chutar heurística.
+- **9.2 Chaves `[ota]` e `[canal]`** (`CHAVES_MODELO` = nome, data, canal, ota, empresa, funcionario → valem
+  autocompletar, chips, legenda e "?"). `[canal]` vem do canal da Origem com nome amigável (`canalAmigavel`:
+  Booking → **Booking.com**; Booking Engine → **site oficial do hotel**; Expedia → **Expedia**; desconhecido →
+  texto limpo sem `(** NA **)`); sem Origem → **fallback** antigo (`canal` da comanda / `origem` do
+  relatório). `valoresChaves` é a fonte única; **`chavesVazias`** lista as chaves USADAS no texto que ficaram
+  sem dado → aviso no preview (`#envio-aviso`) e no toast da cópia. Nunca chave literal.
+- **9.3 Eventos `copiado` × `enviado` no store `envios`** (campo opcional `tipo`; registro antigo sem campo =
+  `enviado`). "Copiar mensagem" no **Detalhe** usa **exatamente** a montagem do Contato (`grupoContatoDe` →
+  `agruparContato`, `dadosMensagem`, mesma categoria e modelo): 1 modelo preenchido → copia direto; vários →
+  abre o MESMO modal do Contato em modo "copiar". Só aparece com modelo aplicável (Aguardando ou overbooking;
+  `categoriaReserva` respeita o `_statusEfetivo`). Mostra "Última cópia: dd/mm hh:mm"; a seção Envios
+  identifica 📋 Texto copiado × 💬 Enviado. Cópia também conta como "já contatado" no Contato.
+- **9.4 Ícone 💬 "contatado, aguardando resposta"** (`contatadoIcoHTML`) junto do nome no bloco (como ✋/✍️,
+  longe dos selos ⧉/≠/×N): aparece após cópia OU envio, **enquanto Aguardando ou em overbooking**; some em
+  Confirmado fora do overbooking e em Sem garagem. Tooltip com data/hora do último contato. Hospedado não tem.
+- **9.5 Busca no Contato** (`#ct-busca`): reusa `matchBusca` (agora também data de **entrada** `dd/mm`,
+  `dd/mm/aa`, `dd/mm/aaaa`) por nome, nº, nº OTA, apto; soma-se ao período; sem resultado → mensagem.
+- **9.6 Limpar (substitui a regra 7.4): apaga** `reservas`, `hospedados`, `ajustes` (posições, status,
+  exceções, retratos/pendências), `reservasManuais`, as **posições do `localStorage`** (`garagem_layout`) e as
+  duplicatas dispensadas; **preserva** **toda a Gestão** (empresa, funcionários, **modelos**), os **telefones**
+  (`contatos`, por nº — religam sozinhos na reimportação) e o **histórico** (`envios`). O modal diz o que
+  apaga e o que preserva. ⚠ **O Limpar nunca apagou o store `gestao`** — os "modelos sumidos" relatados vêm de
+  fora dele; hipótese mais provável: cada `.html` aberto por `file://` tem **banco próprio**, então a versão
+  nova do Desktop abre vazia. Correção de fundo planejada no **executável** (armazenamento em local fixo).
+- **9.7 Reserva de vários quartos ainda SEM apto atribuído é LEGÍTIMA** (como multi-apto). Com apto `-`/vazio,
+  `detectarDuplicatas` inclui a **linha do relatório** (`linhaPMS`: datas + tipo de quarto + situação + pax) na
+  identidade: quartos diferentes (#27316 APF × TST) não alertam; a **mesma linha** repetida alerta; sem
+  `linhaPMS` (dado antigo) → não dá p/ distinguir → **alerta** (princípio de notificar).
 
 ## Versão atual
+
+**v1.5.9** — **nº OTA correto (Origem, nunca o localizador) + chaves `[ota]`/`[canal]` + "Copiar mensagem" no
+Detalhe com marca de contatado + busca no Contato + Limpar preservando Gestão/telefones/histórico + reserva
+multi-quarto sem apto não é duplicata** (DB v6, sem store novo). Testes **517/517** (342 engine + 105 jsdom +
+70 Playwright), sem `skip` mascarando; amostras reais: 101 = 101 carros idênticos fora do Nº OTA; 0 duplicata.
+Ver `RELATORIO-v1.5.9.md`.
 
 **v1.5.8** — **motor do mapa: arraste sem sobreposição (troca → vaga de baixo → livre → overbooking, com
 aviso) + encaixe estável (filtro não move nada; reimport/reabrir preservam) + central de pendências

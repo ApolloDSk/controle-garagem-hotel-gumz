@@ -27,7 +27,7 @@ function montarPDF() {
   const hoje = dias(0), maisTarde = dias(5), ontem = dias(-2), depois = dias(3);
   return [
     bloco('30001', hoje, maisTarde, '201', 'WHATSAPP', 'GARAGEM PEQUENO', 'ANA PEQUENA'),
-    bloco('30002', hoje, maisTarde, '202', 'BOOKING 413101ID20542561', 'GARAGEM GRANDE', 'BRUNO GRANDE'),
+    bloco('30002', hoje, maisTarde, '202', 'BOOKING 413101ID20542561', 'GARAGEM GRANDE Origem (Booking): 6093516736 / BED PREFERENCE', 'BRUNO GRANDE'),
     bloco('30003', hoje, maisTarde, '203', 'EXPEDIA', 'VERIFICAR INTERESSE SEM CLASSIF', 'CARLA AMARELA'),
     bloco('30004', ontem, depois, '204', 'WHATSAPP', 'GARAGEM PEQUENO', 'DAVI PASSADO'),
   ].join('\n');
@@ -66,7 +66,7 @@ async function importarComandas(page, txt) {
 
 test('smoke: carrega, rodapé v1.5.1, abas (Mapa/Contato/Gestão), dois slots', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('#footer-version')).toHaveText('v1.5.8');
+  await expect(page.locator('#footer-version')).toHaveText('v1.5.9');
   await expect(page.locator('#tab-mapa')).toContainText('Mapa de Reservas');
   await expect(page.locator('#tab-mapa svg.tab-ico')).toHaveCount(1);
   await expect(page.locator('#tab-contato svg.tab-ico.wa')).toHaveCount(1);
@@ -323,7 +323,7 @@ test('5.5/5.4 detalhe: copiar nº PMS/OTA + prancheta no canto inferior direito'
   await page.locator('#detalhe-corpo .copyable', { hasText: '#30002' }).click();
   await expect(page.locator('#copy-toast')).toContainText('Copiado');
   // copiar OTA
-  await page.locator('#detalhe-corpo .copyable', { hasText: '413101ID20542561' }).click();
+  await page.locator('#detalhe-corpo .copyable', { hasText: '6093516736' }).click(); // v1.5.9: nº da OTA, não o localizador
   await expect(page.locator('#copy-toast')).toContainText('Copiado');
 });
 
@@ -539,8 +539,19 @@ test('v1.5.1.1 [real] Reservas de amostras/ → sem regressão (pendente até ha
   // v1.5.6 (6.3) — multi-carro/homônimos não viram "duplicata". Com o relatório INTEIRO à vista, o único
   // sinal é o caso CONHECIDO da regra (inalterada) da v1.5.6: #27316 = 2 quartos (APF/TST) ainda SEM apto
   // atribuído ("-") → mesmo nº+apto+carro → sinaliza (v1.5.7 sinaliza igual nesse período). Registrado.
+  // v1.5.9 (G) — a #27316 (2 quartos APF/TST ainda sem apto) passou a ser distinguida pela linha do
+  // relatório: o relatório real fica SEM nenhuma possível duplicata.
   const dupNros = await page.evaluate(() => [...new Set([...document.querySelectorAll('#mapa-container .cell-span.tem-dup')].map(s => s.dataset.nro))]);
-  expect(dupNros.filter(x => x !== '27316')).toEqual([]);
+  expect(dupNros).toEqual([]);
+  // v1.5.9 (A) — Nº OTA nunca é o localizador; toda reserva com "Origem (…):" tem o número.
+  const ota = await page.evaluate(() => {
+    const rs = window.conjuntoCompleto().filter(r => !r.ehHospedado);
+    return { loc: rs.filter(r => /ID\d/.test(r.nroOTA || '')).length, comCanal: rs.filter(r => r.canalOTA).length, comCanalSemNro: rs.filter(r => r.canalOTA && !r.nroOTA).length };
+  });
+  console.log(`[amostra real] carros com Origem: ${ota.comCanal}; localizador como Nº OTA: ${ota.loc}`);
+  expect(ota.loc).toBe(0);
+  expect(ota.comCanal).toBeGreaterThan(0);
+  expect(ota.comCanalSemNro).toBe(0);
   // v1.5.8 (B) — a alocação do relatório real não tem NENHUMA sobreposição (invariante).
   expect(await page.evaluate(() => window.verificarSobreposicoes(window.getUltimaAlocacao()).length)).toBe(0);
 });
@@ -1153,15 +1164,20 @@ test('v1.5.7 (7.4) botão Limpar: confirma → mapa zera e a Gestão permanece',
   await expect(page.locator('#mapa-container .cell-span').first()).toBeVisible();
   await page.click('#tab-gestao');
   await page.evaluate(() => window.gestaoAddFuncionario('Douglas'));
+  // v1.5.9 (F) — modelo editado pelo usuário + telefone + envio: tudo isso tem de sobreviver ao Limpar
+  await page.evaluate(() => window.gestaoSetModelo('verificando', 1, 'MODELO DO DOUG [nome] [ota]'));
+  await page.evaluate(async () => { await window.dbPut('contatos', { nro: '30003', telefone: '5547999990000', telefoneStatus: 'resolvido', atualizadoEm: Date.now() }); await window.registrarEnvio('30003', 'verificando', 0, 'copiado'); });
   await page.waitForTimeout(200);
+  expect(await page.evaluate(() => localStorage.getItem('garagem_layout'))).not.toBeNull();
   const gestaoAntes = await page.evaluate(async () => JSON.stringify(await window.dbGetAll('gestao')));
   // SEM confirmar, nada é apagado
   await page.click('text=🧹 Limpar informações');
   await expect(page.locator('#limpar-modal')).toBeVisible();
   await expect(page.locator('#limpar-modal')).toContainText('IRREVERSÍVEL');
-  await expect(page.locator('#limpar-modal')).toContainText('Telefones cadastrados');
-  await expect(page.locator('#limpar-modal')).toContainText('Histórico de envios');
-  await expect(page.locator('#limpar-modal')).toContainText('Gestão é preservada');
+  await expect(page.locator('#limpar-detalhe')).toContainText('Posições das reservas no mapa');
+  await expect(page.locator('#limpar-preserva')).toContainText('modelos de mensagem');
+  await expect(page.locator('#limpar-preserva')).toContainText('Telefones cadastrados');
+  await expect(page.locator('#limpar-preserva')).toContainText('Histórico de envios');
   await page.click('#limpar-modal >> text=Cancelar');
   await expect(page.locator('#limpar-modal')).toBeHidden();
   expect(await page.evaluate(async () => (await window.dbGetAll('reservas')).length)).toBeGreaterThan(0);
@@ -1172,11 +1188,18 @@ test('v1.5.7 (7.4) botão Limpar: confirma → mapa zera e a Gestão permanece',
   await page.waitForTimeout(400);
   const vazios = await page.evaluate(async () => {
     const out = {};
-    for (const s of ['reservas', 'hospedados', 'ajustes', 'reservasManuais', 'contatos', 'envios']) out[s] = (await window.dbGetAll(s)).length;
+    for (const s of ['reservas', 'hospedados', 'ajustes', 'reservasManuais']) out[s] = (await window.dbGetAll(s)).length;
     return out;
   });
   Object.entries(vazios).forEach(([s, n]) => expect(n, `store ${s}`).toBe(0));
   expect(await page.evaluate(async () => JSON.stringify(await window.dbGetAll('gestao')))).toBe(gestaoAntes);
+  // posições apagadas (o redesenho do mapa vazio pode regravar um layout vazio `{}` — sem nenhuma posição)
+  expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('garagem_layout') || '{}')).length)).toBe(0);
+  expect(await page.evaluate(async () => (await window.dbGetAll('contatos')).some(c => c.nro === '30003'))).toBe(true);
+  expect(await page.evaluate(async () => (await window.dbGetAll('envios')).some(e => e.nro === '30003' && e.tipo === 'copiado'))).toBe(true);
+  // modelos continuam na Gestão (visíveis e usáveis)
+  await expect(page.locator('#tab-gestao')).toBeVisible();
+  expect(await page.evaluate(() => window.getGestaoConfig().modelos.verificando[1])).toBe('MODELO DO DOUG [nome] [ota]');
   await page.click('#tab-mapa');
   await expect(page.locator('#mapa-container .cell-span')).toHaveCount(0);
   // e volta a funcionar
@@ -1490,8 +1513,8 @@ test('v1.5.8 (H) contador soma conflito + excesso + duplicata; lista agrupada; c
   const base = [
     { nro: '89001', apto: '901', obs: 'VERIFICAR', nome: 'PEND CONFLITO', e: 0, s: 5 },
     { nro: '89002', apto: '902', obs: 'GARAGEM 02 CARROS', nome: 'PEND EXCESSO', e: 0, s: 5 },
-    { nro: '89004', apto: '904', obs: 'GARAGEM PEQUENO', nome: 'PEND DUP OTA', e: 0, s: 5, origem: 'BOOKING 413101ID29990001' },
-    { nro: '89005', apto: '905', obs: 'GARAGEM PEQUENO', nome: 'PEND DUP OTA 2', e: 0, s: 5, origem: 'BOOKING 413101ID29990001' }];
+    { nro: '89004', apto: '904', obs: 'GARAGEM PEQUENO Origem (Booking): 7700000001 / x', nome: 'PEND DUP OTA', e: 0, s: 5, origem: 'BOOKING 413101ID29990001' },
+    { nro: '89005', apto: '905', obs: 'GARAGEM PEQUENO Origem (Booking): 7700000001 / x', nome: 'PEND DUP OTA 2', e: 0, s: 5, origem: 'BOOKING 413101ID29990002' }];
   await importarBlocos(page, base);
   await page.locator('.cell-span', { hasText: 'PEND CONFLITO' }).first().click();
   await page.locator('#detalhe-corpo .status-sel').selectOption('confirmado');
@@ -1508,4 +1531,124 @@ test('v1.5.8 (H) contador soma conflito + excesso + duplicata; lista agrupada; c
   await page.locator('#pendencias-corpo .pend-item', { hasText: 'PEND CONFLITO' }).click();
   await expect(page.locator('#pend-modal')).toBeVisible();
   await expect(page.locator('.cell-span.destaque-clique')).toContainText('PEND CONFLITO');
+});
+
+/* ════════════════════════ v1.5.9 ════════════════════════ */
+const AGUARDA_OTA = [
+  { nro: '95001', apto: '501', obs: 'VERIFICAR INTERESSE Origem (Booking): 6093516736 / x', nome: 'ANA COPIA', e: 0, s: 5, origem: 'BOOKING 413101ID20542561' },
+  { nro: '95002', apto: '502', obs: 'VERIFICAR INTERESSE Origem (Expedia): 2444736832 / x', nome: 'BIA ENVIO', e: 1, s: 6, origem: 'EXPEDIA 413101ID20608862' },
+  { nro: '95003', apto: '503', obs: 'VERIFICAR INTERESSE', nome: 'CAIO SEM OTA', e: 2, s: 7 }];
+async function gestaoComFuncionario(page) {
+  await page.evaluate(() => { window.gestaoSetEmpresa('Hotel Gumz'); window.gestaoAddFuncionario(); const f = window.getGestaoConfig().funcionarios[0].id; window.gestaoSetFuncNome(f, 'Doug'); });
+}
+
+test('v1.5.9 (D) Aguardando → "Copiar mensagem" = texto do Contato → ícone no bloco → Confirmado → ícone some', async ({ page }) => {
+  await boot(page);
+  await gestaoComFuncionario(page);
+  await page.evaluate(() => window.gestaoSetModelo('verificando', 0, 'Olá [nome], reserva [ota] via [canal] ([data]). [empresa] — [funcionario]'));
+  await importarBlocos(page, AGUARDA_OTA);
+  const bloco = page.locator('#mapa-container .cell-span', { hasText: 'ANA COPIA' });
+  await expect(bloco.locator('.contatado-ico')).toHaveCount(0);
+  await bloco.click();
+  await expect(page.locator('#btn-copiar-msg')).toBeVisible();
+  await expect(page.locator('#detalhe-corpo .ultima-copia')).toContainText('Ainda não copiada');
+  await expect(page.locator('#detalhe-corpo')).toContainText('6093516736'); // Nº OTA certo no Detalhe
+  await expect(page.locator('#detalhe-corpo')).not.toContainText('413101ID20542561');
+  await page.click('#btn-copiar-msg'); // 1 modelo preenchido → copia direto
+  await expect(page.locator('#copy-toast')).toContainText('Mensagem copiada');
+  const copiado = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copiado).toContain('Olá Ana Copia, reserva 6093516736 via Booking.com');
+  expect(copiado).toContain('Hotel Gumz — Doug');
+  // registro "copiado" + "Última cópia" + seção Envios identificando o tipo
+  await expect(page.locator('#detalhe-corpo .ultima-copia')).toContainText(/Última cópia: \d{2}\/\d{2} \d{2}:\d{2}/);
+  await expect(page.locator('#detalhe-prancheta')).toContainText('Texto copiado');
+  expect(await page.evaluate(async () => (await window.dbGetAll('envios')).filter(e => e.nro === '95001' && e.tipo === 'copiado').length)).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.fecharDetalhe());
+  // ícone de contatado no bloco, com data/hora no tooltip
+  await expect(bloco.locator('.contatado-ico')).toHaveCount(1);
+  await expect(bloco.locator('.contatado-ico')).toHaveAttribute('title', /mensagem copiada/);
+  // o Contato gera EXATAMENTE o mesmo texto e marca a reserva como já contatada
+  await page.click('#tab-contato');
+  const item = page.locator('.ct-item[data-nro="95001"]');
+  await expect(item).toHaveClass(/enviado/);
+  await expect(item).toContainText('OTA 6093516736');
+  await page.fill('#fone-95001', '47998765432'); // o Contato só abre a mensagem com telefone (o Detalhe copia sem)
+  await page.click('#btn-fone-95001');
+  await item.locator('.wa-btn', { hasText: 'Mensagem' }).click();
+  expect(await page.locator('#envio-preview').inputValue()).toBe(copiado);
+  await page.evaluate(() => window.fecharEnvio());
+  // muda p/ Confirmado (fora de overbooking) → o ícone some
+  await page.click('#tab-mapa');
+  await bloco.click();
+  await page.locator('#detalhe-corpo .status-sel').selectOption('confirmado');
+  await page.evaluate(() => window.fecharDetalhe());
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'ANA COPIA' }).locator('.contatado-ico')).toHaveCount(0);
+  // Confirmado → sem modelo aplicável → sem botão
+  await page.locator('#mapa-container .cell-span', { hasText: 'ANA COPIA' }).click();
+  await expect(page.locator('#btn-copiar-msg')).toHaveCount(0);
+});
+
+test('v1.5.9 (D) envio pelo Contato também marca o bloco; Sem garagem tira a marca; vários modelos → seletor em modo copiar', async ({ page }) => {
+  await boot(page);
+  await gestaoComFuncionario(page);
+  await importarBlocos(page, AGUARDA_OTA);
+  await page.click('#tab-contato');
+  await page.fill('#fone-95002', '47998765432');
+  await page.click('#btn-fone-95002');
+  await page.locator('.ct-item[data-nro="95002"] .wa-btn', { hasText: 'Mensagem' }).click();
+  await page.click('#envio-enviar');
+  await page.click('#tab-mapa');
+  const bloco = page.locator('#mapa-container .cell-span', { hasText: 'BIA ENVIO' });
+  await expect(bloco.locator('.contatado-ico')).toHaveAttribute('title', /mensagem enviada/);
+  await bloco.click();
+  await expect(page.locator('#detalhe-prancheta')).toContainText('Enviado');
+  await page.locator('#detalhe-corpo .status-sel').selectOption('sem_garagem');
+  await page.evaluate(() => window.fecharDetalhe());
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'BIA ENVIO' })).toHaveCount(0); // sai do mapa, sem marca
+  // vários modelos na categoria → o botão abre o MESMO seletor do Contato, em modo "copiar"
+  await page.evaluate(() => window.gestaoSetModelo('verificando', 1, 'Modelo dois [nome]'));
+  await page.locator('#mapa-container .cell-span', { hasText: 'CAIO SEM OTA' }).click();
+  await page.click('#btn-copiar-msg');
+  await expect(page.locator('#envio-modal')).toBeVisible();
+  await expect(page.locator('#envio-copiar')).toBeVisible();
+  await expect(page.locator('#envio-enviar')).toBeHidden();
+  // reserva sem nº OTA + modelo com [ota] → aviso antes de copiar e no toast
+  await page.evaluate(() => window.gestaoSetModelo('verificando', 1, 'Reserva [ota] de [nome]'));
+  await page.evaluate(() => window.fecharEnvio());
+  await page.locator('#mapa-container .cell-span', { hasText: 'CAIO SEM OTA' }).click();
+  await page.click('#btn-copiar-msg');
+  await page.locator('#envio-modelos button', { hasText: '2' }).click();
+  await expect(page.locator('#envio-aviso')).toBeVisible();
+  await expect(page.locator('#envio-aviso')).toContainText('[ota]');
+  await page.click('#envio-copiar');
+  await expect(page.locator('#copy-toast')).toContainText('[ota] sem dado');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Reserva  de Caio Sem Ota');
+  await expect(page.locator('#mapa-container .cell-span', { hasText: 'CAIO SEM OTA' }).locator('.contatado-ico')).toHaveCount(1);
+});
+
+test('v1.5.9 (E) busca no Contato: nome, nº, nº OTA, apto, data (dd/mm e dd/mm/aaaa) + período; sem resultado → mensagem', async ({ page }) => {
+  await boot(page);
+  await importarBlocos(page, AGUARDA_OTA);
+  await page.click('#tab-contato');
+  const itens = page.locator('#ct-lista .ct-item');
+  await expect(itens).toHaveCount(3);
+  const busca = async (v, n) => { await page.fill('#ct-busca', v); await expect(itens).toHaveCount(n); };
+  await busca('bia', 1);
+  await busca('95003', 1);
+  await busca('6093516736', 1);
+  await busca('502', 1);
+  const ent = await page.evaluate(() => { const r = window.conjuntoCompleto().find(x => x.nro === '95002'); const d = new Date(r.entrada); const p = n => String(n).padStart(2, '0'); return { dm: `${p(d.getDate())}/${p(d.getMonth() + 1)}`, dma: `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}` }; });
+  await busca(ent.dm, 1);
+  await expect(itens.first()).toHaveAttribute('data-nro', '95002');
+  await busca(ent.dma, 1);
+  await busca('ninguem assim', 0);
+  await expect(page.locator('#ct-lista')).toContainText('Nenhuma reserva Aguardando encontrada');
+  await busca('', 3);
+  // combinada com o período: a 95003 (entra em +2) fora da janela [hoje, +1] → busca por ela não acha
+  await page.evaluate(() => { const d = n => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x; }; window.setRange(d(0), d(1)); });
+  await page.click('#tab-mapa'); await page.click('#tab-contato');
+  await busca('caio', 0);
+  await expect(page.locator('#ct-lista')).toContainText('neste período');
+  await busca('ana', 1);
 });

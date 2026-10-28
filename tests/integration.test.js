@@ -38,7 +38,7 @@ function montarPDF() {
   const ontem = diasDeHoje(-2), depois = diasDeHoje(3), hoje = diasDeHoje(0), maisTarde = diasDeHoje(5);
   return [
     bloco('30001', hoje, maisTarde, '201', 'WHATSAPP', 'GARAGEM PEQUENO', 'ANA PEQUENA'),
-    bloco('30002', hoje, maisTarde, '202', 'BOOKING 413101ID20542561', 'GARAGEM GRANDE', 'BRUNO GRANDE'),
+    bloco('30002', hoje, maisTarde, '202', 'BOOKING 413101ID20542561', 'GARAGEM GRANDE Origem (Booking): 6093516736 / BED PREFERENCE', 'BRUNO GRANDE'),
     bloco('30003', hoje, maisTarde, '203', 'EXPEDIA', 'VERIFICAR INTERESSE SEM CLASSIF', 'CARLA AMARELA'),
     bloco('30004', ontem, depois, '204', 'WHATSAPP', 'GARAGEM PEQUENO', 'DAVI PASSADO'),
   ].join('\n');
@@ -98,7 +98,7 @@ async function aguardarBoot(w) {
 
   await T('rodapé mostra v1.5.7', async () => {
     const { w } = await novoApp();
-    eq(w.document.getElementById('footer-version').textContent, 'v1.5.8');
+    eq(w.document.getElementById('footer-version').textContent, 'v1.5.9');
   });
 
   /* ── 2. abas com novos rótulos/ícones (5.1) ── */
@@ -695,7 +695,8 @@ async function aguardarBoot(w) {
     const corpo = w.document.getElementById('detalhe-corpo');
     const copiaveis = [...corpo.querySelectorAll('.copyable')].map(e => e.getAttribute('onclick') || '');
     ok(copiaveis.some(o => /copiarTexto\('30002'\)/.test(o)), 'nº PMS copiável');
-    ok(copiaveis.some(o => /copiarTexto\('413101ID20542561'\)/.test(o)), 'localizador OTA copiável');
+    ok(copiaveis.some(o => o.includes("copiarTexto('6093516736')")), 'Nº OTA (nº da reserva na Booking) copiável — nunca o localizador');
+    ok(!copiaveis.some(o => /413101ID/.test(o)), 'localizador NÃO aparece como Nº OTA');
   });
 
   await T('5.4 envios persistem ao reabrir; reimport do PDF NÃO apaga', async () => {
@@ -1447,12 +1448,13 @@ Total Geral`;
   await T('v1.5.7 (7.4) CENTRAL: Limpar zera os dados de reserva e PRESERVA a Gestão', async () => {
     const { w } = await novoApp();
     // dados de reserva de todas as origens
-    await w.importarPDF(w.parsear(bloco('29002', diasDeHoje(0), diasDeHoje(4), '902', 'WHATSAPP', 'GARAGEM PEQUENO', 'SOME'))); await sleep(30);
+    // v1.5.9 — Aguardando: entra na fila do Contato (o campo de telefone precisa existir de verdade)
+    await w.importarPDF(w.parsear(bloco('29002', diasDeHoje(0), diasDeHoje(4), '902', 'WHATSAPP', 'VERIFICAR INTERESSE', 'SOME'))); await sleep(30);
     await w.importarComandas(w.parsearComandas(montarComandas())); await sleep(30);
     const alvo = w.conjuntoAtivo().find(r => String(r.nro) === '29002');
     await w.salvarAjuste(w.chaveCarro(alvo), 'P5'); await sleep(20);
     w.trocarAba('contato'); await sleep(20);
-    const inp = w.document.getElementById('fone-29002'); if (inp) inp.value = '5547999998888';
+    const inp = w.document.getElementById('fone-29002'); ok(inp, 'campo de telefone da 29002 no Contato'); inp.value = '5547999998888';
     await w.confirmarTelefone('29002'); await sleep(20);
     await w.registrarEnvio('29002', 'verificando', 0); await sleep(20);
     w.trocarAba('mapa'); await sleep(20);
@@ -1466,15 +1468,22 @@ Total Geral`;
 
     await w.limparInformacoes(); await sleep(60);
 
-    for (const s of ['reservas', 'hospedados', 'ajustes', 'reservasManuais', 'contatos', 'envios']) {
+    for (const s of ['reservas', 'hospedados', 'ajustes', 'reservasManuais']) {
       eq((await w.dbGetAll(s)).length, 0, `store "${s}" vazio`);
     }
+    // v1.5.9 (F) — telefones e histórico de envios/cópias são PRESERVADOS
+    ok((await w.dbGetAll('contatos')).some(c => c.nro === '29002'), 'telefone preservado');
+    ok((await w.dbGetAll('envios')).some(e => e.nro === '29002'), 'histórico preservado');
     eq(JSON.stringify(await w.dbGetAll('gestao')), gestaoAntes, 'Gestão PRESERVADA byte a byte');
     eq(w.document.querySelectorAll('#mapa-container .cell-span').length, 0, 'mapa vazio');
     eq(w.conjuntoAtivo().length, 0, 'estado em memória zerado');
     // e volta a funcionar: importar de novo
     await w.importarPDF(w.parsear(bloco('29010', diasDeHoje(0), diasDeHoje(4), '910', 'WHATSAPP', 'GARAGEM PEQUENO', 'DEPOIS'))); await sleep(40);
     ok(w.document.querySelector('#mapa-container .cell-span'), 'importar depois do clear funciona');
+    // v1.5.9 (F) — reimportar a 29002 religa o telefone preservado à reserva
+    await w.importarPDF(w.parsear(bloco('29002', diasDeHoje(0), diasDeHoje(4), '902', 'WHATSAPP', 'VERIFICAR INTERESSE', 'SOME'))); await sleep(40);
+    w.trocarAba('contato'); await sleep(20);
+    eq((w.document.getElementById('fone-29002') || {}).value, '5547999998888', 'telefone religado na reimportação');
   });
 
   /* ════════ v1.5.8 ════════ */
@@ -1524,6 +1533,25 @@ Total Geral`;
     const base = hs.find(r => r.vagaIdx === 1);
     eq(base.id, base.nro, '1ª moto mantém a chave antiga');
     eq(w.document.querySelectorAll('#mapa-container .cell-span.moto-c').length, 1, '2 motos da mesma hospedagem = 1 vaga');
+  });
+
+  /* ════════ v1.5.9 ════════ */
+  await T('v1.5.9 (A) reserva gravada pela v1.5.8 (localizador em nroOTA) → Nº OTA "não informado", localizador guardado', async () => {
+    const { w } = await novoApp();
+    const h = w.hidratar({ id: 'x', nro: '1', nroOTA: '413101ID20542561', entrada: new Date(), saida: new Date() });
+    eq(h.nroOTA, ''); eq(h.localizador, '413101ID20542561');
+    eq(w.hidratar({ id: 'y', nro: '2', nroOTA: '6093516736', entrada: new Date(), saida: new Date() }).nroOTA, '6093516736', 'nº OTA real intocado');
+  });
+
+  await T('v1.5.9 (D) ícone de contatado: aparece em overbooking mesmo Confirmado; some em Confirmado fora do overbooking', async () => {
+    const { w } = await novoApp();
+    await w.importarPDF(w.parsear(bloco('96001', diasDeHoje(0), diasDeHoje(4), '961', 'WHATSAPP', 'GARAGEM PEQUENO', 'CONF CONTATO'))); await sleep(30);
+    await w.registrarEnvio('96001', 'verificando', 0, 'copiado'); await sleep(20);
+    const r = w.conjuntoCompleto().find(x => x.nro === '96001');
+    eq(w.contatadoIcoHTML({ ...r, _over: false, _statusEfetivo: 'confirmado' }), '', 'Confirmado fora do overbooking → sem ícone');
+    ok(/contatado-ico/.test(w.contatadoIcoHTML({ ...r, _over: true, _statusEfetivo: 'confirmado' })), 'overbooking → ícone');
+    ok(/contatado-ico/.test(w.contatadoIcoHTML({ ...r, _over: false, _statusEfetivo: 'aguardando' })), 'Aguardando → ícone');
+    eq(w.contatadoIcoHTML({ ...r, nro: '96999', _statusEfetivo: 'aguardando' }), '', 'sem contato → sem ícone');
   });
 
   console.log(`\nINTEGRAÇÃO (jsdom + fake-indexeddb): ${pass}/${pass + fail} ✓`);

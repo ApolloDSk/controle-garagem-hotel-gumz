@@ -354,6 +354,17 @@ body.arrastando .cell-span{cursor:grabbing}
 .cell-span.dup-foco{outline:3px solid var(--vermelho);outline-offset:2px;z-index:165;box-shadow:0 0 0 4px rgba(239,68,68,.28)}
 .mapa-wrapper.dup-isolando .cell-span.dup-foco{opacity:1;filter:none}
 .manual-ico{margin-right:3px;font-size:9px}
+/* v1.5.9 — nº OTA não informado, aviso de chave vazia, copiar mensagem, marca de contatado, busca do Contato */
+.ota-ni{color:var(--muted);font-style:italic;font-weight:400}
+.ct-badge.ota-ni{opacity:.75}
+.envio-aviso{margin:8px 0 2px;padding:6px 10px;border-radius:7px;background:var(--vermelho-bg);color:var(--vermelho);font-size:12px;line-height:1.4}
+.detalhe-copiar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
+.ultima-copia{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
+.contatado-ico{margin-right:3px;font-size:9px;cursor:help}
+.pr-tipo{font-size:11px;font-weight:600;margin-right:6px}
+.pr-tipo.copiado{color:var(--busca)}
+.ct-busca{margin-top:8px;max-width:520px}
+.ct-busca input{background:transparent;border:none;outline:none;color:var(--text);font-family:'Sora',sans-serif;font-size:12.5px;width:100%}
 /* v1.5.8 (H) — central de pendências: neutra em zero, visível (sem agressividade) com pendências */
 .pend-btn{white-space:nowrap}
 .pend-btn b{font-family:'DM Mono',monospace}
@@ -596,6 +607,12 @@ body.arrastando .cell-span{cursor:grabbing}
   <div class="ct-cab">
     <div class="ct-cab-tit">📞 Fila de contato — <b>Aguardando</b></div>
     <div class="ct-cab-sub">Confirme com o hóspede se vai usar a garagem. Mudou o status? Sai da fila na hora.</div>
+    <!-- v1.5.9 (E) — busca na fila (mesma lógica da busca do mapa + data de entrada); soma-se ao período -->
+    <div class="busca-box ct-busca">
+      <span class="busca-ico">🔎</span>
+      <input type="text" id="ct-busca" placeholder="Buscar: nome, nº, nº OTA, apto ou entrada (dd/mm)…" oninput="onContatoBusca(this.value)"
+        onkeydown="if(event.key==='Escape'){this.value='';onContatoBusca('');}">
+    </div>
   </div>
   <div id="ct-lista"></div>
   <div class="ct-tpl-nota">✏️ Os modelos de mensagem agora ficam em <b>Gestão › Modelos de Mensagens</b>.</div>
@@ -620,7 +637,8 @@ body.arrastando .cell-span{cursor:grabbing}
     <div class="modal-body">
       <p><code>[nome]</code> — Nome do hóspede da reserva.</p>
       <p><code>[data]</code> — Datas da hospedagem (entrada e saída).</p>
-      <p><code>[canal]</code> — Canal/origem em que a reserva foi feita (ex.: WhatsApp, Booking, Expedia, telefone, site).</p>
+      <p><code>[canal]</code> — Canal em que a reserva foi feita, lido de <i>Origem (…)</i> da reserva: Booking.com, Expedia, site oficial do hotel… (sem origem: WhatsApp, telefone, etc.).</p>
+      <p><code>[ota]</code> — Número da reserva na OTA (Booking, Expedia, site oficial…), lido de <i>Origem (…)</i>. Sem número, a chave fica vazia e o app avisa antes de enviar/copiar.</p>
       <p><code>[empresa]</code> — Nome da empresa, configurado em Gestão › Empresa.</p>
       <p><code>[funcionario]</code> — Nome do funcionário marcado como padrão em Gestão › Funcionários.</p>
     </div>
@@ -634,9 +652,13 @@ body.arrastando .cell-span{cursor:grabbing}
     <div class="modal-body">
       <div id="envio-modelos" class="envio-modelos"></div>
       <textarea id="envio-preview" class="envio-preview" readonly></textarea>
+      <!-- v1.5.9 (B) — chave usada no modelo que ficou sem dado: avisa ANTES de enviar/copiar -->
+      <div id="envio-aviso" class="envio-aviso" style="display:none"></div>
       <div class="envio-acoes">
         <button class="btn btn-ghost" id="envio-editar" onclick="envioToggleEditar()">✏️ Editar só este envio</button>
         <a class="wa-btn" id="envio-enviar" target="_blank" rel="noopener">💬 Enviar no WhatsApp</a>
+        <!-- v1.5.9 (D) — modo "copiar" (aberto pelo Detalhe da reserva) -->
+        <button class="btn btn-primary" id="envio-copiar" style="display:none" onclick="envioCopiar()">📋 Copiar mensagem</button>
       </div>
       <div class="envio-nota">A edição vale só para este envio e não altera o modelo salvo (mude-o em Gestão › Modelos).</div>
     </div>
@@ -754,13 +776,14 @@ body.arrastando .cell-span{cursor:grabbing}
         <li>Reservas importadas do relatório e hospedados (comandas)</li>
         <li>Reservas adicionadas manualmente</li>
         <li>Ajustes manuais: posição das vagas e status</li>
-        <li><b>Telefones cadastrados</b> — inclusive os que você digitou</li>
-        <li><b>Histórico de envios</b> (registro de quem já foi contatado)</li>
+        <li>Posições das reservas no mapa e pendências (conflitos, exceções, duplicatas dispensadas)</li>
       </ul>
-      <div style="margin-top:12px">
-        <span class="limpar-preserva">✔ A Gestão é preservada</span> — empresa, funcionários e
-        modelos de mensagem continuam como estão.
-      </div>
+      <div style="margin-top:12px"><span class="limpar-preserva">✔ São preservados:</span></div>
+      <ul class="limpar-lista" id="limpar-preserva">
+        <li><b>Toda a Gestão</b> — empresa, funcionários e <b>modelos de mensagem</b></li>
+        <li><b>Telefones cadastrados</b> — voltam a aparecer sozinhos quando a reserva for reimportada</li>
+        <li><b>Histórico de envios e cópias</b> (quem já foi contatado)</li>
+      </ul>
       <div class="ghint" style="margin-top:10px">Depois é só subir os relatórios atualizados.
         Quer guardar antes? Use <b>Exportar backup</b>, logo acima.</div>
       <div class="envio-acoes">
@@ -782,7 +805,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc=window.PDFJS_WORKER_SRC||'./pdfjs/pdf.wor
    ENGINE START — lógica pura (sem DOM). Reaproveitada nos testes.
    ═══════════════════════════════════════════════════════════ */
 // ===ENGINE START===
-const APP_VERSION='v1.5.8';
+const APP_VERSION='v1.5.9';
 
 // ── DATAS (puro) ──
 function parseDtEnt(s){const[d,m,y]=s.split('/');return new Date(2000+parseInt(y),parseInt(m)-1,parseInt(d));}
@@ -861,9 +884,33 @@ function extrairNomes(blocoRaw){
 // ── EXTRAÇÃO DO LOCALIZADOR OTA (nº da reserva na Booking/Expedia) ──
 // Formato no PDF (linha de origem): "BOOKING   413101ID20542561" / "EXPEDIA  413101ID20686279"
 // Reservas diretas (WhatsApp/Telefone/Site) não têm localizador.
+// ⚠ v1.5.9 (A) — isto é o LOCALIZADOR do channel manager (ex.: 413101ID21742482), NÃO o nº da reserva
+// na OTA. Até a v1.5.8 ele aparecia como "Nº OTA". Hoje é guardado à parte em `localizador`.
 function extrairNroOTA(bloco){
   const m=bloco.match(/\b(\d{4,}ID\d{3,})\b/);
   return m?m[1]:'';
+}
+// v1.5.9 (A) — Nº DA RESERVA NA OTA: no Desbravador do Hotel Gumz vem na observação como
+// "Origem (<canal>): <número> / …". Genérico: qualquer canal, inclusive com parênteses aninhados
+// ("Booking Engine(** NA **)") e com quebra de linha no meio. Validado nas amostras: 96/96 reservas com
+// "Origem (…):" têm o número (Booking 59, Booking Engine 16, Expedia 11, operadoras 10). Sem "Origem" →
+// {canal:'', numero:''} (o app mostra "não informado" — NUNCA o localizador).
+function extrairOrigemOTA(bloco){
+  const m=String(bloco||'').match(/Origem\s*\(((?:[^()]|\([^()]*\))*)\)\s*:\s*([^\s\/;]+)/);
+  if(!m)return{canal:'',numero:''};
+  const canal=m[1].replace(/\s+/g,' ').trim();
+  const numero=/\d/.test(m[2])?m[2].trim():'';
+  return{canal,numero};
+}
+// v1.5.9 (C) — nome amigável do canal p/ a chave [canal]. Desconhecido → o texto entre parênteses limpo
+// (sem marcadores como "(** NA **)").
+function canalAmigavel(canalBruto){
+  const limpo=String(canalBruto||'').replace(/\(\s*\*+[^)]*\)/g,'').replace(/\s+/g,' ').trim();
+  if(!limpo)return'';
+  if(/^booking\s*engine$/i.test(limpo))return'site oficial do hotel';
+  if(/^booking(\.com)?$/i.test(limpo))return'Booking.com';
+  if(/^expedia$/i.test(limpo))return'Expedia';
+  return limpo;
 }
 
 // ── CLASSIFICAÇÃO DE GARAGEM (preservado da v21) ──
@@ -1032,7 +1079,16 @@ function parsear(textoOriginal){
 
     const nm=blocoFlat.match(/\b(\d{4,6})\s+[A-Z]\b/);
     const nro=nm?nm[1]:`AUTO${idx}`;
-    const nroOTA=extrairNroOTA(bloco);
+    // v1.5.9 (A/C) — Nº OTA = número da reserva na OTA ("Origem (<canal>): <nº>"); o localizador do
+    // channel manager fica à parte; canalOTA alimenta a chave [canal].
+    const origemOTA=extrairOrigemOTA(bloco);
+    const nroOTA=origemOTA.numero;
+    const localizador=extrairNroOTA(bloco);
+    const canalOTA=canalAmigavel(origemOTA.canal);
+    // v1.5.9 (G) — a LINHA do relatório (quarto, situação, pax…). Distingue quartos diferentes de uma
+    // reserva ainda sem apto atribuído da mesma linha importada duas vezes.
+    const lm=bloco.match(/\d{2}\/\d{2}\/\d{2}[ \t]+\d{2}\/\d{2}[^\n]*/);
+    const linhaPMS=lm?lm[0].replace(/\s+/g,' ').trim():'';
 
     let apto='-';
     const aptoM=bloco.match(/\d{2}\/\d{2}\/\d{2}\s+\d{2}\/\d{2}[\s\n]+\d+[\s\n]+\d+\s+(\d+)[\s\n]+[A-Z]{2,4}/);
@@ -1071,7 +1127,7 @@ function parsear(textoOriginal){
     // o total de ser multiplicado pelo número de apartamentos.
     const decl=carrosDeclaradosNoBloco(obsUp);
     pendentes.push({
-      base:{nro,nroOTA,nomeCompleto,hospedeDetalhe,entrada,saida,apto,garagem,origem,
+      base:{nro,nroOTA,localizador,canalOTA,linhaPMS,nomeCompleto,hospedeDetalhe,entrada,saida,apto,garagem,origem,
             obs:obsResumo,ehGrupo,semGaragemPDF:semGar.sem,obsAmbigua:semGar.ambiguo,telefoneDoc},
       porApto:decl.porApto,totalReserva:decl.totalReserva,obsUp
     });
@@ -1393,7 +1449,7 @@ function recorteEsquerdo(reserva,janelaInicio){
 /* ─────────────── v1.2.0 — GESTÃO + MODELOS + BACKUP (funções puras) ─────────────── */
 
 // Chaves suportadas nos modelos (substituídas de verdade no envio).
-const CHAVES_MODELO=['nome','data','canal','empresa','funcionario'];
+const CHAVES_MODELO=['nome','data','canal','ota','empresa','funcionario']; // v1.5.9 (B) — +[ota]
 
 // Textos-exemplo semeados no slot 1 de cada categoria (editáveis pela empresa).
 const SEED_VERIFICANDO='Olá [nome], aqui é da [empresa]. Sobre sua reserva ([data]) feita via [canal]: você vai precisar de vaga de garagem durante a estadia? Ficamos no aguardo para confirmar. Atenciosamente, [funcionario].';
@@ -1469,6 +1525,9 @@ function definirFuncionarioPadrao(gestao,id){
 function categoriaReserva(g){
   if(!g)return null;
   if(g.over)return'overbooking';
+  // v1.5.9 (D) — com status efetivo conhecido, ele manda (Aguardando manual também usa o modelo de
+  // verificação; Confirmado manual sai do sistema de modelos). Sem ele, a regra antiga (amarelo do PDF).
+  if(g._statusEfetivo)return g._statusEfetivo==='aguardando'?'verificando':null;
   if(g.garagem==='amarelo')return'verificando';
   return null;
 }
@@ -1523,7 +1582,10 @@ function montarRegistroEnvio(dados){
     dataHora:new Date(ms).toISOString(),
     funcionario:String(dados.funcionario||''),
     categoria:dados.categoria||'',
-    modelo:(dados.modelo==null?null:dados.modelo)
+    modelo:(dados.modelo==null?null:dados.modelo),
+    // v1.5.9 (D) — tipo do evento de contato: 'enviado' (wa.me aberto pelo Contato) × 'copiado' (texto
+    // copiado no Detalhe). Registros antigos não têm o campo → tratados como 'enviado'.
+    tipo:dados.tipo==='copiado'?'copiado':'enviado'
   };
 }
 // Ordena os envios de uma hospedagem do mais recente p/ o mais antigo (por dataHora ISO).
@@ -1533,22 +1595,33 @@ function enviosOrdenados(enviosDoNro){
 }
 
 // ── 5.5 SUBSTITUIÇÃO DAS CHAVES (pura) — nunca deixa chave literal ──
-function substituirChaves(texto,reserva,gestao){
+// v1.5.9 (B/C) — [ota] = nº da reserva na OTA; [canal] = canal da "Origem (…)" com nome amigável
+// (fonte principal), com fallback p/ o canal antigo (comanda / palavra da origem).
+function valoresChaves(reserva,gestao){
   reserva=reserva||{};
   const g=gestaoNormalizar(gestao);
-  // v1.4.0 (5.1): [nome] sai em formato de nome próprio (não altera o armazenamento).
   const nome=formatarNomeProprio(reserva.nome||reserva.nomeCompleto||'');
   let data='';
   const ent=reserva.entrada,sai=reserva.saida;
   if(ent&&sai)data=`${fmtData(new Date(ent))} a ${fmtData(new Date(sai))}`;
   else if(ent)data=fmtData(new Date(ent));
   else if(sai)data=fmtData(new Date(sai));
-  const canal=reserva.canal||reserva.origem||'';
+  const canal=reserva.canalOTA||reserva.canal||reserva.origem||'';
+  const ota=reserva.nroOTA||'';
   const empresa=(g.empresa&&g.empresa.nome)||'';
   const fp=funcionarioPadrao(g);
   const funcionario=fp?fp.nome:'';
-  const mapa={nome,data,canal,empresa,funcionario};
-  return String(texto||'').replace(/\[(nome|data|canal|empresa|funcionario)\]/gi,(_,k)=>mapa[k.toLowerCase()]??'');
+  return{nome,data,canal,ota,empresa,funcionario};
+}
+// v1.5.9 (B) — chaves USADAS no texto que ficaram sem dado (p/ avisar antes de enviar/copiar).
+function chavesVazias(texto,reserva,gestao){
+  const v=valoresChaves(reserva,gestao);const out=[];
+  String(texto||'').replace(/\[(nome|data|canal|ota|empresa|funcionario)\]/gi,(_,k)=>{k=k.toLowerCase();if(!v[k]&&out.indexOf(k)<0)out.push(k);return'';});
+  return out;
+}
+function substituirChaves(texto,reserva,gestao){
+  const mapa=valoresChaves(reserva,gestao);
+  return String(texto||'').replace(/\[(nome|data|canal|ota|empresa|funcionario)\]/gi,(_,k)=>mapa[k.toLowerCase()]??'');
 }
 
 // ── 5.4 AUTOCOMPLETE de chaves (puro) ──
@@ -1669,7 +1742,11 @@ function detectarDuplicatas(reservas){
   const union=(a,b)=>{const ra=find(a),rb=find(b);if(ra!==rb)parent.set(ra,rb);};
   const temNro=(r)=>r.nro!=null&&String(r.nro).trim()!==''&&!/^AUTO/.test(String(r.nro));
   const porId={};
-  rP.forEach(r=>{if(!temNro(r))return;const k='I|'+String(r.nro)+'|'+String(r.apto==null?'':r.apto)+'|'+(r.vagaIdx||1);(porId[k]=porId[k]||[]).push(r);});
+  // v1.5.9 (G) — apto AINDA NÃO ATRIBUÍDO ("-"/vazio): a linha do relatório entra na identidade. Quartos
+  // diferentes da mesma reserva (ex.: #27316 APF + TST) são legítimos; a MESMA linha repetida continua
+  // alertando. Sem `linhaPMS` (dado antigo) ou linhas idênticas → não dá p/ distinguir → alerta (notificar).
+  const semApto=a=>a==null||String(a).trim()===''||String(a).trim()==='-';
+  rP.forEach(r=>{if(!temNro(r))return;const k='I|'+String(r.nro)+'|'+String(r.apto==null?'':r.apto)+'|'+(r.vagaIdx||1)+(semApto(r.apto)&&r.linhaPMS?'|'+r.linhaPMS:'');(porId[k]=porId[k]||[]).push(r);});
   Object.keys(porId).forEach(k=>{const g=porId[k];for(let i=1;i<g.length;i++)union(g[0],g[i]);});
   const porOTA={};
   rP.forEach(r=>{const o=r.nroOTA?String(r.nroOTA).trim():'';if(o)(porOTA[o]=porOTA[o]||[]).push(r);});
@@ -2292,7 +2369,16 @@ function matchBusca(res,termo){
   const t=String(termo||'').trim().toLowerCase();
   if(!t||!res)return false;
   const campos=[res.nro,res.nomeCompleto,res.apto,tipoVeiculoLabel(res),res.nroOTA];
-  return campos.some(c=>c!=null&&String(c).toLowerCase().includes(t));
+  if(campos.some(c=>c!=null&&String(c).toLowerCase().includes(t)))return true;
+  // v1.5.9 (E) — data de ENTRADA: "dd/mm" ou "dd/mm/aaaa" (também "dd/mm/aa"); dia/mês com 1 ou 2 dígitos.
+  const md=t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/);
+  if(md&&res.entrada){
+    const e=new Date(res.entrada);if(isNaN(e))return false;
+    if(e.getDate()!==+md[1]||e.getMonth()+1!==+md[2])return false;
+    if(md[3]){const a=md[3].length===2?2000+(+md[3]):+md[3];if(e.getFullYear()!==a)return false;}
+    return true;
+  }
+  return false;
 }
 
 // ── 5.4 RESERVA MANUAL (puro): validação + montagem + reconciliação/dedup com o PDF ──
@@ -2846,7 +2932,12 @@ async function carregarDoBanco(){
 }
 // Datas viram string no IndexedDB? Não — IndexedDB guarda Date nativamente. Mas garantimos Date.
 function hidratar(r){
-  return{...r,entrada:new Date(r.entrada),saida:new Date(r.saida)};
+  const h={...r,entrada:new Date(r.entrada),saida:new Date(r.saida)};
+  // v1.5.9 (A) — reserva gravada até a v1.5.8 (ainda não reimportada) trazia o LOCALIZADOR em nroOTA:
+  // ele vai p/ `localizador` e o Nº OTA fica "não informado" até a próxima importação (só em memória;
+  // o registro do banco é regravado pela própria importação). Nunca exibir localizador como Nº OTA.
+  if(h.nroOTA&&/^\d{4,}ID\d{3,}$/.test(String(h.nroOTA))){if(!h.localizador)h.localizador=h.nroOTA;h.nroOTA='';}
+  return h;
 }
 function anexarTelefones(){
   todasReservas.forEach(r=>{
@@ -3495,7 +3586,7 @@ function mkRow(label,linha,datas,isOver,isMoto,vagaIdOverride){
       // stopPropagation no pointerdown p/ o selo NÃO iniciar arraste nem abrir o detalhe.
       const dupBadge=res._dupCluster?`<span class="dup-badge" title="Possível duplicata — clique para isolar o par (confira e decida)" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();isolarDuplicata('${res._dupCluster}')">⧉<span class="dup-x" title="Dispensar (revisei, não é duplicata)" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();dispensarDuplicata('${res._dupCluster}')">✕</span></span>`:'';
       if(res._dupCluster){span.dataset.dupcluster=res._dupCluster;span.classList.add('tem-dup');}
-      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${manualIco}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>${dupBadge}${_pendBadgesHTML(res)}`;
+      span.innerHTML=`<div class="cell-inner"><span class="cell-nome">${diverg}${mao}${manualIco}${contatadoIcoHTML(res)}${aviso}${res.nomeCompleto}</span><span class="cell-info">${infoLabel}</span></div>${dupBadge}${_pendBadgesHTML(res)}`;
       if(res.ajusteManual)span.classList.add('tem-ajuste');
       marcarBusca(span,res);
       // 5.4 — arraste (Pointer Events) nas seções arrastáveis; clique abre detalhe.
@@ -3511,6 +3602,17 @@ function mkRow(label,linha,datas,isOver,isMoto,vagaIdOverride){
   row.appendChild(wrap);return row;
 }
 
+// v1.5.9 (D) — marca "contatado, aguardando resposta": houve contato (cópia no Detalhe OU envio pelo
+// Contato) e a reserva segue Aguardando ou em overbooking. Some ao virar Confirmado fora do overbooking
+// ou Sem garagem. Fica junto do nome (como ✋/✍️), longe dos selos ⧉/≠/×N dos cantos.
+function contatadoIcoHTML(res){
+  if(!res||res.ehHospedado)return'';
+  if(!(res._over||res._statusEfetivo==='aguardando'))return'';
+  const u=ultimoContato(res.nro);
+  if(!u)return'';
+  const como=(u.tipo==='copiado')?'mensagem copiada':'mensagem enviada';
+  return`<span class="contatado-ico" title="Contatado (${como}) em ${escapeAttr(fmtDiaHora(u.dataHora))} — aguardando resposta">💬</span>`;
+}
 // v1.5.8 (F) — uma linha de moto no bloco: letra do grupo + nome + de quem é + "Moto X de N".
 function _motoLinhaHTML(m,idx,mao){
   const id=m.ehHospedado?`🏠 Ap ${escapeHtml(m.apto)}`:`#${escapeHtml(m.nro)}`;
@@ -3554,7 +3656,7 @@ function ttHtml(res,isOver,isMoto){
   const status=res.ehHospedado&&!isOver?`🏠 Hospedado — ${tipoHosp}`:isMoto?'🟣 Moto confirmada':isOver?'🔴 Overbooking — sem vaga garantida':stEfTT==='aguardando'?'🟡 Aguardando':grande?'🔵 Confirmado — Grande':'🔵 Confirmado — Pequeno';
   const canalHospRow=res.ehHospedado&&res.canal?`<div class="tt-row"><span class="tt-key">Canal</span><span class="tt-val">${escapeHtml(res.canal)}</span></div>`:'';
   const hospedeRow=res.hospedeDetalhe?`<div class="tt-row"><span class="tt-key">Hóspede</span><span class="tt-val">${res.hospedeDetalhe}</span></div>`:'';
-  const otaRow=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val">${res.nroOTA}</span></div>`:'';
+  const otaRow=(res.ehHospedado||res.ehManual)?'':`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val">${res.nroOTA?escapeHtml(res.nroOTA):'<span class="ota-ni">não informado</span>'}</span></div>`; // v1.5.9 (A) — nunca o localizador
   // v1.5.4 (5.2) — "Carro 0N" no tooltip quando a reserva tem mais de um carro (sem cor laranja).
   const totalInfo=(res._carroTotal>1)?`<div class="tt-row"><span class="tt-key">Veículos</span><span class="tt-val" style="font-weight:700">Carro ${String(res._carroSeq).padStart(2,'0')} de ${res._carroTotal}</span></div>`:'';
   const grandePeqRow=res._grandeEmPequena?`<div class="tt-row"><span class="tt-key tt-warn">⚠ Atenção</span><span class="tt-val tt-warn">Carro grande em vaga pequena</span></div>`:'';
@@ -3658,14 +3760,21 @@ function setContatoFiltro(f){
 // Agrupa por nº PMS (nro): uma reserva pode ocupar vários aptos/vagas.
 function reservasContato(){
   // v1.5.1 — não lista reservas já duplicadas por um hospedado (mesmo apto + período sobreposto).
-  const rP=dedupeReservasHospedados(ativasNoPeriodo(),hospedadosNoPeriodo());
+  return agruparContato(dedupeReservasHospedados(ativasNoPeriodo(),hospedadosNoPeriodo()));
+}
+// v1.5.9 (D) — o grupo do Contato de UMA reserva (qualquer período): o Detalhe usa EXATAMENTE a mesma
+// montagem do Contato, então "Copiar mensagem" gera o mesmo texto que o Contato geraria.
+function grupoContatoDe(nro){
+  return agruparContato(conjuntoCompleto().filter(r=>String(r.nro)===String(nro)))[0]||null;
+}
+function agruparContato(rP){
   // v1.5.8 (B) — usa as flags (_aloc/_over/_statusEfetivo) da MESMA alocação do mapa (conjunto completo
   // + layout estável). Antes recalculava uma alocação só da janela, que podia discordar do mapa.
   if(!ultimaAlocacao)computarAlocacao();
   const map={};
   rP.forEach(r=>{
     if(!map[r.nro]){
-      map[r.nro]={nro:r.nro,nroOTA:r.nroOTA||'',nome:r.nomeCompleto,
+      map[r.nro]={nro:r.nro,nroOTA:r.nroOTA||'',canalOTA:r.canalOTA||'',nome:r.nomeCompleto,
         entrada:new Date(r.entrada),saida:new Date(r.saida),origem:r.origem,
         garagem:r.garagem,aptos:new Set(),over:false,extra:false,
         _res:r, // v1.5.7 (7.2) — carro representativo do grupo (p/ resolver o ajuste por carro)
@@ -3678,6 +3787,7 @@ function reservasContato(){
     if(r._over)g.over=true;
     if(r._aloc==='extra'||r._extraManual)g.extra=true; // v1.5.5 (6.8) — flag "vaga extra" (só info visual)
     if(!g.nroOTA&&r.nroOTA)g.nroOTA=r.nroOTA;
+    if(!g.canalOTA&&r.canalOTA)g.canalOTA=r.canalOTA;
     // v1.5.0 — status efetivo + divergência com o PMS (por nro).
     if(r._statusEfetivo)g._statusEfetivo=r._statusEfetivo;
     if(r._pmsDivergente)g._pmsDivergente=true;
@@ -3702,12 +3812,17 @@ function filaAguardando(){
     .filter(g=>g._statusEfetivo==='aguardando')
     .sort((a,b)=>(a.entrada-b.entrada)||(String(a.nro).localeCompare(String(b.nro))));
 }
+let contatoBusca=''; // v1.5.9 (E)
+function onContatoBusca(v){contatoBusca=String(v||'');renderContato();}
 function renderContato(){
   const cont=document.getElementById('ct-lista');
   cont.innerHTML='';
   if(!todasReservas.length&&!todosHospedados.length){cont.innerHTML='<div class="ct-empty">Importe um relatório PDF para ver as reservas.</div>';return;}
-  const grupos=filaAguardando();
+  const fila=filaAguardando();
+  // v1.5.9 (E) — busca (nome, nº, nº OTA, apto, entrada dd/mm[/aaaa]) sobre a fila do período: os dois juntos restringem.
+  const grupos=contatoBusca.trim()?fila.filter(g=>matchBusca({nro:g.nro,nomeCompleto:g.nome,apto:[...g.aptos].join(' '),nroOTA:g.nroOTA,entrada:g.entrada},contatoBusca)):fila;
   contatoGrupos={};grupos.forEach(g=>{contatoGrupos[g.nro]=g;}); // p/ o fluxo de envio (5.6)
+  if(!grupos.length&&fila.length){cont.innerHTML=`<div class="ct-empty">Nenhuma reserva Aguardando encontrada para “${escapeHtml(contatoBusca.trim())}” neste período.</div>`;renderPranchetaContato();return;}
   if(!grupos.length){cont.innerHTML='<div class="ct-empty">🎉 Ninguém aguardando garagem neste período — nada a contatar.</div>';renderPranchetaContato();return;}
   cont.appendChild(subTitulo('Aguardando — '+grupos.length));
   grupos.forEach(g=>cont.appendChild(itemContato(g)));
@@ -3731,7 +3846,8 @@ function itemContato(g){
 
   const aptos=[...g.aptos].join(', ')||'-';
   // 5.2 — PMS e OTA clicáveis para copiar (stopPropagation p/ não acionar o realce do item).
-  const otaBadge=g.nroOTA?`<span class="ct-badge ota copyable" title="Localizador OTA (Booking/Expedia) — clique para copiar" onclick="event.stopPropagation();copiarTexto('${g.nroOTA}')">OTA ${g.nroOTA}</span>`:'';
+  // v1.5.9 (A) — Nº da reserva na OTA (de Origem (…)); sem número → 'não informado' (nunca o localizador)
+  const otaBadge=g.nroOTA?`<span class="ct-badge ota copyable" title="Nº da reserva na OTA — clique para copiar" onclick="event.stopPropagation();copiarTexto('${escapeAttr(g.nroOTA)}')">OTA ${escapeHtml(g.nroOTA)}</span>`:'<span class="ct-badge ota-ni" title="A reserva não traz Origem (…) com o nº da OTA">OTA não informado</span>';
   // v1.5.5 (6.8) — flags (overbooking / vaga extra) só como INFORMAÇÃO visual (não excluem da fila).
   const flags=`${g.over?'<span class="ct-flag over" title="Em overbooking (sem vaga garantida)">⚠ Overbooking</span>':''}${g.extra?'<span class="ct-flag extra" title="Em vaga extra">➕ Vaga extra</span>':''}`;
   // v1.5.5 (6.9) — "já contatado" com data/hora do último envio (informação; NÃO bloqueia reenvio).
@@ -3882,7 +3998,8 @@ function renderGestao(){
         <div class="chaves-legenda">
           <span class="cl-item"><code>[nome]</code> hóspede</span>
           <span class="cl-item"><code>[data]</code> entrada e saída</span>
-          <span class="cl-item"><code>[canal]</code> origem da reserva</span>
+          <span class="cl-item"><code>[canal]</code> canal da reserva (Origem)</span>
+          <span class="cl-item"><code>[ota]</code> nº da reserva na OTA</span>
           <span class="cl-item"><code>[empresa]</code> nome da empresa</span>
           <span class="cl-item"><code>[funcionario]</code> funcionário padrão</span>
           <button class="ajuda-btn" onclick="abrirAjuda()" title="O que são as chaves?" aria-label="Ajuda das chaves">?</button>
@@ -3989,11 +4106,17 @@ function abrirAjuda(){document.getElementById('ajuda-modal').style.display='flex
 function fecharAjuda(){document.getElementById('ajuda-modal').style.display='none';}
 
 /* ═══════════ FLUXO DE ENVIO (preview + troca + editar só este envio) ═══════════ */
-function abrirEnvio(nro){
-  const g=contatoGrupos[nro];if(!g)return;
+// v1.5.9 (D) — `opts` opcional {g, modo:'copiar'}: o Detalhe da reserva reusa ESTE modal (mesmo modelo,
+// mesma troca Modelo 1/2/3, mesmas chaves) para COPIAR a mensagem em vez de abrir o WhatsApp.
+function abrirEnvio(nro,opts){
+  opts=opts||{};
+  const g=opts.g||contatoGrupos[nro];if(!g)return;
   const cat=categoriaReserva(g);if(!cat)return;
   const gestao=gestaoConfig||gestaoDefault();
-  envioCtx={nro,cat,idx:modeloPadraoIdx(gestao,cat),editado:false,g};
+  envioCtx={nro,cat,idx:modeloPadraoIdx(gestao,cat),editado:false,g,modo:opts.modo||'enviar'};
+  const copiar=envioCtx.modo==='copiar';
+  document.getElementById('envio-copiar').style.display=copiar?'':'none';
+  document.getElementById('envio-enviar').style.display=copiar?'none':'';
   document.getElementById('envio-titulo').textContent=cat==='overbooking'?'Mensagem — Overbooking (sem vaga)':'Mensagem — Verificando (interesse)';
   const ta=document.getElementById('envio-preview');ta.readOnly=true;
   document.getElementById('envio-editar').textContent='✏️ Editar só este envio';
@@ -4019,12 +4142,60 @@ function envioTextoModelo(){
   const gestao=gestaoNormalizar(gestaoConfig||gestaoDefault());
   return gestao.modelos[envioCtx.cat][envioCtx.idx]||'';
 }
-function envioReservaDados(){const g=envioCtx.g;return{nome:g.nome,entrada:g.entrada,saida:g.saida,origem:g.origem,telefone:g.telefone};}
+function envioReservaDados(){return dadosMensagem(envioCtx.g);}
 function envioAtualizarPreview(){
   const txt=substituirChaves(envioTextoModelo(),envioReservaDados(),gestaoConfig||gestaoDefault());
   document.getElementById('envio-preview').value=txt;
   envioAtualizarLink(txt);
+  // v1.5.9 (B) — chave usada no modelo e SEM dado nesta reserva → aviso visível (não manda buraco às cegas)
+  const vazias=chavesVazias(envioTextoModelo(),envioReservaDados(),gestaoConfig||gestaoDefault());
+  const av=document.getElementById('envio-aviso');
+  if(av){if(vazias.length){av.style.display='block';av.innerHTML=avisoChavesVaziasHTML(vazias);}else{av.style.display='none';av.innerHTML='';}}
 }
+function avisoChavesVaziasHTML(vazias){
+  return '⚠ Sem dado nesta reserva para '+vazias.map(k=>'<b>['+k+']</b>').join(', ')+' — '+(vazias.length>1?'essas chaves ficaram':'essa chave ficou')+' em branco no texto. Confira antes de enviar.';
+}
+// v1.5.9 (D) — copia o texto do preview (o que o usuário vê, inclusive editado) e registra 'copiado'.
+async function envioCopiar(){
+  if(!envioCtx)return;
+  const {nro,cat,idx,g}=envioCtx;
+  const texto=document.getElementById('envio-preview').value;
+  const vazias=envioCtx.editado?[]:chavesVazias(envioTextoModelo(),envioReservaDados(),gestaoConfig||gestaoDefault());
+  fecharEnvio();
+  await copiarMensagemTexto(nro,cat,idx,texto,vazias,g);
+}
+// Dados da reserva p/ as chaves — os MESMOS no Contato (envio) e no Detalhe (cópia).
+function dadosMensagem(g){return{nome:g.nome,entrada:g.entrada,saida:g.saida,origem:g.origem,canalOTA:g.canalOTA,nroOTA:g.nroOTA,telefone:g.telefone};}
+// v1.5.9 (D) — copia, registra o evento 'copiado' (funcionário padrão + data/hora, store `envios`), avisa
+// (inclusive chave sem dado) e redesenha: o bloco ganha a marca de contatado e o Detalhe a "Última cópia".
+async function copiarMensagemTexto(nro,cat,idx,texto,vazias){
+  const r=await copiarTextoCore(texto,{fallback:fallbackCopiar});
+  if(!r.ok){mostrarToast('Não foi possível copiar');return false;}
+  await registrarEnvio(nro,cat,idx,'copiado');
+  const av=(vazias&&vazias.length)?` — atenção: ${vazias.map(k=>'['+k+']').join(', ')} sem dado`:'';
+  mostrarToast('Mensagem copiada'+av,av?4500:1800);
+  const dm=document.getElementById('detalhe-modal');
+  if(detalheAberto&&String(detalheAberto.nro)===String(nro)&&dm&&dm.style.display==='flex')abrirDetalheReserva(detalheAberto);
+  return true;
+}
+// Botão do Detalhe: 1 modelo preenchido na categoria → copia direto (1 clique); vários → abre o MESMO
+// seletor do Contato (Modelo 1/2/3, editar só este envio) em modo "copiar".
+async function copiarMensagemDetalhe(nro){
+  const g=grupoContatoDe(nro);if(!g)return;
+  const cat=categoriaReserva(g);if(!cat)return;
+  const gestao=gestaoConfig||gestaoDefault();
+  if(modelosPreenchidos(gestao,cat).length>1){fecharDetalhe();abrirEnvio(nro,{g,modo:'copiar'});return;}
+  const idx=modeloPadraoIdx(gestao,cat);
+  const modelo=gestaoNormalizar(gestao).modelos[cat][idx]||'';
+  const dados=dadosMensagem(g);
+  await copiarMensagemTexto(nro,cat,idx,substituirChaves(modelo,dados,gestao),chavesVazias(modelo,dados,gestao));
+}
+// Último evento de contato da reserva (opcionalmente só de um tipo: 'copiado' | 'enviado').
+function ultimoContato(nro,tipo){
+  const l=enviosOrdenados(enviosPorNro[nro]).filter(e=>!tipo||((e&&e.tipo)||'enviado')===tipo);
+  return l.length?l[0]:null;
+}
+function fmtDiaHora(iso){const d=new Date(iso);if(isNaN(d))return'—';const p=n=>String(n).padStart(2,'0');return`${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;}
 function envioAtualizarLink(texto){document.getElementById('envio-enviar').href=linkWhatsAppTexto(envioCtx.g.telefone,texto);}
 function envioToggleEditar(){
   const ta=document.getElementById('envio-preview');
@@ -4034,7 +4205,7 @@ function envioPreviewInput(){if(envioCtx&&envioCtx.editado)envioAtualizarLink(do
 // v1.4.0 — ao disparar o wa.me pelo modal, registra o envio (status "enviado" + prancheta) e fecha.
 // "enviado" = envio disparado pelo app; entrega real exige WhatsApp Business API (backend).
 function onEnvioEnviarClick(){
-  if(envioCtx){registrarEnvio(envioCtx.nro,envioCtx.cat,envioCtx.idx);}
+  if(envioCtx){registrarEnvio(envioCtx.nro,envioCtx.cat,envioCtx.idx,'enviado');}
   fecharEnvio();
 }
 function fecharEnvio(){document.getElementById('envio-modal').style.display='none';envioCtx=null;}
@@ -4044,8 +4215,12 @@ function fecharEnvio(){document.getElementById('envio-modal').style.display='non
  * explícita do Doug) — e PRESERVA a Gestão (empresa, funcionários, modelos). ⚠ Isto NÃO é migração:
  * é ação deliberada do usuário, sempre atrás de confirmação. A regra de migração não-destrutiva
  * (nunca apagar em `onupgradeneeded`) continua valendo e não foi tocada. */
-const STORES_DADOS_RESERVA=['reservas','hospedados','ajustes','reservasManuais','contatos','envios'];
-const STORES_PRESERVADOS=['gestao'];
+// v1.5.9 (F) — o Limpar apaga SÓ os dados que o relatório reconstrói (+ edições do mapa). PRESERVA toda a
+// Gestão (empresa, funcionários, MODELOS), os TELEFONES (store contatos, por nº de reserva — religam sozinhos
+// na reimportação) e o HISTÓRICO de envios/cópias. ⚠ A causa de 'modelos sumidos' relatada NÃO estava aqui:
+// o store gestao nunca foi apagado pelo Limpar (ver RELATORIO-v1.5.9).
+const STORES_DADOS_RESERVA=['reservas','hospedados','ajustes','reservasManuais'];
+const STORES_PRESERVADOS=['gestao','contatos','envios'];
 function abrirLimparInformacoes(){document.getElementById('limpar-modal').style.display='flex';}
 function fecharLimparInformacoes(){document.getElementById('limpar-modal').style.display='none';}
 async function confirmarLimparInformacoes(){
@@ -4062,8 +4237,8 @@ async function limparInformacoes(){
   }
   // estado em memória (o app funciona sem IndexedDB — o clear precisa valer nos dois modos)
   todasReservas=[];todosHospedados=[];reservasManuais=[];
-  contatosMap={};ajustesMap={};enviosPorNro={};
-  layoutCongelado=null;ultimaAlocacao=null;pendenciasAtuais=[];
+  ajustesMap={}; // contatosMap (telefones) e enviosPorNro (histórico) são PRESERVADOS (v1.5.9 F)
+  layoutCongelado=null;ultimaAlocacao=null;pendenciasAtuais=[];duplicatasDispensadas=new Set();dupIsolarId=null;
   uploadInfo=null;uploadInfoHosp=null;
   contatoAtivoNro=null;destaqueNro=null;
   try{localStorage.removeItem('garagem_upload_info');localStorage.removeItem('garagem_upload_info_hosp');localStorage.removeItem(LS_LAYOUT);}catch(e){}
@@ -4073,8 +4248,8 @@ async function limparInformacoes(){
   try{atualizarTudo();}catch(e){}
   try{if(abaAtual==='gestao')renderGestao();}catch(e){}
   const el=document.getElementById('limpar-result');
-  if(el)el.textContent='✔ Informações apagadas. A Gestão foi preservada — importe os relatórios atualizados.';
-  mostrarToast('Informações apagadas — Gestão preservada');
+  if(el)el.textContent='✔ Reservas apagadas. Gestão (modelos), telefones e histórico de contatos foram preservados — importe os relatórios atualizados.';
+  mostrarToast('Reservas apagadas — Gestão, telefones e histórico preservados');
 }
 
 /* ═══════════ BACKUP / RESTAURAÇÃO ═══════════ */
@@ -4186,14 +4361,14 @@ async function carregarEnvios(){
 }
 // Registra um envio (no disparo do wa.me). Grava nro/dataHora/funcionario(nome-texto)/categoria/modelo.
 // "enviado" = envio disparado pelo app (wa.me aberto) — NÃO confirma entrega (exige backend).
-async function registrarEnvio(nro,categoria,modelo){
+async function registrarEnvio(nro,categoria,modelo,tipo){
   const gestao=gestaoNormalizar(gestaoConfig||gestaoDefault());
   const fp=funcionarioPadrao(gestao);
-  const reg=montarRegistroEnvio({nro,funcionario:fp?fp.nome:'',categoria,modelo,agoraMs:Date.now()});
+  const reg=montarRegistroEnvio({nro,funcionario:fp?fp.nome:'',categoria,modelo,tipo,agoraMs:Date.now()});
   // otimista em memória (e fallback sem DB)
   (enviosPorNro[reg.nro]=enviosPorNro[reg.nro]||[]).push(reg);
   if(dbOk){try{await dbPut('envios',reg);}catch(e){console.warn('salvar envio falhou',e);}await carregarEnvios();}
-  if(abaAtual==='contato')renderContato();
+  rerenderMapaEContato(); // v1.5.9 (D) — o bloco do mapa ganha a marca de "contatado" na hora
   renderPranchetaContato();
 }
 
@@ -4203,7 +4378,9 @@ function pranchetaCorpoHTML(nro){
   if(!itens.length)return'<div class="pr-vazio">Nenhum envio registrado</div>';
   return itens.map(e=>{
     const ms=e&&e.dataHora?new Date(e.dataHora).getTime():null;
-    return`<div class="pr-item"><span class="pr-dh">🕑 ${fmtDataHora(ms)||'—'}</span><span class="pr-func">👤 ${escapeHtml((e&&e.funcionario)||'—')}</span></div>`;
+    // v1.5.9 (D) — cada evento identificado: texto copiado (Detalhe) × enviado (WhatsApp pelo Contato)
+    const tp=(e&&e.tipo==='copiado')?'<span class="pr-tipo copiado">📋 Texto copiado</span>':'<span class="pr-tipo">💬 Enviado</span>';
+    return`<div class="pr-item">${tp}<span class="pr-dh">🕑 ${fmtDataHora(ms)||'—'}</span><span class="pr-func">👤 ${escapeHtml((e&&e.funcionario)||'—')}</span></div>`;
   }).join('');
 }
 // Prancheta flutuante no Contato — reflete a reserva selecionada (contatoAtivoNro).
@@ -4629,7 +4806,19 @@ function abrirEdicoesManuais(){
 function fecharEdicoesManuais(){document.getElementById('edicoes-modal').style.display='none';}
 
 // ── Modal de detalhe (clique abaixo do limiar) + "voltar ao automático" ──
+let detalheAberto=null; // v1.5.9 (D) — reserva do Detalhe aberto (p/ atualizar a "Última cópia")
+// v1.5.9 (D) — "Copiar mensagem" só quando há modelo aplicável (Aguardando ou em overbooking) — a mesma
+// regra/categoria do Contato. Hospedado não entra na fila do Contato → não tem botão.
+function copiarMensagemDetalheHTML(res){
+  if(!res||res.ehHospedado)return'';
+  const g=grupoContatoDe(res.nro);
+  if(!g||!categoriaReserva(g))return'';
+  const ult=ultimoContato(res.nro,'copiado');
+  return`<div class="detalhe-copiar"><button class="btn btn-primary" id="btn-copiar-msg" onclick="copiarMensagemDetalhe('${escapeAttr(String(res.nro))}')">📋 Copiar mensagem</button>`+
+    `<span class="ultima-copia">${ult?'Última cópia: '+fmtDiaHora(ult.dataHora):'Ainda não copiada'}</span></div>`;
+}
 function abrirDetalheReserva(res){
+  detalheAberto=res;
   const corpo=document.getElementById('detalhe-corpo');
   const chave=chaveCarro(res);          // v1.5.7 (7.2) — o detalhe edita ESTE carro
   const aj=resolverAjuste(res,ajustesMap);
@@ -4637,7 +4826,8 @@ function abrirDetalheReserva(res){
   const diverge=pmsDivergente(res,aj);
   // 5.5 (v1.4.0) — nº PMS e localizador OTA clicáveis para copiar (mesmo feedback/fallback do Contato).
   const nroCopy=`<span class="tt-val copyable" title="Clique para copiar o nº PMS" onclick="copiarTexto('${escapeAttr(res.nro)}')">#${escapeHtml(res.nro)}</span>`;
-  const ota=res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val copyable" title="Clique para copiar o localizador OTA" onclick="copiarTexto('${escapeAttr(res.nroOTA)}')">${escapeHtml(res.nroOTA)}</span></div>`:'';
+  // v1.5.9 (A) — Nº da reserva na OTA (copiável); sem número → 'não informado'. Nunca o localizador.
+  const ota=res.ehManual?'':(res.nroOTA?`<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val copyable" title="Clique para copiar o nº da reserva na OTA" onclick="copiarTexto('${escapeAttr(res.nroOTA)}')">${escapeHtml(res.nroOTA)}</span></div>`:'<div class="tt-row"><span class="tt-key">Nº OTA</span><span class="tt-val ota-ni">não informado</span></div>');
   const mao=(res.ajusteManual)?`<div class="tt-row"><span class="tt-key">Posição</span><span class="tt-val">✋ Ajustada manualmente${res._vagaManual?' ('+escapeHtml(res._vagaManual==='OVERBOOKING'?'Overbooking':labelVagaVisivel(res._vagaManual))+')':''}</span></div>`:'';
   // v1.5.1 — hospedado: identificação, editor "na garagem ↔ saiu", canal e tipo de veículo.
   const ehH=!!res.ehHospedado;
@@ -4671,6 +4861,7 @@ function abrirDetalheReserva(res){
     <div class="tt-row"><span class="tt-key">Status</span><span class="tt-val">${statusEditor}</span></div>
     ${divergenciaHTML(res,aj)}
     ${pendenciasDetalheHTML(res)}
+    ${copiarMensagemDetalheHTML(res)}
     ${mao}
     <div class="prancheta prancheta-inline" id="detalhe-prancheta">
       <div class="pr-head"><span class="pr-titulo">📋 Envios</span></div>
